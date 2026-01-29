@@ -13,9 +13,9 @@ Tweek uses a tiered licensing model to balance open-source availability with sus
 
 ### FREE Tier (Open Source)
 
-All core security features:
+Essential security protection:
 
-- **Pattern Matching** - 100+ regex patterns for known attack signatures
+- **Pattern Matching** - 23 core patterns for common attacks
 - **Basic Logging** - SQLite-based security event logging
 - **Vault Storage** - Secure credential storage in system keychain
 - **CLI Commands** - Full command-line interface
@@ -25,6 +25,8 @@ All core security features:
 ### PRO Tier
 
 Everything in FREE, plus:
+
+- **Full Pattern Library** - 116 patterns including evasion, CVEs, advanced injection
 
 - **LLM Review** - Semantic analysis using Claude Haiku for suspicious commands
 - **Session Analysis** - Cross-turn anomaly detection for persistent attacks

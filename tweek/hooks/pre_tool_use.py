@@ -142,12 +142,32 @@ class PatternMatcher:
         self.patterns = self._load_patterns(patterns_path)
 
     def _load_patterns(self, path: Path) -> List[dict]:
-        """Load patterns from YAML config."""
+        """Load patterns from YAML config, filtered by license tier.
+
+        FREE tier: Only patterns with tier: free
+        PRO tier: All patterns (free + pro)
+        """
         if not path.exists():
             return []
+
         with open(path) as f:
             config = yaml.safe_load(f) or {}
-        return config.get("patterns", [])
+
+        all_patterns = config.get("patterns", [])
+
+        # Check license tier
+        try:
+            from tweek.licensing import get_license
+            is_pro = get_license().is_pro
+        except Exception:
+            is_pro = False
+
+        if is_pro:
+            # Pro users get all patterns
+            return all_patterns
+        else:
+            # Free users only get patterns with tier: free
+            return [p for p in all_patterns if p.get("tier") == "free"]
 
     def check(self, content: str) -> Optional[dict]:
         """Check content against all patterns.

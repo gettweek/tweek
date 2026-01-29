@@ -11,12 +11,17 @@
 #   description: Human-readable explanation shown to user
 #   regex: Python regex pattern to match against command
 #   severity: critical | high | medium | low
+#   tier: free | pro (default: pro - patterns without tier require Pro license)
 #
 # Severity guide:
 #   critical - Almost certainly malicious (exfiltration, backdoors, known CVEs)
 #   high - Likely malicious or very dangerous
 #   medium - Suspicious, warrants review
 #   low - Unusual but possibly legitimate
+#
+# Tier guide:
+#   free - Basic protection, included in free tier (~25 patterns)
+#   pro - Advanced detection, requires Pro license (~90 patterns)
 
 version: 2
 taxonomy_version: "crowdstrike-2025"
@@ -31,72 +36,84 @@ patterns:
     description: "Attempts to read .env files containing secrets"
     regex: '(cat|head|tail|less|more|bat|grep|rg|ag)\s+.*\.env'
     severity: high
+    tier: free
 
   - name: env_variable_expansion
     id: CE-0002
     description: "Accessing environment variables that may contain secrets"
     regex: '\$\{?(API_KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|PRIVATE_KEY|AUTH)[A-Z_]*\}?'
     severity: high
+    tier: free
 
   - name: env_command
     id: CE-0003
     description: "Dumping all environment variables"
     regex: '\benv\b|\bprintenv\b|\bexport\s*$'
     severity: medium
+    tier: free
 
   - name: ssh_key_read
     id: CE-0004
     description: "Reading SSH private keys"
     regex: '(cat|head|tail|less|more)\s+.*\.ssh/(id_rsa|id_ed25519|id_ecdsa|id_dsa)(?!\.pub)'
     severity: critical
+    tier: free
 
   - name: ssh_directory_access
     id: CE-0005
     description: "Accessing SSH directory contents"
     regex: '(ls|find|cat)\s+.*\.ssh'
     severity: high
+    tier: free
 
   - name: aws_credentials
     id: CE-0006
     description: "Accessing AWS credential files"
     regex: '(cat|head|tail|less|more)\s+.*\.aws/(credentials|config)'
     severity: critical
+    tier: free
 
   - name: gcloud_credentials
     id: CE-0007
     description: "Accessing Google Cloud credentials"
     regex: '(cat|head|tail|less|more)\s+.*\.config/gcloud'
     severity: critical
+    tier: free
 
   - name: kube_config
     id: CE-0008
     description: "Accessing Kubernetes config"
     regex: '(cat|head|tail|less|more)\s+.*\.kube/config'
     severity: high
+    tier: free
 
   - name: netrc_access
     id: CE-0009
     description: "Accessing .netrc (contains plaintext passwords)"
     regex: '(cat|head|tail|less|more)\s+.*\.netrc'
     severity: critical
+    tier: free
 
   - name: history_access
     id: CE-0010
     description: "Reading shell history (may contain secrets)"
     regex: '(cat|head|tail|less|more|grep)\s+.*(\.bash_history|\.zsh_history|\.history)'
     severity: high
+    tier: free
 
   - name: npm_token_access
     id: CE-0011
     description: "Accessing NPM authentication tokens"
     regex: '(cat|head|tail|less|more)\s+.*\.npmrc'
     severity: high
+    tier: free
 
   - name: docker_config_access
     id: CE-0012
     description: "Accessing Docker credentials"
     regex: '(cat|head|tail|less|more)\s+.*\.docker/config\.json'
     severity: high
+    tier: free
 
   - name: pypirc_access
     id: CE-0013
@@ -125,30 +142,35 @@ patterns:
     description: "Curl sending data that may include secrets"
     regex: 'curl\s+.*(-d|--data|--data-raw|--data-binary)\s+.*\$\('
     severity: critical
+    tier: free
 
   - name: curl_post_file
     id: NE-0002
     description: "Curl uploading local files"
     regex: 'curl\s+.*(-F|--form|-T|--upload-file)\s+'
     severity: high
+    tier: free
 
   - name: wget_post
     id: NE-0003
     description: "Wget sending POST data"
     regex: 'wget\s+.*--post-(data|file)'
     severity: high
+    tier: free
 
   - name: netcat_outbound
     id: NE-0004
     description: "Netcat connection (potential reverse shell or exfil)"
     regex: '\b(nc|ncat|netcat)\b.*(-e|exec)'
     severity: critical
+    tier: free
 
   - name: exfil_paste_sites
     id: NE-0005
     description: "Data sent to known paste/exfil sites"
     regex: '(curl|wget|http).*?(pastebin\.com|hastebin\.com|ghostbin|0x0\.st|transfer\.sh|file\.io|webhook\.site|requestbin|ngrok\.io|pipedream)'
     severity: critical
+    tier: free
 
   - name: base64_curl_pipe
     id: NE-0006
@@ -202,18 +224,21 @@ patterns:
     description: "Direct attempt to override system instructions"
     regex: '(ignore|disregard|forget|override)\s+(previous|prior|system|all|above)\s+(instructions|prompt|rules|constraints|directives)'
     severity: high
+    tier: free
 
   - name: role_hijack
     id: PT-0102
     description: "Attempting to assume new identity/role"
     regex: '(you\s+are\s+now|act\s+as|pretend\s+to\s+be|your\s+new\s+role\s+is|from\s+now\s+on\s+you\s+are)'
     severity: high
+    tier: free
 
   - name: privilege_claim
     id: PT-0103
     description: "False claims of elevated privileges"
     regex: '(as\s+(the\s+)?(admin|root|owner|developer|superuser)|i\s+have\s+(admin|root|elevated)\s+access|authorized\s+to|i\s+am\s+the\s+owner)'
     severity: high
+    tier: free
 
   - name: policy_confusion
     id: PT-0104
@@ -661,6 +686,7 @@ patterns:
     description: "Creating reverse shell connections for remote access"
     regex: '(python|ruby|perl|php).*socket.*connect.*(exec|system|spawn)|bash\s+-i.*>&.*/dev/tcp/'
     severity: critical
+    tier: free
 
   # ============================================================================
   # MACOS KEYCHAIN / CREDENTIAL THEFT (MAC-####)
@@ -672,6 +698,7 @@ patterns:
     description: "Extracting credentials from macOS Keychain (Atomic Stealer technique)"
     regex: '(security\s+dump-keychain|security\s+find-(generic|internet)-password\s+.*-w|chainbreaker|KeychainCrack|security\s+export)'
     severity: critical
+    tier: free
 
   - name: browser_credential_theft
     id: MAC-0002

@@ -63,7 +63,7 @@ class LicenseInfo:
 # Feature definitions by tier
 TIER_FEATURES = {
     Tier.FREE: [
-        "pattern_matching",
+        "pattern_matching_basic",  # 23 core patterns
         "basic_logging",
         "vault_storage",
         "cli_commands",
@@ -71,6 +71,7 @@ TIER_FEATURES = {
         "project_install",
     ],
     Tier.PRO: [
+        "pattern_matching_full",  # 116 patterns (all including advanced)
         "llm_review",
         "session_analysis",
         "rate_limiting",
