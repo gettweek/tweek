@@ -613,6 +613,20 @@ def status():
         str(db_path) if db_path.exists() else "Will be created on first event"
     )
 
+    # License status
+    from tweek.licensing import get_license, Tier
+    lic = get_license()
+    tier_colors = {Tier.FREE: "white", Tier.PRO: "cyan", Tier.ENTERPRISE: "magenta"}
+    tier_color = tier_colors.get(lic.tier, "white")
+    tier_display = f"[{tier_color}]{lic.tier.value.upper()}[/{tier_color}]"
+
+    if lic.tier == Tier.FREE:
+        license_detail = "Upgrade: gettweek.com/pricing"
+    else:
+        license_detail = f"Licensed to: {lic.info.email}" if lic.info else ""
+
+    table.add_row("License", tier_display, license_detail)
+
     console.print(table)
 
     # Show recent stats if database exists
@@ -1036,6 +1050,117 @@ def vault_delete(skill: str, key: str):
         console.print(f"[green]✓[/green] Deleted {key} from skill '{skill}'")
     else:
         console.print(f"[yellow]![/yellow] Credential not found: {key} for skill '{skill}'")
+
+
+# ============================================================
+# LICENSE COMMANDS
+# ============================================================
+
+@main.group()
+def license():
+    """Manage Tweek license and features."""
+    pass
+
+
+@license.command("status")
+def license_status():
+    """Show current license status and available features."""
+    from tweek.licensing import get_license, TIER_FEATURES, Tier
+
+    console.print(TWEEK_BANNER, style="cyan")
+
+    lic = get_license()
+    info = lic.info
+
+    # License info
+    tier_colors = {
+        Tier.FREE: "white",
+        Tier.PRO: "cyan",
+        Tier.ENTERPRISE: "magenta",
+    }
+
+    tier_color = tier_colors.get(lic.tier, "white")
+    console.print(f"[bold]License Tier:[/bold] [{tier_color}]{lic.tier.value.upper()}[/{tier_color}]")
+
+    if info:
+        console.print(f"[dim]Licensed to: {info.email}[/dim]")
+        if info.expires_at:
+            from datetime import datetime
+            exp_date = datetime.fromtimestamp(info.expires_at).strftime("%Y-%m-%d")
+            if info.is_expired:
+                console.print(f"[red]Expired: {exp_date}[/red]")
+            else:
+                console.print(f"[dim]Expires: {exp_date}[/dim]")
+        else:
+            console.print("[dim]Expires: Never[/dim]")
+    console.print()
+
+    # Features table
+    table = Table(title="Feature Availability")
+    table.add_column("Feature", style="cyan")
+    table.add_column("Status")
+    table.add_column("Tier Required")
+
+    # Collect all features and their required tiers
+    feature_tiers = {}
+    for tier in [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]:
+        for feature in TIER_FEATURES.get(tier, []):
+            feature_tiers[feature] = tier
+
+    for feature, required_tier in feature_tiers.items():
+        has_it = lic.has_feature(feature)
+        status = "[green]✓[/green]" if has_it else "[dim]○[/dim]"
+        tier_display = required_tier.value.upper()
+        if required_tier == Tier.PRO:
+            tier_display = f"[cyan]{tier_display}[/cyan]"
+        elif required_tier == Tier.ENTERPRISE:
+            tier_display = f"[magenta]{tier_display}[/magenta]"
+
+        table.add_row(feature, status, tier_display)
+
+    console.print(table)
+
+    if lic.tier == Tier.FREE:
+        console.print()
+        console.print("[yellow]Upgrade to Pro for advanced features:[/yellow]")
+        console.print("[dim]https://gettweek.com/pricing[/dim]")
+
+
+@license.command("activate")
+@click.argument("license_key")
+def license_activate(license_key: str):
+    """Activate a license key."""
+    from tweek.licensing import get_license
+
+    lic = get_license()
+    success, message = lic.activate(license_key)
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+        console.print()
+        console.print("[dim]Run 'tweek license status' to see available features[/dim]")
+    else:
+        console.print(f"[red]✗[/red] {message}")
+
+
+@license.command("deactivate")
+@click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
+def license_deactivate(confirm: bool):
+    """Remove current license and revert to FREE tier."""
+    from tweek.licensing import get_license
+
+    if not confirm:
+        if not click.confirm("[yellow]Deactivate license and revert to FREE tier?[/yellow]"):
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    lic = get_license()
+    success, message = lic.deactivate()
+
+    if success:
+        console.print(f"[green]✓[/green] {message}")
+    else:
+        console.print(f"[red]✗[/red] {message}")
 
 
 # ============================================================

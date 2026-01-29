@@ -216,6 +216,8 @@ class RateLimiter:
         """
         Check if an invocation should be rate limited.
 
+        This is a PRO feature. Without a Pro license, always allows.
+
         Args:
             tool_name: Name of the tool being invoked
             command: The command being executed (for Bash)
@@ -225,6 +227,11 @@ class RateLimiter:
         Returns:
             RateLimitResult with allowed status and any violations
         """
+        # Check license - rate limiting is a Pro feature
+        from tweek.licensing import get_license
+        if not get_license().has_feature("rate_limiting"):
+            return RateLimitResult(allowed=True, message="Rate limiting requires Pro license")
+
         if not session_id:
             # No session tracking - allow but log
             return RateLimitResult(allowed=True, message="No session ID for rate limiting")
