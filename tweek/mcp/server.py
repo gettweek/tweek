@@ -267,116 +267,41 @@ class TweekMCPServer:
         """
         Run the shared screening pipeline.
 
+        Delegates to the shared screening module and converts
+        should_prompt -> blocked (in gateway mode, there is no
+        interactive user to ask).
+
         Returns dict with:
             allowed: bool
             blocked: bool
             reason: Optional[str]
             findings: List[Dict]
         """
-        try:
-            from tweek.hooks.pre_tool_use import (
-                TierManager,
-                PatternMatcher,
-                run_compliance_scans,
-                run_screening_plugins,
-            )
-            from tweek.logging.security_log import SecurityLogger, get_logger
+        from tweek.mcp.screening import run_mcp_screening
 
-            sec_logger = get_logger()
+        result = run_mcp_screening(context)
 
-            # Resolve tier
-            tier_mgr = TierManager()
-            effective_tier, escalation = tier_mgr.get_effective_tier(
-                context.tool_name, context.content
-            )
-            context.tier = effective_tier
-
-            # Run compliance scans on input
-            should_block, compliance_msg, compliance_findings = run_compliance_scans(
-                content=context.content,
-                direction="input",
-                logger=sec_logger,
-                session_id=context.session_id,
-                tool_name=context.tool_name,
-            )
-
-            if should_block:
-                self._blocked_count += 1
-                return {
-                    "allowed": False,
-                    "blocked": True,
-                    "reason": compliance_msg or "Blocked by compliance scan",
-                    "findings": compliance_findings,
-                }
-
-            # Skip further screening for safe tier
-            if effective_tier == "safe":
-                return {"allowed": True, "blocked": False, "reason": None, "findings": []}
-
-            # Pattern matching
-            pattern_matcher = PatternMatcher()
-            match = pattern_matcher.check(context.content)
-
-            if match:
-                self._blocked_count += 1
-                pattern_name = match.get("pattern", match.get("name", "unknown"))
-                return {
-                    "allowed": False,
-                    "blocked": True,
-                    "reason": f"Blocked by pattern match: {pattern_name}",
-                    "findings": [match],
-                }
-
-            # Run screening plugins
-            legacy_context = context.to_legacy_dict()
-            allowed, should_prompt, screen_msg, screen_findings = run_screening_plugins(
-                tool_name=context.tool_name,
-                content=context.content,
-                context=legacy_context,
-                logger=sec_logger,
-            )
-
-            if not allowed:
-                self._blocked_count += 1
-                return {
-                    "allowed": False,
-                    "blocked": True,
-                    "reason": screen_msg or "Blocked by screening plugin",
-                    "findings": screen_findings,
-                }
-
-            if should_prompt:
-                # In MCP mode, we block when hooks would prompt
-                # (no interactive user to ask)
-                self._blocked_count += 1
-                return {
-                    "allowed": False,
-                    "blocked": True,
-                    "reason": f"Requires user confirmation: {screen_msg}",
-                    "findings": screen_findings,
-                }
-
-            return {"allowed": True, "blocked": False, "reason": None, "findings": []}
-
-        except ImportError as e:
-            logger.warning(f"Screening modules not available: {e}")
-            # Fail open with warning if screening not available
-            return {
-                "allowed": True,
-                "blocked": False,
-                "reason": f"Warning: screening unavailable ({e})",
-                "findings": [],
-            }
-        except Exception as e:
-            logger.error(f"Screening error: {e}")
-            # Fail closed on unexpected errors
+        # In MCP gateway mode, convert should_prompt -> blocked
+        # (no interactive user available to confirm)
+        if result.get("should_prompt"):
             self._blocked_count += 1
             return {
                 "allowed": False,
                 "blocked": True,
-                "reason": f"Screening error: {e}",
-                "findings": [],
+                "reason": f"Requires user confirmation: {result.get('reason', '')}",
+                "findings": result.get("findings", []),
             }
+
+        # Track blocked count for statistics
+        if result.get("blocked"):
+            self._blocked_count += 1
+
+        return {
+            "allowed": result.get("allowed", False),
+            "blocked": result.get("blocked", False),
+            "reason": result.get("reason"),
+            "findings": result.get("findings", []),
+        }
 
     async def _handle_bash(self, arguments: Dict[str, Any]) -> str:
         """Handle tweek_bash tool call."""
@@ -680,27 +605,8 @@ class TweekMCPServer:
 
         Returns dict with blocked: bool and reason if blocked.
         """
-        try:
-            from tweek.hooks.pre_tool_use import run_compliance_scans
-            from tweek.logging.security_log import get_logger
-
-            sec_logger = get_logger()
-            should_block, msg, findings = run_compliance_scans(
-                content=content,
-                direction="output",
-                logger=sec_logger,
-                tool_name="mcp_output_scan",
-            )
-
-            if should_block:
-                return {"blocked": True, "reason": msg, "findings": findings}
-
-        except ImportError:
-            pass
-        except Exception as e:
-            logger.debug(f"Output scan error: {e}")
-
-        return {"blocked": False}
+        from tweek.mcp.screening import run_output_scan
+        return run_output_scan(content)
 
 
 async def run_server(config: Optional[Dict[str, Any]] = None):
