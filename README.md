@@ -1,4 +1,6 @@
-# Tweek
+# Tweek — GAH!
+
+> *"Just because you're paranoid doesn't mean your AI agent isn't exfiltrating your SSH keys."*
 
 **Defense-in-depth security for AI assistants.**
 
@@ -137,7 +139,7 @@ Full pattern library: [Attack Patterns Reference](docs/ATTACK_PATTERNS.md)
 
 Everything in Free, plus:
 
-- LLM semantic review (Claude Haiku catches obfuscated attacks)
+- LLM semantic review (Anthropic Claude only at this time)
 - Session anomaly detection (9 anomaly types across turns)
 - Rate limiting and burst detection
 - Sandbox preview (speculative execution on macOS/Linux)
