@@ -4,7 +4,6 @@ Tests for Tweek CLI commands.
 
 Tests coverage of:
 - Install/uninstall commands
-- Status command
 - License commands
 - Config commands
 - Vault commands
@@ -21,7 +20,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tweek.cli import main, install, uninstall, status, update
+from tweek.cli import main, install, uninstall, update
 from tweek.licensing import License, Tier, generate_license_key
 
 
@@ -251,35 +250,6 @@ class TestUninstallCommand:
                 assert "hooks" not in settings or "PreToolUse" not in settings.get("hooks", {})
 
 
-class TestStatusCommand:
-    """Tests for the status command."""
-
-    def test_status_shows_info(self, runner, tmp_path):
-        """Test status command shows system info."""
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.platform.get_capabilities') as mock_caps:
-                mock_caps.return_value = MagicMock(
-                    platform=MagicMock(value="darwin"),
-                    vault_available=True,
-                    vault_backend="Keychain"
-                )
-                with patch('tweek.sandbox.get_sandbox_status', return_value={"available": False}):
-                    result = runner.invoke(main, ['status'])
-
-        assert result.exit_code == 0 or "Status" in result.output or "TWEEK" in result.output
-
-    def test_status_shows_license_tier(self, runner, tmp_path):
-        """Test status shows license tier."""
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.licensing.LICENSE_FILE', tmp_path / "license.key"):
-                License._instance = None
-                result = runner.invoke(main, ['status'])
-                License._instance = None
-
-        # Should show FREE tier by default
-        assert "FREE" in result.output or result.exit_code == 0
-
-
 class TestLicenseCommands:
     """Tests for license subcommands."""
 
@@ -343,13 +313,13 @@ class TestConfigCommands:
 
         assert result.exit_code == 0 or "Tool" in result.output or "Tier" in result.output
 
-    def test_config_show(self, runner, tmp_path):
-        """Test config show command."""
+    def test_config_list_summary(self, runner, tmp_path):
+        """Test config list --summary command (replaces config show)."""
         tweek_dir = tmp_path / ".tweek"
         tweek_dir.mkdir(parents=True, exist_ok=True)
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            result = runner.invoke(main, ['config', 'show'])
+            result = runner.invoke(main, ['config', 'list', '--summary'])
 
         assert result.exit_code == 0 or "Configuration" in result.output
 
@@ -419,8 +389,8 @@ class TestLogsCommands:
 
         assert result.exit_code == 0 or "No events" in result.output or "events" in result.output.lower()
 
-    def test_logs_stats(self, runner, tmp_path):
-        """Test logs stats command."""
+    def test_logs_show_stats(self, runner, tmp_path):
+        """Test logs show --stats command (replaces logs stats)."""
         tweek_dir = tmp_path / ".tweek"
         tweek_dir.mkdir(parents=True, exist_ok=True)
 
@@ -432,7 +402,7 @@ class TestLogsCommands:
                     'by_tool': {},
                     'top_patterns': []
                 }
-                result = runner.invoke(main, ['logs', 'stats'])
+                result = runner.invoke(main, ['logs', 'show', '--stats'])
 
         assert result.exit_code == 0 or "Statistics" in result.output
 

@@ -13,6 +13,7 @@ Usage:
     config.set_skill_tier("my-skill", "trusted")
 """
 
+import difflib
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
@@ -74,6 +75,23 @@ class PluginConfig:
     source: str = "default"
 
 
+@dataclass
+class ConfigIssue:
+    """A configuration validation issue."""
+    level: str       # "error", "warning", "info"
+    key: str         # "tools.Bahs" (the problematic key path)
+    message: str     # "Unknown tool 'Bahs'"
+    suggestion: str  # "Did you mean 'Bash'?"
+
+
+@dataclass
+class ConfigChange:
+    """A single configuration change from a preset diff."""
+    key: str
+    current_value: Any
+    new_value: Any
+
+
 class ConfigManager:
     """Manages Tweek configuration with layered overrides."""
 
@@ -104,6 +122,55 @@ class ConfigManager:
         "frontend-design": ("risky", "Generate frontend code"),
         "dev-browser": ("risky", "Browser automation"),
         "deploy": ("dangerous", "Deployment operations"),
+    }
+
+    # Configuration presets
+    PRESETS = {
+        "paranoid": {
+            "tools": {
+                "Read": "default",
+                "Glob": "default",
+                "Grep": "default",
+                "Edit": "risky",
+                "Write": "risky",
+                "WebFetch": "dangerous",
+                "WebSearch": "dangerous",
+                "Bash": "dangerous",
+            },
+            "default_tier": "risky",
+        },
+        "cautious": {
+            "tools": {
+                "Read": "safe",
+                "Glob": "safe",
+                "Grep": "safe",
+                "Edit": "default",
+                "Write": "default",
+                "WebFetch": "risky",
+                "WebSearch": "risky",
+                "Bash": "dangerous",
+            },
+            "default_tier": "default",
+        },
+        "trusted": {
+            "tools": {
+                "Read": "safe",
+                "Glob": "safe",
+                "Grep": "safe",
+                "Edit": "safe",
+                "Write": "safe",
+                "WebFetch": "default",
+                "WebSearch": "default",
+                "Bash": "risky",
+            },
+            "default_tier": "safe",
+        },
+    }
+
+    # Valid top-level config keys
+    VALID_TOP_LEVEL_KEYS = {
+        "tools", "skills", "default_tier", "escalations",
+        "plugins", "mcp", "proxy",
     }
 
     def __init__(
@@ -434,52 +501,11 @@ class ConfigManager:
             cautious: Balanced security (recommended)
             trusted: Minimal prompts, trust AI decisions
         """
-        presets = {
-            "paranoid": {
-                "tools": {
-                    "Read": "default",
-                    "Glob": "default",
-                    "Grep": "default",
-                    "Edit": "risky",
-                    "Write": "risky",
-                    "WebFetch": "dangerous",
-                    "WebSearch": "dangerous",
-                    "Bash": "dangerous",
-                },
-                "default_tier": "risky",
-            },
-            "cautious": {
-                "tools": {
-                    "Read": "safe",
-                    "Glob": "safe",
-                    "Grep": "safe",
-                    "Edit": "default",
-                    "Write": "default",
-                    "WebFetch": "risky",
-                    "WebSearch": "risky",
-                    "Bash": "dangerous",
-                },
-                "default_tier": "default",
-            },
-            "trusted": {
-                "tools": {
-                    "Read": "safe",
-                    "Glob": "safe",
-                    "Grep": "safe",
-                    "Edit": "safe",
-                    "Write": "safe",
-                    "WebFetch": "default",
-                    "WebSearch": "default",
-                    "Bash": "risky",
-                },
-                "default_tier": "safe",
-            },
-        }
+        if preset not in self.PRESETS:
+            available = ", ".join(self.PRESETS.keys())
+            raise ValueError(f"Unknown preset: {preset}. Available: {available}")
 
-        if preset not in presets:
-            raise ValueError(f"Unknown preset: {preset}. Use: paranoid, cautious, trusted")
-
-        config = presets[preset]
+        config = self.PRESETS[preset]
 
         if scope == "project":
             self._project.update(config)
@@ -509,6 +535,175 @@ class ConfigManager:
             return dict(self._user)
         else:
             return dict(self._get_merged())
+
+    # ==================== VALIDATION ====================
+
+    def validate_config(self, scope: str = "merged") -> List[ConfigIssue]:
+        """
+        Validate configuration for errors, typos, and warnings.
+
+        Checks:
+            - Unknown top-level keys (with typo suggestions)
+            - Unknown tool names (with typo suggestions)
+            - Invalid tier values
+            - Invalid plugin references
+
+        Args:
+            scope: "user", "project", or "merged"
+
+        Returns:
+            List of ConfigIssue objects.
+        """
+        issues: List[ConfigIssue] = []
+
+        if scope == "user":
+            configs_to_check = [("user", self._user)]
+        elif scope == "project":
+            configs_to_check = [("project", self._project)]
+        else:
+            configs_to_check = [("user", self._user), ("project", self._project)]
+
+        valid_tiers = {t.value for t in SecurityTier}
+        known_tool_names = set(self.KNOWN_TOOLS.keys())
+        known_skill_names = set(self.KNOWN_SKILLS.keys())
+
+        for source_name, config in configs_to_check:
+            if not config:
+                continue
+
+            # Check top-level keys
+            for key in config:
+                if key not in self.VALID_TOP_LEVEL_KEYS:
+                    matches = difflib.get_close_matches(
+                        key, self.VALID_TOP_LEVEL_KEYS, n=1, cutoff=0.6
+                    )
+                    suggestion = f"Did you mean '{matches[0]}'?" if matches else ""
+                    issues.append(ConfigIssue(
+                        level="error",
+                        key=f"{source_name}.{key}",
+                        message=f"Unknown config key '{key}'",
+                        suggestion=suggestion,
+                    ))
+
+            # Check tool names and tiers
+            tools = config.get("tools", {})
+            if isinstance(tools, dict):
+                for tool_name, tier_value in tools.items():
+                    # Check if tool name is known
+                    if tool_name not in known_tool_names:
+                        # Check merged config tools too (custom tools are fine)
+                        merged_tools = self._get_merged().get("tools", {})
+                        if tool_name not in merged_tools:
+                            matches = difflib.get_close_matches(
+                                tool_name, known_tool_names, n=1, cutoff=0.6
+                            )
+                            suggestion = f"Did you mean '{matches[0]}'?" if matches else ""
+                            issues.append(ConfigIssue(
+                                level="warning",
+                                key=f"tools.{tool_name}",
+                                message=f"Unknown tool '{tool_name}'",
+                                suggestion=suggestion,
+                            ))
+
+                    # Check tier value
+                    if isinstance(tier_value, str) and tier_value not in valid_tiers:
+                        matches = difflib.get_close_matches(
+                            tier_value, valid_tiers, n=1, cutoff=0.5
+                        )
+                        suggestion = f"Did you mean '{matches[0]}'?" if matches else f"Valid tiers: {', '.join(sorted(valid_tiers))}"
+                        issues.append(ConfigIssue(
+                            level="error",
+                            key=f"tools.{tool_name}",
+                            message=f"Invalid tier '{tier_value}' for tool '{tool_name}'",
+                            suggestion=suggestion,
+                        ))
+
+            # Check skill names and tiers
+            skills = config.get("skills", {})
+            if isinstance(skills, dict):
+                for skill_name, tier_value in skills.items():
+                    if skill_name not in known_skill_names:
+                        matches = difflib.get_close_matches(
+                            skill_name, known_skill_names, n=1, cutoff=0.6
+                        )
+                        if matches:
+                            issues.append(ConfigIssue(
+                                level="warning",
+                                key=f"skills.{skill_name}",
+                                message=f"Unknown skill '{skill_name}'",
+                                suggestion=f"Did you mean '{matches[0]}'?",
+                            ))
+
+                    if isinstance(tier_value, str) and tier_value not in valid_tiers:
+                        matches = difflib.get_close_matches(
+                            tier_value, valid_tiers, n=1, cutoff=0.5
+                        )
+                        suggestion = f"Did you mean '{matches[0]}'?" if matches else f"Valid tiers: {', '.join(sorted(valid_tiers))}"
+                        issues.append(ConfigIssue(
+                            level="error",
+                            key=f"skills.{skill_name}",
+                            message=f"Invalid tier '{tier_value}' for skill '{skill_name}'",
+                            suggestion=suggestion,
+                        ))
+
+            # Check default_tier
+            default_tier = config.get("default_tier")
+            if default_tier and default_tier not in valid_tiers:
+                matches = difflib.get_close_matches(
+                    default_tier, valid_tiers, n=1, cutoff=0.5
+                )
+                suggestion = f"Did you mean '{matches[0]}'?" if matches else f"Valid tiers: {', '.join(sorted(valid_tiers))}"
+                issues.append(ConfigIssue(
+                    level="error",
+                    key="default_tier",
+                    message=f"Invalid default tier '{default_tier}'",
+                    suggestion=suggestion,
+                ))
+
+        return issues
+
+    def diff_preset(self, preset_name: str) -> List[ConfigChange]:
+        """
+        Show what would change if a preset were applied.
+
+        Args:
+            preset_name: Name of the preset ("paranoid", "cautious", "trusted").
+
+        Returns:
+            List of ConfigChange showing current vs. new values.
+
+        Raises:
+            ValueError: If preset_name is unknown.
+        """
+        if preset_name not in self.PRESETS:
+            available = ", ".join(self.PRESETS.keys())
+            raise ValueError(f"Unknown preset: {preset_name}. Available: {available}")
+
+        preset = self.PRESETS[preset_name]
+        changes: List[ConfigChange] = []
+
+        # Check default_tier change
+        current_default = self._get_merged().get("default_tier", "default")
+        new_default = preset.get("default_tier", current_default)
+        if current_default != new_default:
+            changes.append(ConfigChange(
+                key="default_tier",
+                current_value=current_default,
+                new_value=new_default,
+            ))
+
+        # Check tool tier changes
+        preset_tools = preset.get("tools", {})
+        for tool_name, new_tier in preset_tools.items():
+            current_tier = self.get_tool_tier(tool_name).value
+            if current_tier != new_tier:
+                changes.append(ConfigChange(
+                    key=f"tools.{tool_name}",
+                    current_value=current_tier,
+                    new_value=new_tier,
+                ))
+
+        return changes
 
     # ==================== PLUGIN CONFIGURATION ====================
 

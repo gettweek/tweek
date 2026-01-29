@@ -133,7 +133,17 @@ def main():
     pass
 
 
-@main.command()
+@main.command(
+    epilog="""\b
+Examples:
+  tweek install                          Install globally with default settings
+  tweek install --scope project          Install for current project only
+  tweek install --interactive            Walk through configuration prompts
+  tweek install --preset paranoid        Apply paranoid security preset
+  tweek install --with-sandbox           Install sandbox tool if needed (Linux)
+  tweek install --force-proxy            Override existing proxy configurations
+"""
+)
 @click.option("--scope", type=click.Choice(["global", "project"]), default="global",
               help="Installation scope: global (~/.claude) or project (./.claude)")
 @click.option("--dev-test", is_flag=True, hidden=True,
@@ -537,7 +547,14 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
         console.print("[dim]Run 'tweek proxy start' to enable API interception[/dim]")
 
 
-@main.command()
+@main.command(
+    epilog="""\b
+Examples:
+  tweek uninstall                        Remove from global installation
+  tweek uninstall --scope project        Remove from current project only
+  tweek uninstall --confirm              Skip confirmation prompt
+"""
+)
 @click.option("--scope", type=click.Choice(["global", "project"]), default="global",
               help="Uninstall scope: global (~/.claude) or project (./.claude)")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
@@ -627,7 +644,13 @@ def uninstall(scope: str, confirm: bool):
     console.print("[dim]Tweek data directory (~/.tweek) was preserved. Remove manually if desired.[/dim]")
 
 
-@main.command()
+@main.command(
+    epilog="""\b
+Examples:
+  tweek update                           Download/update attack patterns
+  tweek update --check                   Check for updates without installing
+"""
+)
 @click.option("--check", is_flag=True, help="Check for updates without installing")
 def update(check: bool):
     """Update attack patterns from GitHub.
@@ -677,7 +700,9 @@ def update(check: bool):
             console.print(f"[red]✗[/red] Failed to clone patterns: {e.stderr}")
             return
         except FileNotFoundError:
-            console.print("[red]✗[/red] git not found. Please install git.")
+            console.print("[red]\u2717[/red] git not found.")
+            console.print("  [dim]Hint: Install git from https://git-scm.com/downloads[/dim]")
+            console.print("  [dim]On macOS: xcode-select --install[/dim]")
             return
 
     else:
@@ -756,165 +781,182 @@ def update(check: bool):
             pass
 
 
-@main.command()
-def status():
-    """Show Tweek protection status."""
-    from tweek.logging.security_log import get_logger
-    from tweek.platform import get_capabilities, PLATFORM, IS_LINUX
-    from tweek.sandbox import get_sandbox_status
-    import os
-    import json
+@main.command(
+    epilog="""\b
+Examples:
+  tweek doctor                           Run all health checks
+  tweek doctor --verbose                 Show detailed check information
+  tweek doctor --json                    Output results as JSON for scripting
+"""
+)
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed check information")
+@click.option("--json-output", "--json", "json_out", is_flag=True, help="Output results as JSON")
+def doctor(verbose: bool, json_out: bool):
+    """Run health checks on your Tweek installation.
+
+    Checks hooks, configuration, patterns, database, vault, sandbox,
+    license, MCP, proxy, and plugin integrity.
+    """
+    from tweek.diagnostics import run_health_checks
+    from tweek.cli_helpers import print_doctor_results, print_doctor_json
+
+    checks = run_health_checks(verbose=verbose)
+
+    if json_out:
+        print_doctor_json(checks)
+    else:
+        print_doctor_results(checks)
+
+
+@main.command(
+    epilog="""\b
+Examples:
+  tweek quickstart                       Launch interactive setup wizard
+"""
+)
+def quickstart():
+    """Interactive first-run setup wizard.
+
+    Walks you through:
+      1. Installing hooks (global or project scope)
+      2. Choosing a security preset
+      3. Verifying credential vault
+      4. Optional MCP proxy setup
+    """
+    from tweek.config.manager import ConfigManager
+    from tweek.cli_helpers import print_success, print_warning, spinner
 
     console.print(TWEEK_BANNER, style="cyan")
+    console.print("[bold]Welcome to Tweek![/bold]")
+    console.print()
+    console.print("This wizard will help you set up Tweek step by step.")
+    console.print("  1. Install hooks")
+    console.print("  2. Choose a security preset")
+    console.print("  3. Verify credential vault")
+    console.print("  4. Optional MCP proxy")
+    console.print()
 
-    # Get platform capabilities
-    caps = get_capabilities()
-    sandbox_status = get_sandbox_status()
+    # Step 1: Install hooks
+    console.print("[bold cyan]Step 1/4: Hook Installation[/bold cyan]")
+    scope_choice = click.prompt(
+        "Where should Tweek protect?",
+        type=click.Choice(["global", "project", "both"]),
+        default="global",
+    )
 
-    # Check hook installations at both global and project level
-    global_claude = Path("~/.claude").expanduser()
-    project_claude = Path.cwd() / ".claude"
+    scopes = ["global", "project"] if scope_choice == "both" else [scope_choice]
+    for s in scopes:
+        try:
+            _quickstart_install_hooks(s)
+            print_success(f"Hooks installed ({s})")
+        except Exception as e:
+            print_warning(f"Could not install hooks ({s}): {e}")
+    console.print()
 
-    def check_tweek_hooks(settings_path: Path) -> bool:
-        """Check if Tweek hooks are installed in a settings file."""
-        if not settings_path.exists():
-            return False
+    # Step 2: Security preset
+    console.print("[bold cyan]Step 2/4: Security Preset[/bold cyan]")
+    console.print("  [cyan]1.[/cyan] paranoid  \u2014 Block everything suspicious, prompt on risky")
+    console.print("  [cyan]2.[/cyan] cautious  \u2014 Block dangerous, prompt on risky [dim](recommended)[/dim]")
+    console.print("  [cyan]3.[/cyan] trusted   \u2014 Allow most operations, block only dangerous")
+    console.print()
+
+    preset_choice = click.prompt(
+        "Select preset",
+        type=click.Choice(["1", "2", "3"]),
+        default="2",
+    )
+    preset_map = {"1": "paranoid", "2": "cautious", "3": "trusted"}
+    preset_name = preset_map[preset_choice]
+
+    try:
+        cfg = ConfigManager()
+        cfg.apply_preset(preset_name)
+        print_success(f"Applied {preset_name} preset")
+    except Exception as e:
+        print_warning(f"Could not apply preset: {e}")
+    console.print()
+
+    # Step 3: Credential vault
+    console.print("[bold cyan]Step 3/4: Credential Vault[/bold cyan]")
+    try:
+        from tweek.platform import get_capabilities
+        caps = get_capabilities()
+        if caps.vault_available:
+            print_success(f"{caps.vault_backend} detected. No configuration needed.")
+        else:
+            print_warning("No vault backend available. Credentials will use fallback storage.")
+    except Exception:
+        print_warning("Could not check vault availability.")
+    console.print()
+
+    # Step 4: Optional MCP proxy
+    console.print("[bold cyan]Step 4/4: MCP Proxy (optional)[/bold cyan]")
+    setup_mcp = click.confirm("Set up MCP proxy for Claude Desktop?", default=False)
+    if setup_mcp:
+        try:
+            import mcp  # noqa: F401
+            console.print("[dim]MCP package available. Configure upstream servers in ~/.tweek/config.yaml[/dim]")
+            console.print("[dim]Then run: tweek mcp proxy[/dim]")
+        except ImportError:
+            print_warning("MCP package not installed. Install with: pip install tweek[mcp]")
+    else:
+        console.print("[dim]Skipped.[/dim]")
+
+    console.print()
+    console.print("[bold green]Setup complete![/bold green]")
+    console.print("  Run [cyan]tweek doctor[/cyan] to verify your installation")
+    console.print("  Run [cyan]tweek status[/cyan] to see protection status")
+
+
+def _quickstart_install_hooks(scope: str) -> None:
+    """Install hooks for quickstart wizard (simplified version)."""
+    import json
+
+    if scope == "global":
+        target_dir = Path("~/.claude").expanduser()
+    else:
+        target_dir = Path.cwd() / ".claude"
+
+    hooks_dir = target_dir / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    settings_path = target_dir / "settings.json"
+    settings = {}
+    if settings_path.exists():
         try:
             with open(settings_path) as f:
                 settings = json.load(f)
-            if "hooks" in settings and "PreToolUse" in settings.get("hooks", {}):
-                for hook_config in settings["hooks"]["PreToolUse"]:
-                    for hook in hook_config.get("hooks", []):
-                        if "tweek" in hook.get("command", "").lower():
-                            return True
         except (json.JSONDecodeError, IOError):
             pass
-        return False
 
-    global_installed = check_tweek_hooks(global_claude / "settings.json")
-    project_installed = check_tweek_hooks(project_claude / "settings.json")
-    hook_installed = global_installed or project_installed
+    if "hooks" not in settings:
+        settings["hooks"] = {}
 
-    db_path = Path("~/.tweek/security.db").expanduser()
+    hook_entry = {
+        "type": "command",
+        "command": "tweek hook pre-tool-use $TOOL_NAME",
+    }
 
-    table = Table(title=f"Tweek Status ({caps.platform.value})")
-    table.add_column("Component", style="cyan")
-    table.add_column("Status", style="green")
-    table.add_column("Details")
+    for hook_type in ["PreToolUse"]:
+        if hook_type not in settings["hooks"]:
+            settings["hooks"][hook_type] = []
 
-    # Hook status with scope detail
-    if global_installed:
-        hook_status = "[green]✓ Installed[/green]"
-        hook_detail = "~/.claude (all projects)"
-    elif project_installed:
-        hook_status = "[green]✓ Installed[/green]"
-        hook_detail = "./.claude (this project only)"
-    else:
-        hook_status = "[yellow]⚠️ Not Installed[/yellow]"
-        hook_detail = "Run 'tweek install'"
+        # Check if tweek hooks already present
+        already_installed = False
+        for hook_config in settings["hooks"][hook_type]:
+            for h in hook_config.get("hooks", []):
+                if "tweek" in h.get("command", "").lower():
+                    already_installed = True
+                    break
 
-    table.add_row("Hook Integration", hook_status, hook_detail)
+        if not already_installed:
+            settings["hooks"][hook_type].append({
+                "matcher": "",
+                "hooks": [hook_entry],
+            })
 
-    # Vault status (cross-platform)
-    table.add_row(
-        "Credential Vault",
-        "✓ Available" if caps.vault_available else "✗ Not Available",
-        caps.vault_backend
-    )
-
-    # Sandbox status (platform-specific)
-    if sandbox_status["available"]:
-        sandbox_name = f"Sandbox ({sandbox_status['tool']})"
-        table.add_row(
-            sandbox_name,
-            "✓ Available",
-            sandbox_status['tool']
-        )
-    else:
-        if IS_LINUX:
-            table.add_row(
-                "Sandbox (firejail)",
-                "[yellow]✗ Not Installed[/yellow]",
-                caps.sandbox_install_hint or "Install firejail for sandbox support"
-            )
-        else:
-            table.add_row(
-                "Sandbox",
-                "✗ Not Available",
-                "Not supported on this platform"
-            )
-
-    table.add_row(
-        "Security Database",
-        "✓ Active" if db_path.exists() else "○ Not Created",
-        str(db_path) if db_path.exists() else "Will be created on first event"
-    )
-
-    # License status
-    from tweek.licensing import get_license, Tier
-    lic = get_license()
-    tier_colors = {Tier.FREE: "white", Tier.PRO: "cyan"}
-    tier_color = tier_colors.get(lic.tier, "white")
-    tier_display = f"[{tier_color}]{lic.tier.value.upper()}[/{tier_color}]"
-
-    if lic.tier == Tier.FREE:
-        license_detail = "Upgrade: gettweek.com/pricing"
-    else:
-        license_detail = f"Licensed to: {lic.info.email}" if lic.info else ""
-
-    table.add_row("License", tier_display, license_detail)
-
-    # Pattern status
-    user_patterns = Path("~/.tweek/patterns/patterns.yaml").expanduser()
-    bundled_patterns = Path(__file__).parent / "config" / "patterns.yaml"
-
-    patterns_source = None
-    patterns_file = None
-
-    if user_patterns.exists():
-        patterns_source = "~/.tweek/patterns"
-        patterns_file = user_patterns
-    elif bundled_patterns.exists():
-        patterns_source = "bundled"
-        patterns_file = bundled_patterns
-
-    if patterns_file and patterns_file.exists():
-        try:
-            import yaml
-            with open(patterns_file) as f:
-                pdata = yaml.safe_load(f) or {}
-            total_patterns = pdata.get("pattern_count", len(pdata.get("patterns", [])))
-
-            pattern_status = f"✓ {total_patterns} patterns"
-            pattern_detail = f"all free ({patterns_source})"
-        except Exception:
-            pattern_status = "✓ Loaded"
-            pattern_detail = patterns_source
-    else:
-        pattern_status = "[yellow]○ Not Found[/yellow]"
-        pattern_detail = "Run 'tweek update'"
-
-    table.add_row("Attack Patterns", pattern_status, pattern_detail)
-
-    console.print(table)
-
-    # Show recent stats if database exists
-    if db_path.exists():
-        try:
-            logger = get_logger()
-            stats = logger.get_stats(days=1)
-
-            by_decision = stats.get('by_decision', {})
-            allowed = by_decision.get('allow', 0)
-            blocked = by_decision.get('block', 0) + by_decision.get('deny', 0)
-            prompted = by_decision.get('ask', 0)
-
-            console.print(f"\n[dim]Today's stats: {stats['total_events']} events, "
-                         f"{allowed} allowed, {blocked} blocked, {prompted} prompted[/dim]")
-        except Exception:
-            console.print("\n[dim]Unable to load stats[/dim]")
-    else:
-        console.print("\n[dim]No security events recorded yet[/dim]")
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=2)
 
 
 @main.group()
@@ -923,14 +965,67 @@ def config():
     pass
 
 
-@config.command("list")
+@config.command("list",
+    epilog="""\b
+Examples:
+  tweek config list                      List all tools and skills
+  tweek config list --tools              Show only tool security tiers
+  tweek config list --skills             Show only skill security tiers
+  tweek config list --summary            Show tier counts and overrides summary
+"""
+)
 @click.option("--tools", "show_tools", is_flag=True, help="Show tools only")
 @click.option("--skills", "show_skills", is_flag=True, help="Show skills only")
-def config_list(show_tools: bool, show_skills: bool):
+@click.option("--summary", is_flag=True, help="Show configuration summary instead of full list")
+def config_list(show_tools: bool, show_skills: bool, summary: bool):
     """List all tools and skills with their security tiers."""
     from tweek.config.manager import ConfigManager
 
     cfg = ConfigManager()
+
+    # Handle summary mode
+    if summary:
+        # Count by tier
+        tool_tiers = {}
+        for tool in cfg.list_tools():
+            tier = tool.tier.value
+            tool_tiers[tier] = tool_tiers.get(tier, 0) + 1
+
+        skill_tiers = {}
+        for skill in cfg.list_skills():
+            tier = skill.tier.value
+            skill_tiers[tier] = skill_tiers.get(tier, 0) + 1
+
+        # User overrides
+        user_config = cfg.export_config("user")
+        user_tools = user_config.get("tools", {})
+        user_skills = user_config.get("skills", {})
+
+        summary_text = f"[cyan]Default Tier:[/cyan] {cfg.get_default_tier().value}\n\n"
+
+        summary_text += "[cyan]Tools by Tier:[/cyan]\n"
+        for tier in ["safe", "default", "risky", "dangerous"]:
+            count = tool_tiers.get(tier, 0)
+            if count:
+                summary_text += f"  {tier}: {count}\n"
+
+        summary_text += "\n[cyan]Skills by Tier:[/cyan]\n"
+        for tier in ["safe", "default", "risky", "dangerous"]:
+            count = skill_tiers.get(tier, 0)
+            if count:
+                summary_text += f"  {tier}: {count}\n"
+
+        if user_tools or user_skills:
+            summary_text += "\n[cyan]User Overrides:[/cyan]\n"
+            for tool_name, tier in user_tools.items():
+                summary_text += f"  {tool_name}: {tier}\n"
+            for skill_name, tier in user_skills.items():
+                summary_text += f"  {skill_name}: {tier}\n"
+        else:
+            summary_text += "\n[cyan]User Overrides:[/cyan] (none)"
+
+        console.print(Panel.fit(summary_text, title="Tweek Configuration"))
+        return
 
     # Default to showing both if neither specified
     if not show_tools and not show_skills:
@@ -992,56 +1087,15 @@ def config_list(show_tools: bool, show_skills: bool):
     console.print("[dim]Sources: default (built-in), user (~/.tweek/config.yaml), project (.tweek/config.yaml)[/dim]")
 
 
-@config.command("show")
-def config_show():
-    """Show current configuration summary."""
-    from tweek.config.manager import ConfigManager
-
-    cfg = ConfigManager()
-
-    # Count by tier
-    tool_tiers = {}
-    for tool in cfg.list_tools():
-        tier = tool.tier.value
-        tool_tiers[tier] = tool_tiers.get(tier, 0) + 1
-
-    skill_tiers = {}
-    for skill in cfg.list_skills():
-        tier = skill.tier.value
-        skill_tiers[tier] = skill_tiers.get(tier, 0) + 1
-
-    # User overrides
-    user_config = cfg.export_config("user")
-    user_tools = user_config.get("tools", {})
-    user_skills = user_config.get("skills", {})
-
-    summary = f"[cyan]Default Tier:[/cyan] {cfg.get_default_tier().value}\n\n"
-
-    summary += "[cyan]Tools by Tier:[/cyan]\n"
-    for tier in ["safe", "default", "risky", "dangerous"]:
-        count = tool_tiers.get(tier, 0)
-        if count:
-            summary += f"  {tier}: {count}\n"
-
-    summary += "\n[cyan]Skills by Tier:[/cyan]\n"
-    for tier in ["safe", "default", "risky", "dangerous"]:
-        count = skill_tiers.get(tier, 0)
-        if count:
-            summary += f"  {tier}: {count}\n"
-
-    if user_tools or user_skills:
-        summary += "\n[cyan]User Overrides:[/cyan]\n"
-        for tool, tier in user_tools.items():
-            summary += f"  {tool}: {tier}\n"
-        for skill, tier in user_skills.items():
-            summary += f"  {skill}: {tier}\n"
-    else:
-        summary += "\n[cyan]User Overrides:[/cyan] (none)"
-
-    console.print(Panel.fit(summary, title="Tweek Configuration"))
-
-
-@config.command("set")
+@config.command("set",
+    epilog="""\b
+Examples:
+  tweek config set --tool Bash --tier dangerous       Mark Bash as dangerous
+  tweek config set --skill web-fetch --tier risky     Set skill to risky tier
+  tweek config set --tier cautious                    Set default tier for all
+  tweek config set --tool Edit --tier safe --scope project   Project-level override
+"""
+)
 @click.option("--skill", help="Skill name to configure")
 @click.option("--tool", help="Tool name to configure")
 @click.option("--tier", type=click.Choice(["safe", "default", "risky", "dangerous"]), required=True,
@@ -1066,7 +1120,15 @@ def config_set(skill: str, tool: str, tier: str, scope: str):
         console.print(f"[green]✓[/green] Set default tier to [bold]{tier}[/bold] ({scope} config)")
 
 
-@config.command("preset")
+@config.command("preset",
+    epilog="""\b
+Examples:
+  tweek config preset paranoid           Maximum security, prompt for everything
+  tweek config preset cautious           Balanced security (recommended)
+  tweek config preset trusted            Minimal prompts, trust AI decisions
+  tweek config preset paranoid --scope project   Apply preset to project only
+"""
+)
 @click.argument("preset_name", type=click.Choice(["paranoid", "cautious", "trusted"]))
 @click.option("--scope", type=click.Choice(["user", "project"]), default="user")
 def config_preset(preset_name: str, scope: str):
@@ -1092,7 +1154,15 @@ def config_preset(preset_name: str, scope: str):
         console.print("[dim]Minimal prompts: only high-risk patterns trigger alerts[/dim]")
 
 
-@config.command("reset")
+@config.command("reset",
+    epilog="""\b
+Examples:
+  tweek config reset --tool Bash         Reset Bash to default tier
+  tweek config reset --skill web-fetch   Reset a skill to default tier
+  tweek config reset --all               Reset all user configuration
+  tweek config reset --all --confirm     Reset all without confirmation prompt
+"""
+)
 @click.option("--skill", help="Reset specific skill to default")
 @click.option("--tool", help="Reset specific tool to default")
 @click.option("--all", "reset_all", is_flag=True, help="Reset all user configuration")
@@ -1124,75 +1194,141 @@ def config_reset(skill: str, tool: str, reset_all: bool, scope: str, confirm: bo
         console.print("[red]Specify --skill, --tool, or --all[/red]")
 
 
-@config.command("interactive")
-def config_interactive():
-    """Interactively configure security settings."""
-    from tweek.config.manager import ConfigManager, SecurityTier
+@config.command("validate",
+    epilog="""\b
+Examples:
+  tweek config validate                  Validate merged configuration
+  tweek config validate --scope user     Validate only user-level config
+  tweek config validate --scope project  Validate only project-level config
+  tweek config validate --json           Output validation results as JSON
+"""
+)
+@click.option("--scope", type=click.Choice(["user", "project", "merged"]), default="merged",
+              help="Which config scope to validate")
+@click.option("--json-output", "--json", "json_out", is_flag=True, help="Output as JSON")
+def config_validate(scope: str, json_out: bool):
+    """Validate configuration for errors and typos.
+
+    Checks for unknown keys, invalid tier values, unknown tool/skill names,
+    and suggests corrections for typos.
+    """
+    from tweek.config.manager import ConfigManager
+
+    cfg = ConfigManager()
+    issues = cfg.validate_config(scope=scope)
+
+    if json_out:
+        import json as json_mod
+        output = [
+            {
+                "level": i.level,
+                "key": i.key,
+                "message": i.message,
+                "suggestion": i.suggestion,
+            }
+            for i in issues
+        ]
+        console.print_json(json_mod.dumps(output, indent=2))
+        return
+
+    console.print()
+    console.print("[bold]Configuration Validation[/bold]")
+    console.print("\u2500" * 40)
+    console.print(f"[dim]Scope: {scope}[/dim]")
+    console.print()
+
+    if not issues:
+        tools = cfg.list_tools()
+        skills = cfg.list_skills()
+        console.print(f"  [green]OK[/green]  Configuration valid ({len(tools)} tools, {len(skills)} skills)")
+        console.print()
+        return
+
+    errors = [i for i in issues if i.level == "error"]
+    warnings = [i for i in issues if i.level == "warning"]
+
+    level_styles = {
+        "error": "[red]ERROR[/red]",
+        "warning": "[yellow]WARN[/yellow] ",
+        "info": "[dim]INFO[/dim] ",
+    }
+
+    for issue in issues:
+        style = level_styles.get(issue.level, "[dim]???[/dim]  ")
+        msg = f"  {style}  {issue.key} \u2192 {issue.message}"
+        if issue.suggestion:
+            msg += f" {issue.suggestion}"
+        console.print(msg)
+
+    console.print()
+    parts = []
+    if errors:
+        parts.append(f"{len(errors)} error{'s' if len(errors) != 1 else ''}")
+    if warnings:
+        parts.append(f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
+    console.print(f"  Result: {', '.join(parts)}")
+    console.print()
+
+
+@config.command("diff",
+    epilog="""\b
+Examples:
+  tweek config diff paranoid             Show changes if paranoid preset applied
+  tweek config diff cautious             Show changes if cautious preset applied
+  tweek config diff trusted              Show changes if trusted preset applied
+"""
+)
+@click.argument("preset_name", type=click.Choice(["paranoid", "cautious", "trusted"]))
+def config_diff(preset_name: str):
+    """Show what would change if a preset were applied.
+
+    Compare your current configuration against a preset to see
+    exactly which settings would be modified.
+    """
+    from tweek.config.manager import ConfigManager
 
     cfg = ConfigManager()
 
-    console.print(TWEEK_BANNER, style="cyan")
-    console.print("[bold]Interactive Security Configuration[/bold]\n")
+    try:
+        changes = cfg.diff_preset(preset_name)
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        return
 
-    # Step 1: Choose preset or custom
-    console.print("How would you like to configure Tweek?\n")
-    console.print("  [cyan]1.[/cyan] Paranoid - Maximum security, prompt for everything")
-    console.print("  [cyan]2.[/cyan] Cautious - Balanced security (recommended)")
-    console.print("  [cyan]3.[/cyan] Trusted  - Minimal prompts, trust AI decisions")
-    console.print("  [cyan]4.[/cyan] Custom   - Configure each tool/skill individually")
     console.print()
+    console.print(f"[bold]Changes if '{preset_name}' preset is applied:[/bold]")
+    console.print("\u2500" * 50)
 
-    choice = click.prompt("Select option", type=click.IntRange(1, 4), default=2)
+    if not changes:
+        console.print()
+        console.print("  [green]No changes[/green] \u2014 your config already matches this preset.")
+        console.print()
+        return
 
-    if choice == 1:
-        cfg.apply_preset("paranoid")
-        console.print("\n[green]✓[/green] Applied [bold]paranoid[/bold] preset")
-    elif choice == 2:
-        cfg.apply_preset("cautious")
-        console.print("\n[green]✓[/green] Applied [bold]cautious[/bold] preset")
-    elif choice == 3:
-        cfg.apply_preset("trusted")
-        console.print("\n[green]✓[/green] Applied [bold]trusted[/bold] preset")
-    else:
-        # Custom configuration
-        console.print("\n[bold]Custom Configuration[/bold]\n")
+    table = Table(show_header=True, show_edge=False, pad_edge=False)
+    table.add_column("Setting", style="cyan", min_width=25)
+    table.add_column("Current", min_width=12)
+    table.add_column("", min_width=3)
+    table.add_column("New", min_width=12)
 
-        # Configure default tier
-        console.print("Default tier for unknown tools/skills:")
-        console.print("  [cyan]1.[/cyan] safe     - No screening")
-        console.print("  [cyan]2.[/cyan] default  - Regex pattern matching")
-        console.print("  [cyan]3.[/cyan] risky    - Regex + LLM rules")
-        console.print("  [cyan]4.[/cyan] dangerous - Full screening + sandbox")
-        default_choice = click.prompt("Select", type=click.IntRange(1, 4), default=2)
-        tiers = ["safe", "default", "risky", "dangerous"]
-        cfg.set_default_tier(SecurityTier.from_string(tiers[default_choice - 1]))
+    tier_colors = {"safe": "green", "default": "white", "risky": "yellow", "dangerous": "red"}
 
-        # Configure key tools
-        console.print("\n[bold]Tool Configuration[/bold]")
-        console.print("[dim]Press Enter to keep default, or enter tier (safe/default/risky/dangerous)[/dim]\n")
+    for change in changes:
+        cur_color = tier_colors.get(str(change.current_value), "white")
+        new_color = tier_colors.get(str(change.new_value), "white")
+        table.add_row(
+            change.key,
+            f"[{cur_color}]{change.current_value}[/{cur_color}]",
+            "\u2192",
+            f"[{new_color}]{change.new_value}[/{new_color}]",
+        )
 
-        key_tools = ["Bash", "WebFetch", "Edit", "Write"]
-        for tool_name in key_tools:
-            current = cfg.get_tool_tier(tool_name)
-            new_tier = click.prompt(
-                f"  {tool_name}",
-                default=current.value,
-                type=click.Choice(["safe", "default", "risky", "dangerous"]),
-                show_default=True
-            )
-            if new_tier != current.value:
-                cfg.set_tool_tier(tool_name, SecurityTier.from_string(new_tier))
-
-        console.print("\n[green]✓[/green] Custom configuration saved")
-
-    # Show summary
-    console.print("\n[bold]Configuration Summary[/bold]")
-    console.print(f"  Default tier: {cfg.get_default_tier().value}")
-    console.print(f"  Bash: {cfg.get_tool_tier('Bash').value}")
-    console.print(f"  WebFetch: {cfg.get_tool_tier('WebFetch').value}")
-    console.print(f"  Edit: {cfg.get_tool_tier('Edit').value}")
-
-    console.print("\n[dim]Run 'tweek config list' to see all settings[/dim]")
+    console.print()
+    console.print(table)
+    console.print()
+    console.print(f"  {len(changes)} change{'s' if len(changes) != 1 else ''} would be made. "
+                  f"Apply with: [cyan]tweek config preset {preset_name}[/cyan]")
+    console.print()
 
 
 @main.group()
@@ -1201,7 +1337,13 @@ def vault():
     pass
 
 
-@vault.command("store")
+@vault.command("store",
+    epilog="""\b
+Examples:
+  tweek vault store myskill API_KEY sk-abc123      Store an API key
+  tweek vault store deploy AWS_SECRET s3cr3t       Store a deployment secret
+"""
+)
 @click.argument("skill")
 @click.argument("key")
 @click.argument("value")
@@ -1211,7 +1353,9 @@ def vault_store(skill: str, key: str, value: str):
     from tweek.platform import get_capabilities
 
     if not VAULT_AVAILABLE:
-        console.print("[red]✗[/red] Vault not available. Install keyring: pip install keyring")
+        console.print("[red]\u2717[/red] Vault not available.")
+        console.print("  [dim]Hint: Install keyring support: pip install keyring[/dim]")
+        console.print("  [dim]On macOS, keyring uses Keychain. On Linux, install gnome-keyring or kwallet.[/dim]")
         return
 
     caps = get_capabilities()
@@ -1219,15 +1363,23 @@ def vault_store(skill: str, key: str, value: str):
     try:
         vault_instance = get_vault()
         if vault_instance.store(skill, key, value):
-            console.print(f"[green]✓[/green] Stored {key} for skill '{skill}'")
+            console.print(f"[green]\u2713[/green] Stored {key} for skill '{skill}'")
             console.print(f"[dim]Backend: {caps.vault_backend}[/dim]")
         else:
-            console.print(f"[red]✗[/red] Failed to store credential")
+            console.print(f"[red]\u2717[/red] Failed to store credential")
+            console.print("  [dim]Hint: Check your keyring backend is unlocked and accessible[/dim]")
     except Exception as e:
-        console.print(f"[red]✗[/red] Failed to store credential: {e}")
+        console.print(f"[red]\u2717[/red] Failed to store credential: {e}")
+        console.print("  [dim]Hint: Check your keyring backend is unlocked and accessible[/dim]")
 
 
-@vault.command("get")
+@vault.command("get",
+    epilog="""\b
+Examples:
+  tweek vault get myskill API_KEY        Retrieve a stored credential
+  tweek vault get deploy AWS_SECRET      Retrieve a deployment secret
+"""
+)
 @click.argument("skill")
 @click.argument("key")
 def vault_get(skill: str, key: str):
@@ -1235,7 +1387,8 @@ def vault_get(skill: str, key: str):
     from tweek.vault import get_vault, VAULT_AVAILABLE
 
     if not VAULT_AVAILABLE:
-        console.print("[red]✗[/red] Vault not available. Install keyring: pip install keyring")
+        console.print("[red]\u2717[/red] Vault not available.")
+        console.print("  [dim]Hint: Install keyring support: pip install keyring[/dim]")
         return
 
     vault_instance = get_vault()
@@ -1245,10 +1398,18 @@ def vault_get(skill: str, key: str):
         console.print(f"[yellow]GAH![/yellow] Credential access logged")
         console.print(value)
     else:
-        console.print(f"[red]✗[/red] Credential not found: {key} for skill '{skill}'")
+        console.print(f"[red]\u2717[/red] Credential not found: {key} for skill '{skill}'")
+        console.print("  [dim]Hint: Store it with: tweek vault store {skill} {key} <value>[/dim]".format(skill=skill, key=key))
 
 
-@vault.command("migrate-env")
+@vault.command("migrate-env",
+    epilog="""\b
+Examples:
+  tweek vault migrate-env --skill myapp                Migrate .env to vault
+  tweek vault migrate-env --skill myapp --dry-run      Preview without changes
+  tweek vault migrate-env --skill deploy --env-file .env.production   Migrate specific file
+"""
+)
 @click.option("--dry-run", is_flag=True, help="Show what would be migrated without doing it")
 @click.option("--env-file", default=".env", help="Path to .env file")
 @click.option("--skill", required=True, help="Skill name to store credentials under")
@@ -1284,24 +1445,13 @@ def vault_migrate_env(dry_run: bool, env_file: str, skill: str):
         console.print(f"[red]✗[/red] Migration failed: {e}")
 
 
-@vault.command("list")
-@click.argument("skill", required=False)
-def vault_list(skill: str):
-    """List credentials stored in secure storage."""
-    from tweek.vault import VAULT_AVAILABLE
-    from tweek.platform import get_capabilities
-
-    if not VAULT_AVAILABLE:
-        console.print("[red]✗[/red] Vault not available. Install keyring: pip install keyring")
-        return
-
-    caps = get_capabilities()
-    console.print(f"[cyan]Credential Vault ({caps.vault_backend})[/cyan]")
-    console.print("[dim]Note: The keyring library doesn't support listing all credentials.[/dim]")
-    console.print("[dim]Use 'tweek vault get <skill> <key>' to retrieve specific credentials.[/dim]")
-
-
-@vault.command("delete")
+@vault.command("delete",
+    epilog="""\b
+Examples:
+  tweek vault delete myskill API_KEY     Delete a stored credential
+  tweek vault delete deploy AWS_SECRET   Remove a deployment secret
+"""
+)
 @click.argument("skill")
 @click.argument("key")
 def vault_delete(skill: str, key: str):
@@ -1331,7 +1481,12 @@ def license():
     pass
 
 
-@license.command("status")
+@license.command("status",
+    epilog="""\b
+Examples:
+  tweek license status                   Show license tier and features
+"""
+)
 def license_status():
     """Show current license status and available features."""
     from tweek.licensing import get_license, TIER_FEATURES, Tier
@@ -1392,7 +1547,12 @@ def license_status():
         console.print("[dim]https://gettweek.com/pricing[/dim]")
 
 
-@license.command("activate")
+@license.command("activate",
+    epilog="""\b
+Examples:
+  tweek license activate TWEEK-PRO-XXXX-XXXX   Activate a Pro license key
+"""
+)
 @click.argument("license_key")
 def license_activate(license_key: str):
     """Activate a license key."""
@@ -1409,7 +1569,13 @@ def license_activate(license_key: str):
         console.print(f"[red]✗[/red] {message}")
 
 
-@license.command("deactivate")
+@license.command("deactivate",
+    epilog="""\b
+Examples:
+  tweek license deactivate               Deactivate license (with prompt)
+  tweek license deactivate --confirm     Deactivate without confirmation
+"""
+)
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
 def license_deactivate(confirm: bool):
     """Remove current license and revert to FREE tier."""
@@ -1439,18 +1605,88 @@ def logs():
     pass
 
 
-@logs.command("show")
+@logs.command("show",
+    epilog="""\b
+Examples:
+  tweek logs show                        Show last 20 security events
+  tweek logs show -n 50                  Show last 50 events
+  tweek logs show --type block           Filter by event type
+  tweek logs show --blocked              Show only blocked/flagged events
+  tweek logs show --stats                Show security statistics summary
+  tweek logs show --stats --days 30      Statistics for the last 30 days
+"""
+)
 @click.option("--limit", "-n", default=20, help="Number of events to show")
 @click.option("--type", "-t", "event_type", help="Filter by event type")
 @click.option("--tool", help="Filter by tool name")
 @click.option("--blocked", is_flag=True, help="Show only blocked/flagged events")
-def logs_show(limit: int, event_type: str, tool: str, blocked: bool):
+@click.option("--stats", is_flag=True, help="Show security statistics instead of events")
+@click.option("--days", "-d", default=7, help="Number of days to analyze (with --stats)")
+def logs_show(limit: int, event_type: str, tool: str, blocked: bool, stats: bool, days: int):
     """Show recent security events."""
-    from tweek.logging.security_log import get_logger, EventType
+    from tweek.logging.security_log import get_logger
 
     console.print(TWEEK_BANNER, style="cyan")
 
     logger = get_logger()
+
+    # Handle stats mode
+    if stats:
+        stat_data = logger.get_stats(days=days)
+
+        console.print(Panel.fit(
+            f"[cyan]Period:[/cyan] Last {days} days\n"
+            f"[cyan]Total Events:[/cyan] {stat_data['total_events']}",
+            title="Security Statistics"
+        ))
+
+        # Decisions breakdown
+        if stat_data['by_decision']:
+            table = Table(title="Decisions")
+            table.add_column("Decision", style="cyan")
+            table.add_column("Count", justify="right")
+
+            decision_styles = {"allow": "green", "block": "red", "ask": "yellow", "deny": "red"}
+            for decision, count in stat_data['by_decision'].items():
+                style = decision_styles.get(decision, "white")
+                table.add_row(f"[{style}]{decision}[/{style}]", str(count))
+
+            console.print(table)
+            console.print()
+
+        # Top triggered patterns
+        if stat_data['top_patterns']:
+            table = Table(title="Top Triggered Patterns")
+            table.add_column("Pattern", style="cyan")
+            table.add_column("Severity")
+            table.add_column("Count", justify="right")
+
+            severity_styles = {"critical": "red", "high": "yellow", "medium": "blue", "low": "dim"}
+            for pattern in stat_data['top_patterns']:
+                sev = pattern['severity'] or "unknown"
+                style = severity_styles.get(sev, "white")
+                table.add_row(
+                    pattern['name'] or "unknown",
+                    f"[{style}]{sev}[/{style}]",
+                    str(pattern['count'])
+                )
+
+            console.print(table)
+            console.print()
+
+        # By tool
+        if stat_data['by_tool']:
+            table = Table(title="Events by Tool")
+            table.add_column("Tool", style="green")
+            table.add_column("Count", justify="right")
+
+            for tool_name, count in stat_data['by_tool'].items():
+                table.add_row(tool_name, str(count))
+
+            console.print(table)
+        return
+
+    from tweek.logging.security_log import EventType
 
     if blocked:
         events = logger.get_blocked_commands(limit=limit)
@@ -1517,70 +1753,15 @@ def logs_show(limit: int, event_type: str, tool: str, blocked: bool):
     console.print(f"\n[dim]Showing {len(events)} events. Use --limit to see more.[/dim]")
 
 
-@logs.command("stats")
-@click.option("--days", "-d", default=7, help="Number of days to analyze")
-def logs_stats(days: int):
-    """Show security statistics."""
-    from tweek.logging.security_log import get_logger
-
-    console.print(TWEEK_BANNER, style="cyan")
-
-    logger = get_logger()
-    stats = logger.get_stats(days=days)
-
-    console.print(Panel.fit(
-        f"[cyan]Period:[/cyan] Last {days} days\n"
-        f"[cyan]Total Events:[/cyan] {stats['total_events']}",
-        title="Security Statistics"
-    ))
-
-    # Decisions breakdown
-    if stats['by_decision']:
-        table = Table(title="Decisions")
-        table.add_column("Decision", style="cyan")
-        table.add_column("Count", justify="right")
-
-        decision_styles = {"allow": "green", "block": "red", "ask": "yellow", "deny": "red"}
-        for decision, count in stats['by_decision'].items():
-            style = decision_styles.get(decision, "white")
-            table.add_row(f"[{style}]{decision}[/{style}]", str(count))
-
-        console.print(table)
-        console.print()
-
-    # Top triggered patterns
-    if stats['top_patterns']:
-        table = Table(title="Top Triggered Patterns")
-        table.add_column("Pattern", style="cyan")
-        table.add_column("Severity")
-        table.add_column("Count", justify="right")
-
-        severity_styles = {"critical": "red", "high": "yellow", "medium": "blue", "low": "dim"}
-        for pattern in stats['top_patterns']:
-            sev = pattern['severity'] or "unknown"
-            style = severity_styles.get(sev, "white")
-            table.add_row(
-                pattern['name'] or "unknown",
-                f"[{style}]{sev}[/{style}]",
-                str(pattern['count'])
-            )
-
-        console.print(table)
-        console.print()
-
-    # By tool
-    if stats['by_tool']:
-        table = Table(title="Events by Tool")
-        table.add_column("Tool", style="green")
-        table.add_column("Count", justify="right")
-
-        for tool, count in stats['by_tool'].items():
-            table.add_row(tool, str(count))
-
-        console.print(table)
-
-
-@logs.command("export")
+@logs.command("export",
+    epilog="""\b
+Examples:
+  tweek logs export                      Export all logs to tweek_security_log.csv
+  tweek logs export --days 7             Export only the last 7 days
+  tweek logs export -o audit.csv         Export to a custom file path
+  tweek logs export --days 30 -o monthly.csv   Last 30 days to custom file
+"""
+)
 @click.option("--days", "-d", type=int, help="Limit to last N days")
 @click.option("--output", "-o", default="tweek_security_log.csv", help="Output file path")
 def logs_export(days: int, output: str):
@@ -1598,7 +1779,14 @@ def logs_export(days: int, output: str):
         console.print("[yellow]No events to export[/yellow]")
 
 
-@logs.command("clear")
+@logs.command("clear",
+    epilog="""\b
+Examples:
+  tweek logs clear                       Clear all security logs (with prompt)
+  tweek logs clear --days 30             Clear logs older than 30 days
+  tweek logs clear --confirm             Clear all logs without confirmation
+"""
+)
 @click.option("--days", "-d", type=int, help="Clear events older than N days")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
 def logs_clear(days: int, confirm: bool):
@@ -1642,92 +1830,15 @@ def proxy():
     pass
 
 
-@proxy.command("status")
-def proxy_status():
-    """Show proxy status and detected LLM tools."""
-    from tweek.proxy import (
-        PROXY_AVAILABLE, PROXY_MISSING_DEPS,
-        get_proxy_status, detect_supported_tools
-    )
-
-    console.print(TWEEK_BANNER, style="cyan")
-
-    status = get_proxy_status()
-    tools = status["detected_tools"]
-
-    # Proxy availability
-    table = Table(title="Proxy Status")
-    table.add_column("Component", style="cyan")
-    table.add_column("Status")
-    table.add_column("Details")
-
-    if status["available"]:
-        table.add_row(
-            "Dependencies",
-            "[green]✓ Installed[/green]",
-            "mitmproxy available"
-        )
-    else:
-        table.add_row(
-            "Dependencies",
-            "[red]✗ Missing[/red]",
-            "Install: pip install tweek\\[proxy]"
-        )
-
-    table.add_row(
-        "Proxy Enabled",
-        "[green]✓ Yes[/green]" if status["enabled"] else "[dim]○ No[/dim]",
-        f"Port {status['port']}" if status["enabled"] else "Run 'tweek proxy enable'"
-    )
-
-    table.add_row(
-        "Proxy Running",
-        "[green]✓ Running[/green]" if status["running"] else "[dim]○ Stopped[/dim]",
-        f"PID available" if status["running"] else "Run 'tweek proxy start'"
-    )
-
-    table.add_row(
-        "CA Certificate",
-        "[green]✓ Trusted[/green]" if status["ca_trusted"] else "[yellow]○ Not Installed[/yellow]",
-        "Run 'tweek proxy trust'" if not status["ca_trusted"] else ""
-    )
-
-    console.print(table)
-    console.print()
-
-    # Detected tools
-    table = Table(title="Detected LLM Tools")
-    table.add_column("Tool", style="cyan")
-    table.add_column("Detected")
-    table.add_column("Details")
-
-    for tool_name, info in tools.items():
-        if info:
-            table.add_row(
-                tool_name.capitalize(),
-                "[green]✓ Found[/green]",
-                ", ".join(f"{k}={v}" for k, v in info.items() if v)[:50]
-            )
-        else:
-            table.add_row(
-                tool_name.capitalize(),
-                "[dim]○ Not Found[/dim]",
-                ""
-            )
-
-    console.print(table)
-
-    # Recommendations
-    detected_any = any(info for info in tools.values())
-    if detected_any and not status["available"]:
-        console.print("\n[yellow]Recommendation:[/yellow] LLM tools detected but proxy not installed.")
-        console.print("[dim]Run: pip install tweek\\[proxy][/dim]")
-    elif detected_any and not status["running"]:
-        console.print("\n[yellow]Recommendation:[/yellow] LLM tools detected. Start proxy for protection.")
-        console.print("[dim]Run: tweek proxy start[/dim]")
-
-
-@proxy.command("start")
+@proxy.command("start",
+    epilog="""\b
+Examples:
+  tweek proxy start                      Start proxy on default port (9877)
+  tweek proxy start --port 8080          Start proxy on custom port
+  tweek proxy start --foreground         Run in foreground for debugging
+  tweek proxy start --log-only           Log traffic without blocking
+"""
+)
 @click.option("--port", "-p", default=9877, help="Port for proxy to listen on")
 @click.option("--web-port", type=int, help="Port for web interface (disabled by default)")
 @click.option("--foreground", "-f", is_flag=True, help="Run in foreground (for debugging)")
@@ -1737,8 +1848,9 @@ def proxy_start(port: int, web_port: int, foreground: bool, log_only: bool):
     from tweek.proxy import PROXY_AVAILABLE, PROXY_MISSING_DEPS
 
     if not PROXY_AVAILABLE:
-        console.print("[red]✗[/red] Proxy dependencies not installed.")
-        console.print("[dim]Run: pip install tweek\\[proxy][/dim]")
+        console.print("[red]\u2717[/red] Proxy dependencies not installed.")
+        console.print("  [dim]Hint: Install with: pip install tweek[proxy][/dim]")
+        console.print("  [dim]This adds mitmproxy for HTTP(S) interception.[/dim]")
         return
 
     from tweek.proxy.server import start_proxy
@@ -1764,7 +1876,12 @@ def proxy_start(port: int, web_port: int, foreground: bool, log_only: bool):
         console.print(f"[red]✗[/red] {message}")
 
 
-@proxy.command("stop")
+@proxy.command("stop",
+    epilog="""\b
+Examples:
+  tweek proxy stop                       Stop the running proxy server
+"""
+)
 def proxy_stop():
     """Stop the Tweek LLM security proxy."""
     from tweek.proxy import PROXY_AVAILABLE
@@ -1783,7 +1900,12 @@ def proxy_stop():
         console.print(f"[yellow]![/yellow] {message}")
 
 
-@proxy.command("trust")
+@proxy.command("trust",
+    epilog="""\b
+Examples:
+  tweek proxy trust                      Install CA certificate for HTTPS interception
+"""
+)
 def proxy_trust():
     """Install the proxy CA certificate in system trust store.
 
@@ -1821,10 +1943,23 @@ def proxy_trust():
         console.print(f"[red]✗[/red] {message}")
 
 
-@proxy.command("enable")
+@proxy.command("config",
+    epilog="""\b
+Examples:
+  tweek proxy config --enabled           Enable proxy in configuration
+  tweek proxy config --disabled          Disable proxy in configuration
+  tweek proxy config --enabled --port 8080   Enable proxy on custom port
+"""
+)
+@click.option("--enabled", "set_enabled", is_flag=True, help="Enable proxy in configuration")
+@click.option("--disabled", "set_disabled", is_flag=True, help="Disable proxy in configuration")
 @click.option("--port", "-p", default=9877, help="Port for proxy")
-def proxy_enable(port: int):
-    """Enable proxy mode in Tweek configuration."""
+def proxy_config(set_enabled, set_disabled, port):
+    """Configure proxy settings."""
+    if not set_enabled and not set_disabled:
+        console.print("[red]Specify --enabled or --disabled[/red]")
+        return
+
     import yaml
     config_path = Path.home() / ".tweek" / "config.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1837,58 +1972,45 @@ def proxy_enable(port: int):
         except Exception:
             pass
 
-    config["proxy"] = {
-        "enabled": True,
-        "port": port,
-        "block_mode": True,
-        "log_only": False,
-    }
-
-    with open(config_path, "w") as f:
-        yaml.dump(config, f, default_flow_style=False)
-
-    console.print(f"[green]✓[/green] Proxy mode enabled (port {port})")
-    console.print("[dim]Run 'tweek proxy start' to start the proxy[/dim]")
-
-
-@proxy.command("disable")
-def proxy_disable():
-    """Disable proxy mode in Tweek configuration."""
-    import yaml
-    config_path = Path.home() / ".tweek" / "config.yaml"
-
-    if not config_path.exists():
-        console.print("[dim]Proxy not configured[/dim]")
-        return
-
-    try:
-        with open(config_path) as f:
-            config = yaml.safe_load(f) or {}
-    except Exception:
-        config = {}
-
-    if "proxy" in config:
-        config["proxy"]["enabled"] = False
+    if set_enabled:
+        config["proxy"] = {
+            "enabled": True,
+            "port": port,
+            "block_mode": True,
+            "log_only": False,
+        }
 
         with open(config_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
 
-    console.print("[green]✓[/green] Proxy mode disabled")
+        console.print(f"[green]✓[/green] Proxy mode enabled (port {port})")
+        console.print("[dim]Run 'tweek proxy start' to start the proxy[/dim]")
+
+    elif set_disabled:
+        if "proxy" in config:
+            config["proxy"]["enabled"] = False
+
+            with open(config_path, "w") as f:
+                yaml.dump(config, f, default_flow_style=False)
+
+        console.print("[green]✓[/green] Proxy mode disabled")
 
 
-@proxy.command("wrap")
+@proxy.command("wrap",
+    epilog="""\b
+Examples:
+  tweek proxy wrap moltbot "npm start"                     Wrap a Node.js app
+  tweek proxy wrap cursor "/Applications/Cursor.app/Contents/MacOS/Cursor"
+  tweek proxy wrap myapp "python serve.py" -o run.sh       Custom output path
+  tweek proxy wrap myapp "npm start" --port 8080           Use custom proxy port
+"""
+)
 @click.argument("app_name")
 @click.argument("command")
 @click.option("--output", "-o", help="Output script path (default: ./run-{app_name}-protected.sh)")
 @click.option("--port", "-p", default=9877, help="Proxy port")
 def proxy_wrap(app_name: str, command: str, output: str, port: int):
-    """Generate a wrapper script to run an app through the proxy.
-
-    \b
-    Examples:
-        tweek proxy wrap moltbot "npm start"
-        tweek proxy wrap cursor "/Applications/Cursor.app/Contents/MacOS/Cursor"
-    """
+    """Generate a wrapper script to run an app through the proxy."""
     from tweek.proxy.server import generate_wrapper_script
 
     if output:
@@ -1910,48 +2032,135 @@ def proxy_wrap(app_name: str, command: str, output: str, port: int):
     console.print(f"[dim]  3. Run: {command}[/dim]")
 
 
-@proxy.command("detect")
-def proxy_detect():
-    """Detect installed LLM tools and recommend configuration."""
-    from tweek.proxy import detect_supported_tools, PROXY_AVAILABLE
+@proxy.command("setup",
+    epilog="""\b
+Examples:
+  tweek proxy setup                      Launch interactive proxy setup wizard
+"""
+)
+def proxy_setup():
+    """Interactive setup wizard for the HTTP proxy.
 
-    console.print("[cyan]Scanning for LLM tools...[/cyan]")
+    Walks through:
+      1. Detecting LLM tools to protect
+      2. Generating and trusting CA certificate
+      3. Configuring shell environment variables
+    """
+    from tweek.cli_helpers import print_success, print_warning, print_error, spinner
+
+    console.print()
+    console.print("[bold]HTTP Proxy Setup[/bold]")
+    console.print("\u2500" * 30)
     console.print()
 
-    tools = detect_supported_tools()
-
-    detected = [(name, info) for name, info in tools.items() if info]
-
-    if not detected:
-        console.print("[dim]No supported LLM tools detected.[/dim]")
-        console.print()
-        console.print("Supported tools:")
-        console.print("  - Moltbot (npm/global or running process)")
-        console.print("  - Cursor IDE")
-        console.print("  - Continue.dev (VS Code extension)")
+    # Check dependencies
+    try:
+        from tweek.proxy import PROXY_AVAILABLE, PROXY_MISSING_DEPS
+    except ImportError:
+        print_error(
+            "Proxy module not available",
+            fix_hint="Install with: pip install tweek[proxy]",
+        )
         return
 
-    console.print(f"[green]Found {len(detected)} LLM tool(s):[/green]")
+    if not PROXY_AVAILABLE:
+        print_error(
+            "Proxy dependencies not installed",
+            fix_hint="Install with: pip install tweek[proxy]",
+        )
+        return
+
+    # Step 1: Detect tools
+    console.print("[bold cyan]Step 1/3: Detect LLM Tools[/bold cyan]")
+    try:
+        from tweek.proxy import detect_supported_tools
+        with spinner("Scanning for LLM tools"):
+            tools = detect_supported_tools()
+
+        detected = [(name, info) for name, info in tools.items() if info]
+        if detected:
+            for name, info in detected:
+                print_success(f"Found {name.capitalize()}")
+        else:
+            print_warning("No LLM tools detected. You can still set up the proxy manually.")
+    except Exception as e:
+        print_warning(f"Could not detect tools: {e}")
     console.print()
 
-    for name, info in detected:
-        console.print(f"  [bold]{name.capitalize()}[/bold]")
-        for key, value in info.items():
-            if value:
-                console.print(f"    {key}: {value}")
+    # Step 2: CA Certificate
+    console.print("[bold cyan]Step 2/3: CA Certificate[/bold cyan]")
+    setup_cert = click.confirm("Generate and trust Tweek CA certificate?", default=True)
+    if setup_cert:
+        try:
+            from tweek.proxy.cert import generate_ca, trust_ca
+            with spinner("Generating CA certificate"):
+                generate_ca()
+            print_success("CA certificate generated")
+
+            with spinner("Installing to system trust store"):
+                trust_ca()
+            print_success("Certificate trusted")
+        except ImportError:
+            print_warning("Certificate module not available. Run: tweek proxy trust")
+        except Exception as e:
+            print_warning(f"Could not set up certificate: {e}")
+            console.print("  [dim]You can do this later with: tweek proxy trust[/dim]")
+    else:
+        console.print("  [dim]Skipped. Run 'tweek proxy trust' later.[/dim]")
+    console.print()
+
+    # Step 3: Shell environment
+    console.print("[bold cyan]Step 3/3: Environment Variables[/bold cyan]")
+    port = click.prompt("Proxy port", default=9877, type=int)
+
+    shell_rc = _detect_shell_rc()
+    if shell_rc:
+        console.print(f"  Detected shell config: {shell_rc}")
+        console.print(f"  Will add:")
+        console.print(f"    export HTTP_PROXY=http://127.0.0.1:{port}")
+        console.print(f"    export HTTPS_PROXY=http://127.0.0.1:{port}")
         console.print()
 
-    if not PROXY_AVAILABLE:
-        console.print("[yellow]Recommendation:[/yellow]")
-        console.print("  Install proxy dependencies to protect these tools:")
-        console.print("  [dim]pip install tweek\\[proxy][/dim]")
+        apply_env = click.confirm(f"Add to {shell_rc}?", default=True)
+        if apply_env:
+            try:
+                rc_path = Path(shell_rc).expanduser()
+                with open(rc_path, "a") as f:
+                    f.write(f"\n# Tweek proxy environment\n")
+                    f.write(f"export HTTP_PROXY=http://127.0.0.1:{port}\n")
+                    f.write(f"export HTTPS_PROXY=http://127.0.0.1:{port}\n")
+                print_success(f"Added to {shell_rc}")
+                console.print(f"  [dim]Restart your shell or run: source {shell_rc}[/dim]")
+            except Exception as e:
+                print_warning(f"Could not write to {shell_rc}: {e}")
+        else:
+            console.print("  [dim]Skipped. Set HTTP_PROXY and HTTPS_PROXY manually.[/dim]")
     else:
-        console.print("[yellow]Recommendation:[/yellow]")
-        console.print("  Start the proxy and configure your tools:")
-        console.print("  [dim]tweek proxy start[/dim]")
-        console.print("  [dim]tweek proxy trust[/dim]")
-        for name, _ in detected:
-            console.print(f"  [dim]tweek proxy wrap {name} '<start command>'[/dim]")
+        console.print("  [dim]Could not detect shell config file.[/dim]")
+        console.print(f"  Add these to your shell profile:")
+        console.print(f"    export HTTP_PROXY=http://127.0.0.1:{port}")
+        console.print(f"    export HTTPS_PROXY=http://127.0.0.1:{port}")
+
+    console.print()
+    console.print("[bold green]Proxy configured![/bold green]")
+    console.print("  Start with: [cyan]tweek proxy start[/cyan]")
+    console.print()
+
+
+def _detect_shell_rc() -> str:
+    """Detect the user's shell config file."""
+    shell = os.environ.get("SHELL", "")
+    home = Path.home()
+
+    if "zsh" in shell:
+        return "~/.zshrc"
+    elif "bash" in shell:
+        if (home / ".bash_profile").exists():
+            return "~/.bash_profile"
+        return "~/.bashrc"
+    elif "fish" in shell:
+        return "~/.config/fish/config.fish"
+    return ""
 
 
 # ============================================================
@@ -1964,7 +2173,15 @@ def plugins():
     pass
 
 
-@plugins.command("list")
+@plugins.command("list",
+    epilog="""\b
+Examples:
+  tweek plugins list                     List all enabled plugins
+  tweek plugins list --all               Include disabled plugins
+  tweek plugins list -c compliance       Show only compliance plugins
+  tweek plugins list -c screening        Show only screening plugins
+"""
+)
 @click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
               help="Filter by plugin category")
 @click.option("--all", "show_all", is_flag=True, help="Show all plugins including disabled")
@@ -2031,7 +2248,13 @@ def plugins_list(category: str, show_all: bool):
         console.print(f"[red]Plugin system not available: {e}[/red]")
 
 
-@plugins.command("info")
+@plugins.command("info",
+    epilog="""\b
+Examples:
+  tweek plugins info hipaa               Show details for the hipaa plugin
+  tweek plugins info pii -c compliance   Specify category explicitly
+"""
+)
 @click.argument("plugin_name")
 @click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
               help="Plugin category (auto-detected if not specified)")
@@ -2105,47 +2328,69 @@ def plugins_info(plugin_name: str, category: str):
         console.print(f"[red]Plugin system not available: {e}[/red]")
 
 
-@plugins.command("enable")
+@plugins.command("set",
+    epilog="""\b
+Examples:
+  tweek plugins set hipaa --enabled -c compliance          Enable a plugin
+  tweek plugins set hipaa --disabled -c compliance         Disable a plugin
+  tweek plugins set hipaa threshold 0.8 -c compliance      Set a config value
+  tweek plugins set hipaa --scope-tools Bash,Edit -c compliance   Scope to tools
+  tweek plugins set hipaa --scope-clear -c compliance      Clear scoping
+"""
+)
 @click.argument("plugin_name")
+@click.argument("key", required=False)
+@click.argument("value", required=False)
 @click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
               required=True, help="Plugin category")
 @click.option("--scope", type=click.Choice(["user", "project"]), default="user")
-def plugins_enable(plugin_name: str, category: str, scope: str):
-    """Enable a plugin."""
-    from tweek.config.manager import ConfigManager
-
-    cfg = ConfigManager()
-    cfg.set_plugin_enabled(category, plugin_name, True, scope=scope)
-    console.print(f"[green]✓[/green] Enabled plugin '{plugin_name}' ({category}) - {scope} config")
-
-
-@plugins.command("disable")
-@click.argument("plugin_name")
-@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
-              required=True, help="Plugin category")
-@click.option("--scope", type=click.Choice(["user", "project"]), default="user")
-def plugins_disable(plugin_name: str, category: str, scope: str):
-    """Disable a plugin."""
-    from tweek.config.manager import ConfigManager
-
-    cfg = ConfigManager()
-    cfg.set_plugin_enabled(category, plugin_name, False, scope=scope)
-    console.print(f"[green]✓[/green] Disabled plugin '{plugin_name}' ({category}) - {scope} config")
-
-
-@plugins.command("set")
-@click.argument("plugin_name")
-@click.argument("key")
-@click.argument("value")
-@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
-              required=True, help="Plugin category")
-@click.option("--scope", type=click.Choice(["user", "project"]), default="user")
-def plugins_set(plugin_name: str, key: str, value: str, category: str, scope: str):
-    """Set a plugin configuration value."""
+@click.option("--enabled", "set_enabled", is_flag=True, help="Enable the plugin")
+@click.option("--disabled", "set_disabled", is_flag=True, help="Disable the plugin")
+@click.option("--scope-tools", help="Comma-separated tool names for scoping")
+@click.option("--scope-skills", help="Comma-separated skill names for scoping")
+@click.option("--scope-tiers", help="Comma-separated tiers for scoping")
+@click.option("--scope-clear", is_flag=True, help="Clear all scoping")
+def plugins_set(plugin_name: str, key: str, value: str, category: str, scope: str,
+                set_enabled: bool, set_disabled: bool, scope_tools: str,
+                scope_skills: str, scope_tiers: str, scope_clear: bool):
+    """Set a plugin configuration value, enable/disable, or configure scope."""
     from tweek.config.manager import ConfigManager
     import json
 
     cfg = ConfigManager()
+
+    # Handle enable/disable
+    if set_enabled:
+        cfg.set_plugin_enabled(category, plugin_name, True, scope=scope)
+        console.print(f"[green]✓[/green] Enabled plugin '{plugin_name}' ({category}) - {scope} config")
+        return
+    if set_disabled:
+        cfg.set_plugin_enabled(category, plugin_name, False, scope=scope)
+        console.print(f"[green]✓[/green] Disabled plugin '{plugin_name}' ({category}) - {scope} config")
+        return
+
+    # Handle scope configuration
+    if scope_clear:
+        cfg.set_plugin_scope(plugin_name, None)
+        console.print(f"[green]✓[/green] Cleared scope for {plugin_name} (now global)")
+        return
+
+    if any([scope_tools, scope_skills, scope_tiers]):
+        scope_config = {}
+        if scope_tools:
+            scope_config["tools"] = [t.strip() for t in scope_tools.split(",")]
+        if scope_skills:
+            scope_config["skills"] = [s.strip() for s in scope_skills.split(",")]
+        if scope_tiers:
+            scope_config["tiers"] = [t.strip() for t in scope_tiers.split(",")]
+        cfg.set_plugin_scope(plugin_name, scope_config)
+        console.print(f"[green]✓[/green] Updated scope for {plugin_name}")
+        return
+
+    # Handle key=value setting
+    if not key or not value:
+        console.print("[red]Specify key and value, or use --enabled/--disabled/--scope-* flags[/red]")
+        return
 
     # Try to parse value as JSON (for booleans, numbers, objects)
     try:
@@ -2157,7 +2402,13 @@ def plugins_set(plugin_name: str, key: str, value: str, category: str, scope: st
     console.print(f"[green]✓[/green] Set {plugin_name}.{key} = {parsed_value} ({scope} config)")
 
 
-@plugins.command("reset")
+@plugins.command("reset",
+    epilog="""\b
+Examples:
+  tweek plugins reset hipaa -c compliance          Reset hipaa plugin to defaults
+  tweek plugins reset pii -c compliance --scope project   Reset project-level config
+"""
+)
 @click.argument("plugin_name")
 @click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
               required=True, help="Plugin category")
@@ -2174,20 +2425,21 @@ def plugins_reset(plugin_name: str, category: str, scope: str):
         console.print(f"[yellow]![/yellow] Plugin '{plugin_name}' has no {scope} configuration to reset")
 
 
-@plugins.command("scan")
+@plugins.command("scan",
+    epilog="""\b
+Examples:
+  tweek plugins scan "This is TOP SECRET//NOFORN"         Scan text for compliance
+  tweek plugins scan "Patient MRN: 123456" --plugin hipaa  Use specific plugin
+  tweek plugins scan @file.txt                             Scan file contents
+  tweek plugins scan "SSN: 123-45-6789" -d input           Scan incoming data
+"""
+)
 @click.argument("content")
 @click.option("--direction", "-d", type=click.Choice(["input", "output"]), default="output",
               help="Scan direction (input=incoming data, output=LLM response)")
 @click.option("--plugin", "-p", help="Specific compliance plugin to use (default: all enabled)")
 def plugins_scan(content: str, direction: str, plugin: str):
-    """Run compliance scan on content.
-
-    \b
-    Examples:
-        tweek plugins scan "This document is TOP SECRET//NOFORN"
-        tweek plugins scan "Patient MRN: 123456" --plugin hipaa
-        tweek plugins scan @file.txt  # Scan file contents
-    """
+    """Run compliance scan on content."""
     try:
         from tweek.plugins import get_registry, init_plugins, PluginCategory
         from tweek.plugins.base import ScanDirection
@@ -2258,7 +2510,15 @@ def plugins_scan(content: str, direction: str, plugin: str):
 # GIT PLUGIN MANAGEMENT COMMANDS
 # ============================================================
 
-@plugins.command("install")
+@plugins.command("install",
+    epilog="""\b
+Examples:
+  tweek plugins install hipaa-scanner              Install a plugin by name
+  tweek plugins install hipaa-scanner -v 1.2.0     Install a specific version
+  tweek plugins install _ --from-lockfile          Install all from lockfile
+  tweek plugins install hipaa-scanner --no-verify  Skip verification (not recommended)
+"""
+)
 @click.argument("name")
 @click.option("--version", "-v", "version", default=None, help="Specific version to install")
 @click.option("--from-lockfile", is_flag=True, help="Install all plugins from lockfile")
@@ -2296,19 +2556,31 @@ def plugins_install(name: str, version: str, from_lockfile: bool, no_verify: boo
         registry = PluginRegistryClient()
         installer = GitPluginInstaller(registry_client=registry)
 
-        console.print(f"Installing {name}...")
-        success, msg = installer.install(name, version=version, verify=not no_verify)
+        from tweek.cli_helpers import spinner as cli_spinner
+
+        with cli_spinner(f"Installing {name}"):
+            success, msg = installer.install(name, version=version, verify=not no_verify)
 
         if success:
-            console.print(f"[green]✓[/green] {msg}")
+            console.print(f"[green]\u2713[/green] {msg}")
         else:
-            console.print(f"[red]✗[/red] {msg}")
+            console.print(f"[red]\u2717[/red] {msg}")
+            console.print(f"  [dim]Hint: Check network connectivity or try: tweek plugins registry --refresh[/dim]")
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
+        console.print(f"  [dim]Hint: Check network connectivity and try again[/dim]")
 
 
-@plugins.command("update")
+@plugins.command("update",
+    epilog="""\b
+Examples:
+  tweek plugins update hipaa-scanner     Update a specific plugin
+  tweek plugins update --all             Update all installed plugins
+  tweek plugins update --check           Check for available updates
+  tweek plugins update hipaa-scanner -v 2.0.0   Update to specific version
+"""
+)
 @click.argument("name", required=False)
 @click.option("--all", "update_all", is_flag=True, help="Update all installed plugins")
 @click.option("--check", "check_only", is_flag=True, help="Check for updates without installing")
@@ -2369,7 +2641,13 @@ def plugins_update(name: str, update_all: bool, check_only: bool, version: str, 
         console.print(f"[red]Error: {e}[/red]")
 
 
-@plugins.command("remove")
+@plugins.command("remove",
+    epilog="""\b
+Examples:
+  tweek plugins remove hipaa-scanner     Remove a plugin (with confirmation)
+  tweek plugins remove hipaa-scanner -f  Remove without confirmation
+"""
+)
 @click.argument("name")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 def plugins_remove(name: str, force: bool):
@@ -2394,7 +2672,15 @@ def plugins_remove(name: str, force: bool):
         console.print(f"[red]Error: {e}[/red]")
 
 
-@plugins.command("search")
+@plugins.command("search",
+    epilog="""\b
+Examples:
+  tweek plugins search hipaa             Search for plugins by name
+  tweek plugins search -c compliance     Browse all compliance plugins
+  tweek plugins search -t free           Show only free-tier plugins
+  tweek plugins search pii --include-deprecated   Include deprecated results
+"""
+)
 @click.argument("query", required=False)
 @click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
               help="Filter by category")
@@ -2441,7 +2727,14 @@ def plugins_search(query: str, category: str, tier: str, include_deprecated: boo
         console.print(f"[red]Error: {e}[/red]")
 
 
-@plugins.command("lock")
+@plugins.command("lock",
+    epilog="""\b
+Examples:
+  tweek plugins lock                     Generate lockfile for all plugins
+  tweek plugins lock -p hipaa -v 1.2.0   Lock a specific plugin to a version
+  tweek plugins lock --project           Create project-level lockfile
+"""
+)
 @click.option("--plugin", "-p", "plugin_name", default=None, help="Lock a specific plugin")
 @click.option("--version", "-v", "version", default=None, help="Lock to specific version")
 @click.option("--project", is_flag=True, help="Create project-level lockfile (.tweek/plugins.lock.json)")
@@ -2479,7 +2772,13 @@ def plugins_lock(plugin_name: str, version: str, project: bool):
         console.print(f"[red]Error: {e}[/red]")
 
 
-@plugins.command("verify")
+@plugins.command("verify",
+    epilog="""\b
+Examples:
+  tweek plugins verify hipaa-scanner     Verify a specific plugin's integrity
+  tweek plugins verify --all             Verify all installed plugins
+"""
+)
 @click.argument("name", required=False)
 @click.option("--all", "verify_all", is_flag=True, help="Verify all installed plugins")
 def plugins_verify(name: str, verify_all: bool):
@@ -2488,10 +2787,13 @@ def plugins_verify(name: str, verify_all: bool):
         from tweek.plugins.git_installer import GitPluginInstaller
         from tweek.plugins.git_registry import PluginRegistryClient
 
+        from tweek.cli_helpers import spinner as cli_spinner
+
         installer = GitPluginInstaller(registry_client=PluginRegistryClient())
 
         if verify_all:
-            results = installer.verify_all()
+            with cli_spinner("Verifying plugin integrity"):
+                results = installer.verify_all()
             if not results:
                 console.print("No git plugins installed.")
                 return
@@ -2526,7 +2828,14 @@ def plugins_verify(name: str, verify_all: bool):
         console.print(f"[red]Error: {e}[/red]")
 
 
-@plugins.command("registry")
+@plugins.command("registry",
+    epilog="""\b
+Examples:
+  tweek plugins registry                 Show registry summary
+  tweek plugins registry --refresh       Force refresh the registry cache
+  tweek plugins registry --info          Show detailed registry metadata
+"""
+)
 @click.option("--refresh", is_flag=True, help="Force refresh the registry cache")
 @click.option("--info", "show_info", is_flag=True, help="Show registry metadata")
 def plugins_registry(refresh: bool, show_info: bool):
@@ -2587,7 +2896,12 @@ def mcp():
     pass
 
 
-@mcp.command()
+@mcp.command(
+    epilog="""\b
+Examples:
+  tweek mcp serve                        Start MCP gateway on stdio transport
+"""
+)
 def serve():
     """Start MCP gateway server (stdio transport).
 
@@ -2623,7 +2937,14 @@ def serve():
         console.print(f"[red]MCP server error: {e}[/red]")
 
 
-@mcp.command()
+@mcp.command(
+    epilog="""\b
+Examples:
+  tweek mcp install claude-desktop       Configure Claude Desktop integration
+  tweek mcp install chatgpt              Set up ChatGPT Desktop integration
+  tweek mcp install gemini               Configure Gemini CLI integration
+"""
+)
 @click.argument("client", type=click.Choice(["claude-desktop", "chatgpt", "gemini"]))
 def install(client):
     """Install Tweek as MCP server for a desktop client.
@@ -2660,7 +2981,14 @@ def install(client):
         console.print(f"[red]Error: {e}[/red]")
 
 
-@mcp.command()
+@mcp.command(
+    epilog="""\b
+Examples:
+  tweek mcp uninstall claude-desktop     Remove from Claude Desktop
+  tweek mcp uninstall chatgpt            Remove from ChatGPT Desktop
+  tweek mcp uninstall gemini             Remove from Gemini CLI
+"""
+)
 @click.argument("client", type=click.Choice(["claude-desktop", "chatgpt", "gemini"]))
 def uninstall(client):
     """Remove Tweek MCP server from a desktop client.
@@ -2690,74 +3018,16 @@ def uninstall(client):
         console.print(f"[red]Error: {e}[/red]")
 
 
-@mcp.command()
-@click.option("--json-output", "json_out", is_flag=True, help="Output as JSON")
-def status(json_out):
-    """Show MCP gateway status across all clients."""
-    try:
-        from tweek.mcp.clients import SUPPORTED_CLIENTS
-
-        results = {}
-        for name, client_class in SUPPORTED_CLIENTS.items():
-            try:
-                handler = client_class()
-                results[name] = handler.status()
-            except Exception as e:
-                results[name] = {"error": str(e)}
-
-        if json_out:
-            console.print(json.dumps(results, indent=2))
-            return
-
-        console.print()
-        console.print("[bold]MCP Gateway Status[/bold]")
-        console.print("─" * 50)
-
-        for name, info in results.items():
-            installed = info.get("installed")
-            display = info.get("client", name)
-
-            if installed is True:
-                status_str = "[green]● INSTALLED[/green]"
-            elif installed is False:
-                status_str = "[dim]○ Not installed[/dim]"
-            else:
-                status_str = "[yellow]? Unknown[/yellow]"
-
-            console.print(f"  {display:20s} {status_str}")
-
-            if info.get("config_path"):
-                console.print(f"  {'':20s} Config: {info['config_path']}")
-
-            if info.get("other_servers"):
-                others = ", ".join(info["other_servers"])
-                console.print(f"  {'':20s} Other MCP servers: {others}")
-
-            if info.get("note"):
-                console.print(f"  {'':20s} [dim]{info['note']}[/dim]")
-
-        # Show server info
-        console.print()
-        try:
-            from tweek.mcp.server import MCP_AVAILABLE, MCP_SERVER_VERSION
-            if MCP_AVAILABLE:
-                console.print(f"  [green]MCP SDK: installed (server v{MCP_SERVER_VERSION})[/green]")
-            else:
-                console.print("  [yellow]MCP SDK: not installed (pip install mcp)[/yellow]")
-        except ImportError:
-            console.print("  [yellow]MCP module not available[/yellow]")
-
-        console.print()
-
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-
-
 # =============================================================================
 # MCP PROXY COMMANDS
 # =============================================================================
 
-@mcp.command("proxy")
+@mcp.command("proxy",
+    epilog="""\b
+Examples:
+  tweek mcp proxy                        Start MCP proxy on stdio transport
+"""
+)
 def mcp_proxy():
     """Start MCP proxy server (stdio transport).
 
@@ -2802,17 +3072,36 @@ def mcp_proxy():
         console.print(f"[red]MCP proxy error: {e}[/red]")
 
 
-@mcp.command("approve")
+@mcp.command("approve",
+    epilog="""\b
+Examples:
+  tweek mcp approve                      Start approval daemon (interactive)
+  tweek mcp approve --list               List pending requests and exit
+  tweek mcp approve -p 5                 Poll every 5 seconds
+"""
+)
 @click.option("--poll-interval", "-p", default=2.0, type=float,
               help="Seconds between polls for new requests")
-def mcp_approve(poll_interval):
+@click.option("--list", "list_pending", is_flag=True, help="List pending requests and exit")
+def mcp_approve(poll_interval, list_pending):
     """Start the approval daemon for MCP proxy requests.
 
     Shows pending requests and allows approve/deny decisions.
     Press Ctrl+C to exit.
 
     Run this in a separate terminal while 'tweek mcp proxy' is serving.
+    Use --list to show pending requests without starting the daemon.
     """
+    if list_pending:
+        try:
+            from tweek.mcp.approval import ApprovalQueue
+            from tweek.mcp.approval_cli import display_pending
+            queue = ApprovalQueue()
+            display_pending(queue)
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+        return
+
     try:
         from tweek.mcp.approval import ApprovalQueue
         from tweek.mcp.approval_cli import run_approval_daemon
@@ -2826,32 +3115,14 @@ def mcp_approve(poll_interval):
         console.print(f"[red]Approval daemon error: {e}[/red]")
 
 
-@mcp.command("pending")
-def mcp_pending():
-    """Show pending approval requests.
-
-    Lists all requests waiting for human review.
-    Use 'tweek mcp decide <ID> approve|deny' to act on them.
-    """
-    try:
-        from tweek.mcp.approval import ApprovalQueue
-        from tweek.mcp.approval_cli import display_pending
-
-        queue = ApprovalQueue()
-        count = display_pending(queue)
-
-        if count > 0:
-            console.print()
-            console.print(
-                "[dim]Use 'tweek mcp decide <ID> approve' or "
-                "'tweek mcp decide <ID> deny' to act.[/dim]"
-            )
-
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-
-
-@mcp.command("decide")
+@mcp.command("decide",
+    epilog="""\b
+Examples:
+  tweek mcp decide abc12345 approve                   Approve a request
+  tweek mcp decide abc12345 deny                      Deny a request
+  tweek mcp decide abc12345 deny -n "Not authorized"  Deny with notes
+"""
+)
 @click.argument("request_id")
 @click.argument("decision", type=click.Choice(["approve", "deny"]))
 @click.option("--notes", "-n", help="Decision notes")
@@ -2859,10 +3130,6 @@ def mcp_decide(request_id, decision, notes):
     """Approve or deny a specific approval request.
 
     REQUEST_ID can be the full UUID or the first 8 characters.
-
-    Examples:
-        tweek mcp decide abc12345 approve
-        tweek mcp decide abc12345 deny --notes "Not authorized"
     """
     try:
         from tweek.mcp.approval import ApprovalQueue
@@ -2880,73 +3147,6 @@ def mcp_decide(request_id, decision, notes):
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-
-
-# =============================================================================
-# PLUGIN SCOPE COMMANDS
-# =============================================================================
-
-@plugins.command("scope")
-@click.argument("plugin_name")
-@click.option("--tools", help="Comma-separated tool names (e.g., Bash,WebFetch)")
-@click.option("--skills", help="Comma-separated skill names (e.g., deploy,email-search)")
-@click.option("--projects", help="Comma-separated project paths")
-@click.option("--tiers", help="Comma-separated tiers (e.g., risky,dangerous)")
-@click.option("--clear", is_flag=True, help="Clear all scoping (make plugin global)")
-def plugin_scope(plugin_name, tools, skills, projects, tiers, clear):
-    """View or set plugin scoping configuration.
-
-    When called with no options, shows the current scope for a plugin.
-    Use --clear to remove all scoping (make the plugin global again).
-
-    Examples:
-        tweek plugins scope hipaa
-        tweek plugins scope hipaa --tools Bash,WebFetch --skills email-search
-        tweek plugins scope hipaa --clear
-    """
-    try:
-        from tweek.config.manager import ConfigManager
-
-        cfg = ConfigManager()
-
-        if clear:
-            # Remove scope from plugin config
-            cfg.set_plugin_scope(plugin_name, None)
-            console.print(f"[green]✅ Cleared scope for {plugin_name} (now global)[/green]")
-            return
-
-        if any([tools, skills, projects, tiers]):
-            # Set scope
-            scope_config = {}
-            if tools:
-                scope_config["tools"] = [t.strip() for t in tools.split(",")]
-            if skills:
-                scope_config["skills"] = [s.strip() for s in skills.split(",")]
-            if projects:
-                scope_config["projects"] = [p.strip() for p in projects.split(",")]
-            if tiers:
-                scope_config["tiers"] = [t.strip() for t in tiers.split(",")]
-
-            cfg.set_plugin_scope(plugin_name, scope_config)
-            console.print(f"[green]✅ Updated scope for {plugin_name}[/green]")
-
-            from tweek.plugins.scope import PluginScope
-            scope = PluginScope.from_dict(scope_config)
-            console.print(f"   {scope.describe()}")
-            return
-
-        # Show current scope
-        scope_config = cfg.get_plugin_scope(plugin_name)
-        if scope_config is None:
-            console.print(f"  {plugin_name}: [dim]Global (no scope restrictions)[/dim]")
-        else:
-            from tweek.plugins.scope import PluginScope
-            scope = PluginScope.from_dict(scope_config)
-            console.print(f"  {plugin_name}: {scope.describe()}")
-
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-
 
 if __name__ == "__main__":
     main()
