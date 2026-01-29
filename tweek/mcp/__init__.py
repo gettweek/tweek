@@ -2,20 +2,23 @@
 """
 Tweek MCP Security Gateway & Proxy
 
-MCP (Model Context Protocol) server and proxy for security-screened
-tool access from desktop LLM applications:
+MCP (Model Context Protocol) integration for desktop LLM applications:
 - Claude Desktop
 - ChatGPT Desktop
 - Gemini CLI
 - VS Code (Continue.dev)
 
 Two modes of operation:
-- **Gateway**: Exposes 6 pre-screened tools directly (tweek mcp serve)
-- **Proxy**: Transparently proxies upstream MCP servers with screening
-  and human-in-the-loop approval (tweek mcp proxy)
+- **Proxy** (recommended): Transparently wraps upstream MCP servers with
+  security screening and human-in-the-loop approval. Tools keep their
+  original names. Use: tweek mcp proxy
+- **Gateway**: Exposes tweek_vault and tweek_status as new MCP tools for
+  capabilities not available as built-in desktop client tools.
+  Use: tweek mcp serve
 
-All tool calls route through Tweek's shared screening engine, providing
-the same defense-in-depth protection as CLI hooks and the HTTP proxy.
+Built-in desktop client tools (Bash, Read, Write, etc.) cannot be
+intercepted via MCP — use CLI hooks for Claude Code, or the HTTP
+proxy for Cursor/direct API calls.
 """
 
 __all__ = ["create_server", "create_proxy"]

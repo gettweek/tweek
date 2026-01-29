@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-Tweek MCP Security Gateway Server
+Tweek MCP Gateway Server
 
-A Model Context Protocol server that exposes security-screened tools.
-Desktop LLM clients connect to this server via stdio transport and
-get Tweek's full screening pipeline on every tool call.
+Minimal MCP server exposing only tools that add genuinely new capabilities
+not available as built-in desktop client tools:
+- tweek_vault: Secure keychain credential retrieval
+- tweek_status: Security status and activity reporting
+
+Desktop clients' built-in tools (Bash, Read, Write, etc.) cannot be
+intercepted via MCP. For upstream MCP server interception, use the
+proxy mode: tweek mcp proxy
 
 Usage:
     tweek mcp serve       # stdio mode (desktop clients)
-    tweek mcp start       # background daemon mode
 """
 
 import json
 import logging
 import os
-import subprocess
-import sys
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 try:
@@ -35,7 +36,7 @@ from tweek.screening.context import ScreeningContext
 logger = logging.getLogger(__name__)
 
 # Version for MCP server identification
-MCP_SERVER_VERSION = "0.1.0"
+MCP_SERVER_VERSION = "0.2.0"
 
 
 def _check_mcp_available():
@@ -49,11 +50,13 @@ def _check_mcp_available():
 
 class TweekMCPServer:
     """
-    Tweek MCP Security Gateway.
+    Tweek MCP Gateway.
 
-    Exposes security-screened tools via the Model Context Protocol.
-    Each tool call runs through the full Tweek screening pipeline
-    before execution.
+    Exposes vault and status tools via MCP. These are genuinely new
+    capabilities not available as built-in desktop client tools.
+
+    For intercepting upstream MCP server tool calls, use TweekMCPProxy
+    from tweek.mcp.proxy instead.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -74,106 +77,13 @@ class TweekMCPServer:
 
             tool_configs = self.config.get("mcp", {}).get("gateway", {}).get("tools", {})
 
-            if tool_configs.get("bash", True):
-                tools.append(Tool(
-                    name="tweek_bash",
-                    description=(
-                        "Execute a shell command with Tweek security screening. "
-                        "Commands are scanned for injection, exfiltration, and "
-                        "malicious patterns before execution. Sandboxed by default."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "command": {
-                                "type": "string",
-                                "description": "The shell command to execute",
-                            },
-                            "working_dir": {
-                                "type": "string",
-                                "description": "Working directory for execution",
-                            },
-                            "timeout": {
-                                "type": "integer",
-                                "description": "Timeout in seconds (default: 120)",
-                            },
-                        },
-                        "required": ["command"],
-                    },
-                ))
-
-            if tool_configs.get("read", True):
-                tools.append(Tool(
-                    name="tweek_read",
-                    description=(
-                        "Read a file with Tweek security scanning. Prevents access "
-                        "to sensitive files (.env, credentials, keys) unless authorized."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Absolute path to the file to read",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ))
-
-            if tool_configs.get("write", True):
-                tools.append(Tool(
-                    name="tweek_write",
-                    description=(
-                        "Write content to a file with Tweek security screening. "
-                        "Prevents writing malicious content or overwriting critical files."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Absolute path to write",
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "Content to write to the file",
-                            },
-                        },
-                        "required": ["path", "content"],
-                    },
-                ))
-
-            if tool_configs.get("web", True):
-                tools.append(Tool(
-                    name="tweek_web",
-                    description=(
-                        "Fetch a URL with Tweek security screening. Validates URLs "
-                        "against blocklists, scans responses for injection attempts."
-                    ),
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "url": {
-                                "type": "string",
-                                "description": "URL to fetch",
-                            },
-                            "method": {
-                                "type": "string",
-                                "enum": ["GET", "POST"],
-                                "description": "HTTP method (default: GET)",
-                            },
-                        },
-                        "required": ["url"],
-                    },
-                ))
-
             if tool_configs.get("vault", True):
                 tools.append(Tool(
                     name="tweek_vault",
                     description=(
                         "Retrieve a credential from Tweek's secure vault. "
-                        "Credentials are stored in the system keychain, not in .env files."
+                        "Credentials are stored in the system keychain, not in .env files. "
+                        "Use this instead of reading .env files or hardcoding secrets."
                     ),
                     inputSchema={
                         "type": "object",
@@ -196,7 +106,7 @@ class TweekMCPServer:
                     name="tweek_status",
                     description=(
                         "Show Tweek security status including active plugins, "
-                        "recent activity, and threat summary."
+                        "recent activity, threat summary, and proxy statistics."
                     ),
                     inputSchema={
                         "type": "object",
@@ -214,14 +124,10 @@ class TweekMCPServer:
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-            """Handle tool calls with security screening."""
+            """Handle tool calls."""
             self._request_count += 1
 
             handler_map = {
-                "tweek_bash": self._handle_bash,
-                "tweek_read": self._handle_read,
-                "tweek_write": self._handle_write,
-                "tweek_web": self._handle_web,
                 "tweek_vault": self._handle_vault,
                 "tweek_status": self._handle_status,
             }
@@ -256,7 +162,7 @@ class TweekMCPServer:
         return ScreeningContext(
             tool_name=tool_name,
             content=content,
-            tier="default",  # Will be resolved by screening pipeline
+            tier="default",
             working_dir=os.getcwd(),
             source="mcp",
             client_name=self.config.get("client_name"),
@@ -267,22 +173,13 @@ class TweekMCPServer:
         """
         Run the shared screening pipeline.
 
-        Delegates to the shared screening module and converts
-        should_prompt -> blocked (in gateway mode, there is no
-        interactive user to ask).
-
-        Returns dict with:
-            allowed: bool
-            blocked: bool
-            reason: Optional[str]
-            findings: List[Dict]
+        In gateway mode, should_prompt is converted to blocked
+        since there is no interactive user to confirm.
         """
         from tweek.mcp.screening import run_mcp_screening
 
         result = run_mcp_screening(context)
 
-        # In MCP gateway mode, convert should_prompt -> blocked
-        # (no interactive user available to confirm)
         if result.get("should_prompt"):
             self._blocked_count += 1
             return {
@@ -292,7 +189,6 @@ class TweekMCPServer:
                 "findings": result.get("findings", []),
             }
 
-        # Track blocked count for statistics
         if result.get("blocked"):
             self._blocked_count += 1
 
@@ -302,223 +198,6 @@ class TweekMCPServer:
             "reason": result.get("reason"),
             "findings": result.get("findings", []),
         }
-
-    async def _handle_bash(self, arguments: Dict[str, Any]) -> str:
-        """Handle tweek_bash tool call."""
-        command = arguments.get("command", "")
-        working_dir = arguments.get("working_dir", os.getcwd())
-        timeout = arguments.get("timeout", 120)
-
-        # Screen the command
-        context = self._build_context("Bash", command, arguments)
-        context.working_dir = working_dir
-        screening = self._run_screening(context)
-
-        if screening["blocked"]:
-            return json.dumps({
-                "blocked": True,
-                "reason": screening["reason"],
-                "findings": screening.get("findings", []),
-            })
-
-        # Execute the command
-        try:
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=working_dir,
-            )
-
-            output = result.stdout
-            if result.stderr:
-                output += f"\n[stderr]\n{result.stderr}"
-
-            # Scan output for leaked credentials
-            output_screening = self._run_output_scan(output)
-            if output_screening.get("blocked"):
-                return json.dumps({
-                    "blocked": True,
-                    "reason": f"Output contained sensitive data: {output_screening['reason']}",
-                    "return_code": result.returncode,
-                })
-
-            return json.dumps({
-                "output": output,
-                "return_code": result.returncode,
-            })
-
-        except subprocess.TimeoutExpired:
-            return json.dumps({
-                "error": f"Command timed out after {timeout}s",
-                "command": command,
-            })
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
-    async def _handle_read(self, arguments: Dict[str, Any]) -> str:
-        """Handle tweek_read tool call."""
-        path = arguments.get("path", "")
-
-        # Screen the path
-        context = self._build_context("Read", path, arguments)
-        screening = self._run_screening(context)
-
-        if screening["blocked"]:
-            return json.dumps({
-                "blocked": True,
-                "reason": screening["reason"],
-            })
-
-        # Check for sensitive file patterns
-        sensitive_patterns = [
-            ".env", ".env.local", ".env.production",
-            "credentials", "secrets", ".ssh/",
-            "id_rsa", "id_ed25519", ".aws/credentials",
-            ".gcloud/", "keychain",
-        ]
-        path_lower = path.lower()
-        for pattern in sensitive_patterns:
-            if pattern in path_lower:
-                return json.dumps({
-                    "blocked": True,
-                    "reason": f"Access to sensitive file blocked: {pattern}",
-                    "path": path,
-                })
-
-        # Read the file
-        try:
-            file_path = Path(path)
-            if not file_path.exists():
-                return json.dumps({"error": f"File not found: {path}"})
-
-            if not file_path.is_file():
-                return json.dumps({"error": f"Not a file: {path}"})
-
-            # Size limit: 10MB
-            if file_path.stat().st_size > 10 * 1024 * 1024:
-                return json.dumps({"error": f"File too large (>10MB): {path}"})
-
-            content = file_path.read_text(errors="replace")
-
-            # Scan content for credentials
-            output_screening = self._run_output_scan(content)
-            if output_screening.get("blocked"):
-                return json.dumps({
-                    "blocked": True,
-                    "reason": f"File contains sensitive data: {output_screening['reason']}",
-                    "path": path,
-                })
-
-            return json.dumps({
-                "content": content,
-                "path": path,
-                "size": len(content),
-            })
-
-        except PermissionError:
-            return json.dumps({"error": f"Permission denied: {path}"})
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
-    async def _handle_write(self, arguments: Dict[str, Any]) -> str:
-        """Handle tweek_write tool call."""
-        path = arguments.get("path", "")
-        content = arguments.get("content", "")
-
-        # Screen both path and content
-        screen_text = f"Write to {path}:\n{content}"
-        context = self._build_context("Write", screen_text, arguments)
-        screening = self._run_screening(context)
-
-        if screening["blocked"]:
-            return json.dumps({
-                "blocked": True,
-                "reason": screening["reason"],
-            })
-
-        # Block writing to critical paths
-        critical_paths = [
-            "/etc/", "/usr/", "/bin/", "/sbin/",
-            "/System/", "/Library/LaunchDaemons/",
-            ".ssh/authorized_keys", ".bashrc", ".zshrc",
-            ".profile", ".bash_profile",
-        ]
-        for critical in critical_paths:
-            if path.startswith(critical) or path.endswith(critical.lstrip("/")):
-                return json.dumps({
-                    "blocked": True,
-                    "reason": f"Writing to critical path blocked: {critical}",
-                    "path": path,
-                })
-
-        try:
-            file_path = Path(path)
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content)
-
-            return json.dumps({
-                "success": True,
-                "path": path,
-                "bytes_written": len(content),
-            })
-
-        except PermissionError:
-            return json.dumps({"error": f"Permission denied: {path}"})
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
-    async def _handle_web(self, arguments: Dict[str, Any]) -> str:
-        """Handle tweek_web tool call."""
-        url = arguments.get("url", "")
-        method = arguments.get("method", "GET")
-
-        # Screen the URL
-        context = self._build_context("WebFetch", url, arguments)
-        screening = self._run_screening(context)
-
-        if screening["blocked"]:
-            return json.dumps({
-                "blocked": True,
-                "reason": screening["reason"],
-            })
-
-        try:
-            import urllib.request
-            import urllib.error
-
-            req = urllib.request.Request(url, method=method)
-            req.add_header("User-Agent", f"Tweek-MCP/{MCP_SERVER_VERSION}")
-
-            with urllib.request.urlopen(req, timeout=30) as response:
-                content = response.read().decode("utf-8", errors="replace")
-
-                # Truncate large responses
-                if len(content) > 100_000:
-                    content = content[:100_000] + "\n... [truncated]"
-
-                # Scan response for injection attempts
-                output_screening = self._run_output_scan(content)
-                if output_screening.get("blocked"):
-                    return json.dumps({
-                        "blocked": True,
-                        "reason": f"Response blocked: {output_screening['reason']}",
-                        "url": url,
-                    })
-
-                return json.dumps({
-                    "content": content,
-                    "url": url,
-                    "status": response.status,
-                    "content_type": response.headers.get("Content-Type", "unknown"),
-                })
-
-        except urllib.error.URLError as e:
-            return json.dumps({"error": f"URL error: {e}", "url": url})
-        except Exception as e:
-            return json.dumps({"error": str(e), "url": url})
 
     async def _handle_vault(self, arguments: Dict[str, Any]) -> str:
         """Handle tweek_vault tool call."""
@@ -564,8 +243,9 @@ class TweekMCPServer:
             status = {
                 "version": MCP_SERVER_VERSION,
                 "source": "mcp",
-                "requests": self._request_count,
-                "blocked": self._blocked_count,
+                "mode": "gateway",
+                "gateway_requests": self._request_count,
+                "gateway_blocked": self._blocked_count,
             }
 
             if detail in ("summary", "plugins"):
@@ -594,33 +274,35 @@ class TweekMCPServer:
                 except (ImportError, Exception):
                     status["recent_activity"] = []
 
+            # Include approval queue stats if available
+            try:
+                from tweek.mcp.approval import ApprovalQueue
+                queue = ApprovalQueue()
+                status["approval_queue"] = queue.get_stats()
+            except Exception:
+                pass
+
             return json.dumps(status, indent=2)
 
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    def _run_output_scan(self, content: str) -> Dict[str, Any]:
-        """
-        Scan output content for leaked credentials or sensitive data.
-
-        Returns dict with blocked: bool and reason if blocked.
-        """
-        from tweek.mcp.screening import run_output_scan
-        return run_output_scan(content)
-
 
 async def run_server(config: Optional[Dict[str, Any]] = None):
     """
-    Run the Tweek MCP server on stdio transport.
+    Run the Tweek MCP gateway server on stdio transport.
 
-    This is the main entry point for 'tweek mcp serve'.
+    Exposes tweek_vault and tweek_status tools. For upstream MCP
+    server interception, use run_proxy() instead.
     """
     _check_mcp_available()
 
     server = TweekMCPServer(config=config)
 
-    logger.info("Starting Tweek MCP Security Gateway...")
+    logger.info("Starting Tweek MCP Gateway...")
     logger.info(f"Version: {MCP_SERVER_VERSION}")
+    logger.info("Tools: tweek_vault, tweek_status")
+    logger.info("For upstream MCP interception, use: tweek mcp proxy")
 
     async with stdio_server() as (read_stream, write_stream):
         await server.server.run(

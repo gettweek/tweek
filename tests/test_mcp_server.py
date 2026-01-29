@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Tests for the MCP Security Gateway server."""
+"""Tests for the MCP Security Gateway server (vault + status only)."""
 
 import json
-import os
 import pytest
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Check if MCP is available
 try:
@@ -14,13 +11,6 @@ try:
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
-
-
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test files."""
-    with tempfile.TemporaryDirectory() as d:
-        yield d
 
 
 class TestTweekMCPServerCreation:
@@ -43,10 +33,6 @@ class TestTweekMCPServerCreation:
             "mcp": {
                 "gateway": {
                     "tools": {
-                        "bash": True,
-                        "read": True,
-                        "write": False,
-                        "web": False,
                         "vault": True,
                         "status": True,
                     }
@@ -72,10 +58,10 @@ class TestBuildContext:
         """Test building a context with defaults."""
         from tweek.mcp.server import TweekMCPServer
         server = TweekMCPServer()
-        ctx = server._build_context("Bash", "ls -la")
+        ctx = server._build_context("Vault", "vault:test/KEY")
 
-        assert ctx.tool_name == "Bash"
-        assert ctx.content == "ls -la"
+        assert ctx.tool_name == "Vault"
+        assert ctx.content == "vault:test/KEY"
         assert ctx.source == "mcp"
         assert ctx.tier == "default"
 
@@ -84,156 +70,41 @@ class TestBuildContext:
         """Test building context with client name."""
         from tweek.mcp.server import TweekMCPServer
         server = TweekMCPServer(config={"client_name": "claude-desktop"})
-        ctx = server._build_context("Read", "/tmp/file.txt")
+        ctx = server._build_context("Vault", "vault:test/KEY")
 
         assert ctx.client_name == "claude-desktop"
         assert ctx.source == "mcp"
 
 
-class TestScreeningIntegration:
-    """Test the screening pipeline integration."""
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    def test_screening_safe_command(self):
-        """Test that safe commands pass screening."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-        ctx = server._build_context("Read", "/tmp/test.txt")
-
-        result = server._run_screening(ctx)
-        # Safe tier should pass
-        assert result["allowed"] is True
-        assert result["blocked"] is False
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    def test_output_scan_clean(self):
-        """Test output scanning with clean content."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        result = server._run_output_scan("Hello, this is clean output")
-        assert result["blocked"] is False
-
-
-class TestMCPToolHandlers:
-    """Test individual MCP tool handlers."""
+class TestGatewayToolHandlers:
+    """Test the vault and status tool handlers."""
 
     @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
     @pytest.mark.asyncio
-    async def test_handle_bash_simple(self, temp_dir):
-        """Test handling a simple bash command."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        result_json = await server._handle_bash({
-            "command": "echo hello",
-            "working_dir": temp_dir,
-        })
-        result = json.loads(result_json)
-
-        assert "output" in result or "blocked" in result
-        if "output" in result:
-            assert "hello" in result["output"]
-            assert result["return_code"] == 0
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_read_existing_file(self, temp_dir):
-        """Test reading an existing file."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        # Create a test file
-        test_file = Path(temp_dir) / "test.txt"
-        test_file.write_text("test content")
-
-        result_json = await server._handle_read({"path": str(test_file)})
-        result = json.loads(result_json)
-
-        assert "content" in result or "blocked" in result
-        if "content" in result:
-            assert result["content"] == "test content"
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_read_nonexistent_file(self):
-        """Test reading a nonexistent file."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        result_json = await server._handle_read({
-            "path": "/tmp/nonexistent_tweek_test_file.txt",
-        })
-        result = json.loads(result_json)
-        assert "error" in result
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_read_blocks_env(self):
-        """Test that reading .env files is blocked."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        result_json = await server._handle_read({"path": "/Users/me/.env"})
-        result = json.loads(result_json)
-        assert result.get("blocked") is True
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_read_blocks_ssh(self):
-        """Test that reading .ssh files is blocked."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        result_json = await server._handle_read({"path": "/Users/me/.ssh/id_rsa"})
-        result = json.loads(result_json)
-        assert result.get("blocked") is True
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_write_creates_file(self, temp_dir):
-        """Test writing a file."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        test_path = str(Path(temp_dir) / "output.txt")
-        result_json = await server._handle_write({
-            "path": test_path,
-            "content": "written by tweek",
-        })
-        result = json.loads(result_json)
-
-        if result.get("success"):
-            assert Path(test_path).read_text() == "written by tweek"
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_write_blocks_etc(self):
-        """Test that writing to /etc is blocked."""
-        from tweek.mcp.server import TweekMCPServer
-        server = TweekMCPServer()
-
-        result_json = await server._handle_write({
-            "path": "/etc/passwd",
-            "content": "malicious",
-        })
-        result = json.loads(result_json)
-        assert result.get("blocked") is True
-
-    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_status(self):
-        """Test status tool returns valid JSON."""
-        from tweek.mcp.server import TweekMCPServer
+    async def test_handle_status_summary(self):
+        """Test status tool returns valid summary JSON."""
+        from tweek.mcp.server import TweekMCPServer, MCP_SERVER_VERSION
         server = TweekMCPServer()
 
         result_json = await server._handle_status({"detail": "summary"})
         result = json.loads(result_json)
 
-        assert "version" in result
-        assert "source" in result
+        assert result["version"] == MCP_SERVER_VERSION
         assert result["source"] == "mcp"
-        assert "requests" in result
+        assert result["mode"] == "gateway"
+        assert "gateway_requests" in result
+        assert "gateway_blocked" in result
+
+    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
+    @pytest.mark.asyncio
+    async def test_handle_status_plugins(self):
+        """Test status tool with plugins detail."""
+        from tweek.mcp.server import TweekMCPServer
+        server = TweekMCPServer()
+
+        result_json = await server._handle_status({"detail": "plugins"})
+        result = json.loads(result_json)
+        assert "plugins" in result
 
     @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
     @pytest.mark.asyncio
@@ -249,20 +120,37 @@ class TestMCPToolHandlers:
         result = json.loads(result_json)
         assert "error" in result or "blocked" in result
 
+
+class TestNoLongerExposedTools:
+    """Verify that bash/read/write/web tools are NOT exposed."""
+
     @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
-    @pytest.mark.asyncio
-    async def test_handle_bash_timeout(self, temp_dir):
-        """Test bash command timeout."""
+    def test_no_bash_handler(self):
+        """Verify tweek_bash is not registered."""
         from tweek.mcp.server import TweekMCPServer
         server = TweekMCPServer()
+        assert not hasattr(server, "_handle_bash")
 
-        result_json = await server._handle_bash({
-            "command": "sleep 10",
-            "working_dir": temp_dir,
-            "timeout": 1,
-        })
-        result = json.loads(result_json)
-        assert "error" in result or "blocked" in result
+    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
+    def test_no_read_handler(self):
+        """Verify tweek_read is not registered."""
+        from tweek.mcp.server import TweekMCPServer
+        server = TweekMCPServer()
+        assert not hasattr(server, "_handle_read")
+
+    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
+    def test_no_write_handler(self):
+        """Verify tweek_write is not registered."""
+        from tweek.mcp.server import TweekMCPServer
+        server = TweekMCPServer()
+        assert not hasattr(server, "_handle_write")
+
+    @pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed")
+    def test_no_web_handler(self):
+        """Verify tweek_web is not registered."""
+        from tweek.mcp.server import TweekMCPServer
+        server = TweekMCPServer()
+        assert not hasattr(server, "_handle_web")
 
 
 class TestRequestCounting:
