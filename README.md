@@ -131,7 +131,7 @@ tweek vault get myapp API_KEY
 
 ## License
 
-MIT
+Apache 2.0 - See [LICENSE](LICENSE) for details.
 
 ## Links
 

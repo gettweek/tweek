@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Defense-in-depth security for AI coding assistants - protect credentials, code, and system from prompt injection attacks"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "Apache-2.0"
 authors = [
     {name = "Tommy Mancino"}
 ]
@@ -57,10 +57,9 @@ all = [
 tweek = "tweek.cli:main"
 
 [project.urls]
-Homepage = "https://tweek.dev"
-Documentation = "https://docs.tweek.dev"
-Repository = "https://github.com/tweek-security/tweek"
-Issues = "https://github.com/tweek-security/tweek/issues"
+Homepage = "https://gettweek.com"
+Repository = "https://github.com/gettweek/tweek"
+Issues = "https://github.com/gettweek/tweek/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
