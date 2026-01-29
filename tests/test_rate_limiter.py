@@ -37,6 +37,20 @@ def temp_db():
 
 
 @pytest.fixture
+def mock_pro_license(tmp_path):
+    """Mock Pro license for rate limiter testing."""
+    from tweek.licensing import License, Tier, generate_license_key
+    license_file = tmp_path / ".tweek" / "license.key"
+    with patch('tweek.licensing.LICENSE_FILE', license_file):
+        License._instance = None
+        lic = License.get_instance()
+        key = generate_license_key(Tier.PRO, "test@example.com")
+        lic.activate(key)
+        yield lic
+        License._instance = None
+
+
+@pytest.fixture
 def mock_logger(temp_db):
     """Create a mock logger with a real database."""
     from tweek.logging.security_log import SecurityLogger
@@ -45,8 +59,8 @@ def mock_logger(temp_db):
 
 
 @pytest.fixture
-def rate_limiter(mock_logger):
-    """Create a RateLimiter instance with mock logger."""
+def rate_limiter(mock_logger, mock_pro_license):
+    """Create a RateLimiter instance with mock logger and Pro license."""
     config = RateLimitConfig(
         burst_window=5,
         burst_threshold=5,  # Lower for testing

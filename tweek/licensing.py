@@ -166,8 +166,8 @@ class License:
 
     def has_feature(self, feature: str) -> bool:
         """Check if current license includes a feature."""
-        # Check tier features (cumulative)
-        tier_order = [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]
+        # Check tier features (cumulative - PRO includes FREE features)
+        tier_order = [Tier.FREE, Tier.PRO]
         current_idx = tier_order.index(self.tier)
 
         for i in range(current_idx + 1):
@@ -183,7 +183,7 @@ class License:
     def get_available_features(self) -> List[str]:
         """Get list of all available features for current tier."""
         features = []
-        tier_order = [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]
+        tier_order = [Tier.FREE, Tier.PRO]
         current_idx = tier_order.index(self.tier)
 
         for i in range(current_idx + 1):
@@ -243,7 +243,7 @@ def require_tier(min_tier: Tier) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
             license = get_license()
-            tier_order = [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]
+            tier_order = [Tier.FREE, Tier.PRO]
 
             if tier_order.index(license.tier) < tier_order.index(min_tier):
                 raise LicenseError(

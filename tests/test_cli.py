@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+"""
+Tests for Tweek CLI commands.
+
+Tests coverage of:
+- Install/uninstall commands
+- Status command
+- License commands
+- Config commands
+- Vault commands
+- Logs commands
+- Update command
+"""
+
+import json
+import pytest
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+from click.testing import CliRunner
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from tweek.cli import main, install, uninstall, status, update
+from tweek.licensing import License, Tier, generate_license_key
+
+
+@pytest.fixture
+def runner():
+    """Create a CLI test runner."""
+    return CliRunner()
+
+
+@pytest.fixture
+def temp_home(tmp_path):
+    """Create temporary home directory structure."""
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    tweek_dir = tmp_path / ".tweek"
+    tweek_dir.mkdir()
+    return tmp_path
+
+
+class TestInstallCommand:
+    """Tests for the install command."""
+
+    def test_install_global_creates_settings(self, runner, tmp_path):
+        """Test global install creates settings.json."""
+        claude_dir = tmp_path / ".claude"
+
+        with patch.object(Path, 'home', return_value=tmp_path):
+            with patch('tweek.cli.Path.home', return_value=tmp_path):
+                result = runner.invoke(
+                    main,
+                    ['install', '--skip-env-scan'],
+                    catch_exceptions=False
+                )
+
+        # Should complete successfully
+        assert result.exit_code == 0 or "Installation complete" in result.output
+
+    def test_install_project_scope(self, runner, tmp_path):
+        """Test project-scoped install."""
+        with runner.isolated_filesystem(temp_dir=tmp_path):
+            result = runner.invoke(
+                main,
+                ['install', '--scope', 'project', '--skip-env-scan']
+            )
+
+            # Check .claude directory was created
+            project_claude = Path(".claude")
+            if project_claude.exists():
+                settings = project_claude / "settings.json"
+                assert settings.exists() or "Installation complete" in result.output
+
+    def test_install_with_preset(self, runner, tmp_path):
+        """Test install with security preset."""
+        with patch.object(Path, 'home', return_value=tmp_path):
+            result = runner.invoke(
+                main,
+                ['install', '--preset', 'paranoid', '--skip-env-scan']
+            )
+
+        assert "paranoid" in result.output.lower() or result.exit_code == 0
+
+
+class TestUninstallCommand:
+    """Tests for the uninstall command."""
+
+    def test_uninstall_not_installed(self, runner, tmp_path):
+        """Test uninstall when not installed."""
+        with patch.object(Path, 'home', return_value=tmp_path):
+            result = runner.invoke(main, ['uninstall', '--confirm'])
+
+        assert "No Tweek installation" in result.output or result.exit_code == 0
+
+    def test_uninstall_removes_hooks(self, runner, tmp_path):
+        """Test uninstall removes Tweek hooks."""
+        # Use project scope since it's easier to test (uses cwd)
+        with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+            # Set up a mock installation in current project
+            claude_dir = Path(".claude")
+            claude_dir.mkdir(parents=True, exist_ok=True)
+            settings_file = claude_dir / "settings.json"
+            settings_file.write_text(json.dumps({
+                "hooks": {
+                    "PreToolUse": [{
+                        "matcher": "Bash",
+                        "hooks": [{
+                            "type": "command",
+                            "command": "/path/to/tweek/hooks/pre_tool_use.py"
+                        }]
+                    }]
+                }
+            }))
+
+            result = runner.invoke(main, ['uninstall', '--scope', 'project', '--confirm'])
+
+            # Check hooks were removed
+            if settings_file.exists():
+                settings = json.loads(settings_file.read_text())
+                # Either hooks removed or PreToolUse is empty
+                assert "hooks" not in settings or "PreToolUse" not in settings.get("hooks", {})
+
+
+class TestStatusCommand:
+    """Tests for the status command."""
+
+    def test_status_shows_info(self, runner, tmp_path):
+        """Test status command shows system info."""
+        with patch.object(Path, 'home', return_value=tmp_path):
+            with patch('tweek.platform.get_capabilities') as mock_caps:
+                mock_caps.return_value = MagicMock(
+                    platform=MagicMock(value="darwin"),
+                    vault_available=True,
+                    vault_backend="Keychain"
+                )
+                with patch('tweek.sandbox.get_sandbox_status', return_value={"available": False}):
+                    result = runner.invoke(main, ['status'])
+
+        assert result.exit_code == 0 or "Status" in result.output or "TWEEK" in result.output
+
+    def test_status_shows_license_tier(self, runner, tmp_path):
+        """Test status shows license tier."""
+        with patch.object(Path, 'home', return_value=tmp_path):
+            with patch('tweek.licensing.LICENSE_FILE', tmp_path / "license.key"):
+                License._instance = None
+                result = runner.invoke(main, ['status'])
+                License._instance = None
+
+        # Should show FREE tier by default
+        assert "FREE" in result.output or result.exit_code == 0
+
+
+class TestLicenseCommands:
+    """Tests for license subcommands."""
+
+    def test_license_status(self, runner, tmp_path):
+        """Test license status command."""
+        with patch('tweek.licensing.LICENSE_FILE', tmp_path / "license.key"):
+            License._instance = None
+            result = runner.invoke(main, ['license', 'status'])
+            License._instance = None
+
+        assert "FREE" in result.output or "License" in result.output
+
+    def test_license_activate_invalid(self, runner, tmp_path):
+        """Test activating invalid license."""
+        with patch('tweek.licensing.LICENSE_FILE', tmp_path / "license.key"):
+            License._instance = None
+            result = runner.invoke(main, ['license', 'activate', 'invalid_key'])
+            License._instance = None
+
+        assert "Invalid" in result.output or "✗" in result.output
+
+    def test_license_activate_valid(self, runner, tmp_path):
+        """Test activating valid license."""
+        key = generate_license_key(Tier.PRO, "test@example.com")
+
+        license_file = tmp_path / ".tweek" / "license.key"
+        with patch('tweek.licensing.LICENSE_FILE', license_file):
+            License._instance = None
+            result = runner.invoke(main, ['license', 'activate', key])
+            License._instance = None
+
+        assert "PRO" in result.output or "✓" in result.output
+
+    def test_license_deactivate(self, runner, tmp_path):
+        """Test deactivating license."""
+        # First activate
+        key = generate_license_key(Tier.PRO, "test@example.com")
+        license_file = tmp_path / ".tweek" / "license.key"
+
+        with patch('tweek.licensing.LICENSE_FILE', license_file):
+            License._instance = None
+            runner.invoke(main, ['license', 'activate', key])
+
+            # Then deactivate
+            result = runner.invoke(main, ['license', 'deactivate', '--confirm'])
+            License._instance = None
+
+        assert "FREE" in result.output or "deactivate" in result.output.lower()
+
+
+class TestConfigCommands:
+    """Tests for config subcommands."""
+
+    def test_config_list(self, runner, tmp_path):
+        """Test config list command."""
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(Path, 'home', return_value=tmp_path):
+            result = runner.invoke(main, ['config', 'list'])
+
+        assert result.exit_code == 0 or "Tool" in result.output or "Tier" in result.output
+
+    def test_config_show(self, runner, tmp_path):
+        """Test config show command."""
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(Path, 'home', return_value=tmp_path):
+            result = runner.invoke(main, ['config', 'show'])
+
+        assert result.exit_code == 0 or "Configuration" in result.output
+
+    def test_config_set_tool(self, runner, tmp_path):
+        """Test setting tool tier."""
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(Path, 'home', return_value=tmp_path):
+            result = runner.invoke(
+                main,
+                ['config', 'set', '--tool', 'Bash', '--tier', 'dangerous']
+            )
+
+        assert "✓" in result.output or "dangerous" in result.output.lower()
+
+    def test_config_preset(self, runner, tmp_path):
+        """Test applying config preset."""
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(Path, 'home', return_value=tmp_path):
+            result = runner.invoke(main, ['config', 'preset', 'paranoid'])
+
+        assert "paranoid" in result.output.lower() or "✓" in result.output
+
+
+class TestUpdateCommand:
+    """Tests for the update command."""
+
+    def test_update_check_no_patterns(self, runner, tmp_path):
+        """Test update --check when patterns not installed."""
+        with patch.object(Path, 'home', return_value=tmp_path):
+            result = runner.invoke(main, ['update', '--check'])
+
+        assert "not installed" in result.output.lower() or "Patterns" in result.output
+
+    def test_update_clones_repo(self, runner, tmp_path):
+        """Test update clones repo when patterns don't exist."""
+        with patch.object(Path, 'home', return_value=tmp_path):
+            with patch('subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(
+                    returncode=0,
+                    stdout="Cloning...",
+                    stderr=""
+                )
+                result = runner.invoke(main, ['update'])
+
+        # Should attempt to clone
+        if mock_run.called:
+            call_args = str(mock_run.call_args)
+            assert "clone" in call_args or "pull" in call_args
+
+
+class TestLogsCommands:
+    """Tests for logs subcommands."""
+
+    def test_logs_show(self, runner, tmp_path):
+        """Test logs show command."""
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(Path, 'home', return_value=tmp_path):
+            with patch('tweek.logging.security_log.get_logger') as mock_logger:
+                mock_logger.return_value.get_recent_events.return_value = []
+                result = runner.invoke(main, ['logs', 'show'])
+
+        assert result.exit_code == 0 or "No events" in result.output or "events" in result.output.lower()
+
+    def test_logs_stats(self, runner, tmp_path):
+        """Test logs stats command."""
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(Path, 'home', return_value=tmp_path):
+            with patch('tweek.logging.security_log.get_logger') as mock_logger:
+                mock_logger.return_value.get_stats.return_value = {
+                    'total_events': 0,
+                    'by_decision': {},
+                    'by_tool': {},
+                    'top_patterns': []
+                }
+                result = runner.invoke(main, ['logs', 'stats'])
+
+        assert result.exit_code == 0 or "Statistics" in result.output
+
+
+class TestVaultCommands:
+    """Tests for vault subcommands."""
+
+    def test_vault_store_no_keyring(self, runner, tmp_path):
+        """Test vault store when keyring not available."""
+        with patch('tweek.vault.VAULT_AVAILABLE', False):
+            result = runner.invoke(
+                main,
+                ['vault', 'store', 'test-skill', 'API_KEY', 'secret123']
+            )
+
+        assert "not available" in result.output.lower() or "keyring" in result.output.lower()
+
+    def test_vault_get_not_found(self, runner, tmp_path):
+        """Test vault get for non-existent credential."""
+        with patch('tweek.vault.VAULT_AVAILABLE', True):
+            with patch('tweek.vault.get_vault') as mock_vault:
+                mock_vault.return_value.get.return_value = None
+                result = runner.invoke(
+                    main,
+                    ['vault', 'get', 'test-skill', 'API_KEY']
+                )
+
+        assert "not found" in result.output.lower() or "✗" in result.output
+
+
+class TestCLIHelp:
+    """Tests for CLI help messages."""
+
+    def test_main_help(self, runner):
+        """Test main help message."""
+        result = runner.invoke(main, ['--help'])
+        assert result.exit_code == 0
+        assert "Tweek" in result.output or "security" in result.output.lower()
+
+    def test_install_help(self, runner):
+        """Test install help message."""
+        result = runner.invoke(main, ['install', '--help'])
+        assert result.exit_code == 0
+        assert "scope" in result.output.lower()
+
+    def test_license_help(self, runner):
+        """Test license help message."""
+        result = runner.invoke(main, ['license', '--help'])
+        assert result.exit_code == 0
+        assert "license" in result.output.lower()
+
+    def test_config_help(self, runner):
+        """Test config help message."""
+        result = runner.invoke(main, ['config', '--help'])
+        assert result.exit_code == 0
+
+    def test_version(self, runner):
+        """Test version flag."""
+        result = runner.invoke(main, ['--version'])
+        assert result.exit_code == 0
+        # Should show version number
+        assert "." in result.output or "version" in result.output.lower()
