@@ -18,7 +18,9 @@ The proxy is DISABLED by default. Enable with:
 """
 
 import shutil
-from typing import Optional
+import socket
+from typing import Optional, Tuple
+from dataclasses import dataclass
 
 # Check if proxy dependencies are available
 PROXY_AVAILABLE = False
@@ -29,6 +31,103 @@ try:
     PROXY_AVAILABLE = True
 except ImportError:
     PROXY_MISSING_DEPS.append("mitmproxy")
+
+
+# Default ports
+MOLTBOT_DEFAULT_PORT = 18789
+TWEEK_DEFAULT_PORT = 9877
+
+
+@dataclass
+class ProxyConflict:
+    """Information about a detected proxy conflict."""
+    tool_name: str
+    port: int
+    is_running: bool
+    description: str
+
+
+def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    """Check if a port is currently in use."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            result = s.connect_ex((host, port))
+            return result == 0
+    except (socket.error, OSError):
+        return False
+
+
+def check_moltbot_gateway_running(port: int = MOLTBOT_DEFAULT_PORT) -> bool:
+    """Check if moltbot's gateway is actively listening on its port."""
+    return is_port_in_use(port)
+
+
+def detect_proxy_conflicts() -> list[ProxyConflict]:
+    """
+    Detect any running proxies that might conflict with Tweek.
+
+    Returns a list of detected conflicts with details about each.
+    """
+    conflicts = []
+
+    # Check for moltbot
+    moltbot_info = detect_moltbot()
+    if moltbot_info:
+        moltbot_port = moltbot_info.get("gateway_port", MOLTBOT_DEFAULT_PORT)
+        is_running = check_moltbot_gateway_running(moltbot_port)
+
+        if moltbot_info.get("process_running") or is_running:
+            conflicts.append(ProxyConflict(
+                tool_name="moltbot",
+                port=moltbot_port,
+                is_running=is_running,
+                description="Moltbot gateway detected" +
+                           (f" on port {moltbot_port}" if is_running else " (process found)")
+            ))
+
+    # Check if something else is using Tweek's default port
+    if is_port_in_use(TWEEK_DEFAULT_PORT):
+        conflicts.append(ProxyConflict(
+            tool_name="unknown",
+            port=TWEEK_DEFAULT_PORT,
+            is_running=True,
+            description=f"Port {TWEEK_DEFAULT_PORT} is already in use"
+        ))
+
+    return conflicts
+
+
+def get_moltbot_status() -> dict:
+    """
+    Get detailed moltbot status including whether its gateway is running.
+
+    Returns:
+        Dict with keys: installed, running, gateway_active, port, config_path
+    """
+    from pathlib import Path
+
+    moltbot_info = detect_moltbot()
+
+    status = {
+        "installed": moltbot_info is not None,
+        "running": False,
+        "gateway_active": False,
+        "port": MOLTBOT_DEFAULT_PORT,
+        "config_path": None,
+    }
+
+    if moltbot_info:
+        status["running"] = moltbot_info.get("process_running", False)
+        status["port"] = moltbot_info.get("gateway_port", MOLTBOT_DEFAULT_PORT)
+        status["gateway_active"] = check_moltbot_gateway_running(status["port"])
+
+        config_path = Path.home() / ".moltbot"
+        if config_path.exists():
+            status["config_path"] = str(config_path)
+
+    return status
+
 
 # Detection functions for supported tools
 def detect_moltbot() -> Optional[dict]:
@@ -188,6 +287,13 @@ def get_proxy_status() -> dict:
 __all__ = [
     "PROXY_AVAILABLE",
     "PROXY_MISSING_DEPS",
+    "MOLTBOT_DEFAULT_PORT",
+    "TWEEK_DEFAULT_PORT",
+    "ProxyConflict",
+    "is_port_in_use",
+    "check_moltbot_gateway_running",
+    "detect_proxy_conflicts",
+    "get_moltbot_status",
     "detect_moltbot",
     "detect_cursor",
     "detect_continue",

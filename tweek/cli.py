@@ -149,7 +149,11 @@ def main():
               help="Let AI suggest default settings based on detected skills")
 @click.option("--with-sandbox", is_flag=True,
               help="Prompt to install sandbox tool if not available (Linux only)")
-def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool):
+@click.option("--force-proxy", is_flag=True,
+              help="Force Tweek proxy to override existing proxy configurations (e.g., moltbot)")
+@click.option("--skip-proxy-check", is_flag=True,
+              help="Skip checking for existing proxy configurations")
+def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool):
     """Install Tweek hooks into Claude Code.
 
     Scope options:
@@ -168,6 +172,73 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
     from tweek.config.manager import ConfigManager, SecurityTier
 
     console.print(TWEEK_BANNER, style="cyan")
+
+    # ─────────────────────────────────────────────────────────────
+    # Check for existing proxy configurations (moltbot, etc.)
+    # ─────────────────────────────────────────────────────────────
+    proxy_override_enabled = force_proxy
+    if not skip_proxy_check:
+        try:
+            from tweek.proxy import (
+                detect_proxy_conflicts,
+                get_moltbot_status,
+                MOLTBOT_DEFAULT_PORT,
+                TWEEK_DEFAULT_PORT,
+            )
+
+            moltbot_status = get_moltbot_status()
+
+            if moltbot_status["installed"]:
+                console.print()
+                console.print("[yellow]⚠ Moltbot detected on this system[/yellow]")
+
+                if moltbot_status["gateway_active"]:
+                    console.print(f"  [red]Gateway is running on port {moltbot_status['port']}[/red]")
+                elif moltbot_status["running"]:
+                    console.print(f"  [dim]Process is running (gateway may start on port {moltbot_status['port']})[/dim]")
+                else:
+                    console.print(f"  [dim]Installed but not currently running[/dim]")
+
+                if moltbot_status["config_path"]:
+                    console.print(f"  [dim]Config: {moltbot_status['config_path']}[/dim]")
+
+                console.print()
+
+                if not force_proxy:
+                    console.print("[cyan]Tweek can work alongside moltbot, or you can configure[/cyan]")
+                    console.print("[cyan]Tweek's proxy to intercept API calls instead.[/cyan]")
+                    console.print()
+
+                    if click.confirm(
+                        "[yellow]Enable Tweek proxy to override moltbot's gateway?[/yellow]",
+                        default=False
+                    ):
+                        proxy_override_enabled = True
+                        console.print("[green]✓[/green] Tweek proxy will be configured to intercept API calls")
+                        console.print(f"  [dim]Run 'tweek proxy start' after installation[/dim]")
+                    else:
+                        console.print("[dim]Tweek will work without proxy interception[/dim]")
+                        console.print("[dim]You can enable it later with 'tweek proxy enable'[/dim]")
+                else:
+                    console.print("[green]✓[/green] Force proxy enabled - Tweek will override moltbot")
+
+                console.print()
+
+            # Check for other proxy conflicts
+            conflicts = detect_proxy_conflicts()
+            non_moltbot_conflicts = [c for c in conflicts if c.tool_name != "moltbot"]
+
+            if non_moltbot_conflicts:
+                console.print("[yellow]⚠ Other proxy conflicts detected:[/yellow]")
+                for conflict in non_moltbot_conflicts:
+                    console.print(f"  • {conflict.description}")
+                console.print()
+
+        except ImportError:
+            # Proxy module not fully available, skip detection
+            pass
+        except Exception as e:
+            console.print(f"[dim]Warning: Could not check for proxy conflicts: {e}[/dim]")
 
     # Determine target directory based on scope
     if dev_test:
@@ -424,10 +495,45 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
                 console.print(f"[dim]Install with: {caps.sandbox_install_hint}[/dim]")
                 console.print("[dim]Or run 'tweek install --with-sandbox' to install now[/dim]")
 
+    # ─────────────────────────────────────────────────────────────
+    # Configure Tweek proxy if override was enabled
+    # ─────────────────────────────────────────────────────────────
+    if proxy_override_enabled:
+        try:
+            import yaml
+            from tweek.proxy import TWEEK_DEFAULT_PORT
+
+            proxy_config_path = tweek_dir / "config.yaml"
+
+            # Load existing config or create new
+            if proxy_config_path.exists():
+                with open(proxy_config_path) as f:
+                    tweek_config = yaml.safe_load(f) or {}
+            else:
+                tweek_config = {}
+
+            # Enable proxy with override settings
+            tweek_config["proxy"] = tweek_config.get("proxy", {})
+            tweek_config["proxy"]["enabled"] = True
+            tweek_config["proxy"]["port"] = TWEEK_DEFAULT_PORT
+            tweek_config["proxy"]["override_moltbot"] = True
+            tweek_config["proxy"]["auto_start"] = False  # User must explicitly start
+
+            with open(proxy_config_path, "w") as f:
+                yaml.dump(tweek_config, f, default_flow_style=False)
+
+            console.print("\n[green]✓[/green] Proxy override configured")
+            console.print(f"  [dim]Config saved to: {proxy_config_path}[/dim]")
+            console.print("  [yellow]Run 'tweek proxy start' to begin intercepting API calls[/yellow]")
+        except Exception as e:
+            console.print(f"\n[yellow]Warning: Could not save proxy config: {e}[/yellow]")
+
     console.print("\n[green]Installation complete![/green]")
     console.print("[dim]Run 'tweek status' to verify installation[/dim]")
     console.print("[dim]Run 'tweek update' to get latest attack patterns[/dim]")
     console.print("[dim]Run 'tweek config list' to see security settings[/dim]")
+    if proxy_override_enabled:
+        console.print("[dim]Run 'tweek proxy start' to enable API interception[/dim]")
 
 
 @main.command()
