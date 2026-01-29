@@ -6,10 +6,8 @@ Tweek uses a tiered licensing model to balance open-source availability with sus
 
 | Tier | Price | Best For |
 |------|-------|----------|
-| **FREE** | $0 | Individual developers, small projects |
-| **PRO** | $49 one-time | Professional developers |
-| **TEAM** | $149 one-time | Small teams (up to 5) |
-| **ENTERPRISE** | Contact us | Large organizations, compliance needs |
+| **FREE** | $0 | Individual developers, open source projects |
+| **PRO** | $49 one-time | Professional developers, commercial use |
 
 ## Feature Comparison
 
@@ -35,19 +33,6 @@ Everything in FREE, plus:
 - **Log Export** - Export security logs to CSV
 - **Custom Tiers** - Define custom security tiers per tool/skill
 - **Priority Support** - Email support with 24-hour response
-
-### ENTERPRISE Tier
-
-Everything in PRO, plus:
-
-- **Custom Patterns** - Add organization-specific detection patterns
-- **Pattern API** - Programmatic pattern management
-- **SSO Integration** - SAML/OIDC authentication
-- **Audit API** - REST API for security event queries
-- **Webhook Alerts** - Real-time notifications to Slack, Teams, etc.
-- **SLA Guarantee** - 99.9% uptime for license validation
-- **Dedicated Support** - Dedicated support engineer
-- **On-Premise** - Self-hosted license server option
 
 ## Activating a License
 
@@ -91,9 +76,8 @@ Visit [gettweek.com/pricing](https://gettweek.com/pricing) to purchase a license
 
 ### Payment Options
 
-- One-time purchase (lifetime license)
-- Volume discounts for teams
-- Enterprise agreements available
+- One-time purchase ($49, lifetime license)
+- No subscription, no recurring fees
 
 ### Free Trial
 
@@ -125,7 +109,6 @@ Contact us at sales@gettweek.com for team pricing and volume discounts.
 
 - FREE tier: GitHub Issues
 - PRO tier: Email support (support@gettweek.com)
-- ENTERPRISE tier: Dedicated support engineer
 
 ## License Key Security
 

@@ -33,7 +33,6 @@ class Tier(Enum):
     """License tiers."""
     FREE = "free"
     PRO = "pro"
-    ENTERPRISE = "enterprise"
 
 
 class LicenseError(Exception):
@@ -79,16 +78,6 @@ TIER_FEATURES = {
         "log_export",
         "custom_tiers",
         "priority_support",
-    ],
-    Tier.ENTERPRISE: [
-        "custom_patterns",
-        "pattern_api",
-        "sso_integration",
-        "audit_api",
-        "webhook_alerts",
-        "sla_guarantee",
-        "dedicated_support",
-        "on_premise",
     ],
 }
 
@@ -172,13 +161,8 @@ class License:
 
     @property
     def is_pro(self) -> bool:
-        """Check if license is Pro or higher."""
-        return self.tier in [Tier.PRO, Tier.ENTERPRISE]
-
-    @property
-    def is_enterprise(self) -> bool:
-        """Check if license is Enterprise."""
-        return self.tier == Tier.ENTERPRISE
+        """Check if license is Pro."""
+        return self.tier == Tier.PRO
 
     def has_feature(self, feature: str) -> bool:
         """Check if current license includes a feature."""
@@ -274,11 +258,6 @@ def require_tier(min_tier: Tier) -> Callable:
 def require_pro(func: Callable) -> Callable:
     """Decorator to require Pro license."""
     return require_tier(Tier.PRO)(func)
-
-
-def require_enterprise(func: Callable) -> Callable:
-    """Decorator to require Enterprise license."""
-    return require_tier(Tier.ENTERPRISE)(func)
 
 
 def require_feature(feature: str) -> Callable:

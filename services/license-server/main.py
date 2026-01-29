@@ -41,8 +41,6 @@ DATABASE_PATH = os.environ.get("DATABASE_PATH", "licenses.db")
 # Product ID to tier mapping (configure in LemonSqueezy)
 PRODUCT_TIERS = {
     "tweek-pro": "pro",
-    "tweek-team": "team",
-    "tweek-enterprise": "enterprise",
 }
 
 # ============================================================

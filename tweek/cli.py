@@ -616,7 +616,7 @@ def status():
     # License status
     from tweek.licensing import get_license, Tier
     lic = get_license()
-    tier_colors = {Tier.FREE: "white", Tier.PRO: "cyan", Tier.ENTERPRISE: "magenta"}
+    tier_colors = {Tier.FREE: "white", Tier.PRO: "cyan"}
     tier_color = tier_colors.get(lic.tier, "white")
     tier_display = f"[{tier_color}]{lic.tier.value.upper()}[/{tier_color}]"
 
@@ -1076,7 +1076,6 @@ def license_status():
     tier_colors = {
         Tier.FREE: "white",
         Tier.PRO: "cyan",
-        Tier.ENTERPRISE: "magenta",
     }
 
     tier_color = tier_colors.get(lic.tier, "white")
@@ -1103,7 +1102,7 @@ def license_status():
 
     # Collect all features and their required tiers
     feature_tiers = {}
-    for tier in [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]:
+    for tier in [Tier.FREE, Tier.PRO]:
         for feature in TIER_FEATURES.get(tier, []):
             feature_tiers[feature] = tier
 
@@ -1113,8 +1112,6 @@ def license_status():
         tier_display = required_tier.value.upper()
         if required_tier == Tier.PRO:
             tier_display = f"[cyan]{tier_display}[/cyan]"
-        elif required_tier == Tier.ENTERPRISE:
-            tier_display = f"[magenta]{tier_display}[/magenta]"
 
         table.add_row(feature, status, tier_display)
 
