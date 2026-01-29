@@ -16,6 +16,7 @@ Usage:
 """
 
 import click
+import json
 import os
 import re
 from datetime import datetime
@@ -2567,6 +2568,252 @@ def plugins_registry(refresh: bool, show_info: bool):
             console.print("Use 'tweek plugins search' to browse or 'tweek plugins registry --refresh' to update cache")
         except Exception as e:
             console.print(f"[yellow]Registry unavailable: {e}[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+# =============================================================================
+# MCP GATEWAY COMMANDS
+# =============================================================================
+
+@main.group()
+def mcp():
+    """MCP Security Gateway for desktop LLM applications.
+
+    Provides security-screened tools via the Model Context Protocol (MCP).
+    Supports Claude Desktop, ChatGPT Desktop, and Gemini CLI.
+    """
+    pass
+
+
+@mcp.command()
+def serve():
+    """Start MCP gateway server (stdio transport).
+
+    This is the command desktop clients call to launch the MCP server.
+    Used as the 'command' in client MCP configurations.
+
+    Example Claude Desktop config:
+        {"mcpServers": {"tweek-security": {"command": "tweek", "args": ["mcp", "serve"]}}}
+    """
+    import asyncio
+
+    try:
+        from tweek.mcp.server import run_server, MCP_AVAILABLE
+
+        if not MCP_AVAILABLE:
+            console.print("[red]MCP SDK not installed.[/red]")
+            console.print("Install with: pip install 'tweek[mcp]' or pip install mcp")
+            return
+
+        # Load config
+        try:
+            from tweek.config.manager import ConfigManager
+            cfg = ConfigManager()
+            config = cfg.get_full_config()
+        except Exception:
+            config = {}
+
+        asyncio.run(run_server(config=config))
+
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        console.print(f"[red]MCP server error: {e}[/red]")
+
+
+@mcp.command()
+@click.argument("client", type=click.Choice(["claude-desktop", "chatgpt", "gemini"]))
+def install(client):
+    """Install Tweek as MCP server for a desktop client.
+
+    Supported clients:
+      claude-desktop  - Auto-configures Claude Desktop
+      chatgpt         - Provides Developer Mode setup instructions
+      gemini          - Auto-configures Gemini CLI settings
+    """
+    try:
+        from tweek.mcp.clients import get_client
+
+        handler = get_client(client)
+        result = handler.install()
+
+        if result.get("success"):
+            console.print(f"[green]✅ {result.get('message', 'Installed successfully')}[/green]")
+
+            if result.get("config_path"):
+                console.print(f"   Config: {result['config_path']}")
+
+            if result.get("backup"):
+                console.print(f"   Backup: {result['backup']}")
+
+            # Show instructions for manual setup clients
+            if result.get("instructions"):
+                console.print()
+                for line in result["instructions"]:
+                    console.print(f"   {line}")
+        else:
+            console.print(f"[red]❌ {result.get('error', 'Installation failed')}[/red]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@mcp.command()
+@click.argument("client", type=click.Choice(["claude-desktop", "chatgpt", "gemini"]))
+def uninstall(client):
+    """Remove Tweek MCP server from a desktop client.
+
+    Supported clients: claude-desktop, chatgpt, gemini
+    """
+    try:
+        from tweek.mcp.clients import get_client
+
+        handler = get_client(client)
+        result = handler.uninstall()
+
+        if result.get("success"):
+            console.print(f"[green]✅ {result.get('message', 'Uninstalled successfully')}[/green]")
+
+            if result.get("backup"):
+                console.print(f"   Backup: {result['backup']}")
+
+            if result.get("instructions"):
+                console.print()
+                for line in result["instructions"]:
+                    console.print(f"   {line}")
+        else:
+            console.print(f"[red]❌ {result.get('error', 'Uninstallation failed')}[/red]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@mcp.command()
+@click.option("--json-output", "json_out", is_flag=True, help="Output as JSON")
+def status(json_out):
+    """Show MCP gateway status across all clients."""
+    try:
+        from tweek.mcp.clients import SUPPORTED_CLIENTS
+
+        results = {}
+        for name, client_class in SUPPORTED_CLIENTS.items():
+            try:
+                handler = client_class()
+                results[name] = handler.status()
+            except Exception as e:
+                results[name] = {"error": str(e)}
+
+        if json_out:
+            console.print(json.dumps(results, indent=2))
+            return
+
+        console.print()
+        console.print("[bold]MCP Gateway Status[/bold]")
+        console.print("─" * 50)
+
+        for name, info in results.items():
+            installed = info.get("installed")
+            display = info.get("client", name)
+
+            if installed is True:
+                status_str = "[green]● INSTALLED[/green]"
+            elif installed is False:
+                status_str = "[dim]○ Not installed[/dim]"
+            else:
+                status_str = "[yellow]? Unknown[/yellow]"
+
+            console.print(f"  {display:20s} {status_str}")
+
+            if info.get("config_path"):
+                console.print(f"  {'':20s} Config: {info['config_path']}")
+
+            if info.get("other_servers"):
+                others = ", ".join(info["other_servers"])
+                console.print(f"  {'':20s} Other MCP servers: {others}")
+
+            if info.get("note"):
+                console.print(f"  {'':20s} [dim]{info['note']}[/dim]")
+
+        # Show server info
+        console.print()
+        try:
+            from tweek.mcp.server import MCP_AVAILABLE, MCP_SERVER_VERSION
+            if MCP_AVAILABLE:
+                console.print(f"  [green]MCP SDK: installed (server v{MCP_SERVER_VERSION})[/green]")
+            else:
+                console.print("  [yellow]MCP SDK: not installed (pip install mcp)[/yellow]")
+        except ImportError:
+            console.print("  [yellow]MCP module not available[/yellow]")
+
+        console.print()
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+# =============================================================================
+# PLUGIN SCOPE COMMANDS
+# =============================================================================
+
+@plugins.command("scope")
+@click.argument("plugin_name")
+@click.option("--tools", help="Comma-separated tool names (e.g., Bash,WebFetch)")
+@click.option("--skills", help="Comma-separated skill names (e.g., deploy,email-search)")
+@click.option("--projects", help="Comma-separated project paths")
+@click.option("--tiers", help="Comma-separated tiers (e.g., risky,dangerous)")
+@click.option("--clear", is_flag=True, help="Clear all scoping (make plugin global)")
+def plugin_scope(plugin_name, tools, skills, projects, tiers, clear):
+    """View or set plugin scoping configuration.
+
+    When called with no options, shows the current scope for a plugin.
+    Use --clear to remove all scoping (make the plugin global again).
+
+    Examples:
+        tweek plugins scope hipaa
+        tweek plugins scope hipaa --tools Bash,WebFetch --skills email-search
+        tweek plugins scope hipaa --clear
+    """
+    try:
+        from tweek.config.manager import ConfigManager
+
+        cfg = ConfigManager()
+
+        if clear:
+            # Remove scope from plugin config
+            cfg.set_plugin_scope(plugin_name, None)
+            console.print(f"[green]✅ Cleared scope for {plugin_name} (now global)[/green]")
+            return
+
+        if any([tools, skills, projects, tiers]):
+            # Set scope
+            scope_config = {}
+            if tools:
+                scope_config["tools"] = [t.strip() for t in tools.split(",")]
+            if skills:
+                scope_config["skills"] = [s.strip() for s in skills.split(",")]
+            if projects:
+                scope_config["projects"] = [p.strip() for p in projects.split(",")]
+            if tiers:
+                scope_config["tiers"] = [t.strip() for t in tiers.split(",")]
+
+            cfg.set_plugin_scope(plugin_name, scope_config)
+            console.print(f"[green]✅ Updated scope for {plugin_name}[/green]")
+
+            from tweek.plugins.scope import PluginScope
+            scope = PluginScope.from_dict(scope_config)
+            console.print(f"   {scope.describe()}")
+            return
+
+        # Show current scope
+        scope_config = cfg.get_plugin_scope(plugin_name)
+        if scope_config is None:
+            console.print(f"  {plugin_name}: [dim]Global (no scope restrictions)[/dim]")
+        else:
+            from tweek.plugins.scope import PluginScope
+            scope = PluginScope.from_dict(scope_config)
+            console.print(f"  {plugin_name}: {scope.describe()}")
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")

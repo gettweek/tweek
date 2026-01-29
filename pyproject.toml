@@ -38,6 +38,9 @@ llm = [
 linux = [
     "secretstorage>=3.0",  # For GNOME Keyring / Secret Service on Linux
 ]
+mcp = [
+    "mcp>=1.0.0",  # Model Context Protocol SDK for desktop app integration
+]
 proxy = [
     "mitmproxy>=10.0",  # HTTPS interception proxy for universal LLM protection
 ]
@@ -50,11 +53,35 @@ dev = [
     "build>=1.0",
 ]
 all = [
-    "tweek[llm,proxy]",  # Full installation with all features
+    "tweek[llm,mcp,proxy]",  # Full installation with all features
 ]
 
 [project.scripts]
 tweek = "tweek.cli:main"
+
+# Plugin entry points for discovery
+[project.entry-points."tweek.compliance"]
+gov = "tweek.plugins.compliance:GovCompliancePlugin"
+hipaa = "tweek.plugins.compliance:HIPAACompliancePlugin"
+pci = "tweek.plugins.compliance:PCICompliancePlugin"
+legal = "tweek.plugins.compliance:LegalCompliancePlugin"
+
+[project.entry-points."tweek.llm_providers"]
+anthropic = "tweek.plugins.providers:AnthropicProvider"
+openai = "tweek.plugins.providers:OpenAIProvider"
+google = "tweek.plugins.providers:GoogleProvider"
+bedrock = "tweek.plugins.providers:BedrockProvider"
+
+[project.entry-points."tweek.tool_detectors"]
+moltbot = "tweek.plugins.detectors:MoltbotDetector"
+cursor = "tweek.plugins.detectors:CursorDetector"
+continue = "tweek.plugins.detectors:ContinueDetector"
+
+[project.entry-points."tweek.screening"]
+rate_limiter = "tweek.plugins.screening:RateLimiterPlugin"
+pattern_matcher = "tweek.plugins.screening:PatternMatcherPlugin"
+llm_reviewer = "tweek.plugins.screening:LLMReviewerPlugin"
+session_analyzer = "tweek.plugins.screening:SessionAnalyzerPlugin"
 
 [project.urls]
 Homepage = "https://gettweek.com"

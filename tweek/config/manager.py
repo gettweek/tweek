@@ -64,6 +64,16 @@ class SkillConfig:
     credentials: List[str] = field(default_factory=list)
 
 
+@dataclass
+class PluginConfig:
+    """Configuration for a plugin."""
+    name: str
+    category: str
+    enabled: bool = True
+    settings: Dict[str, Any] = field(default_factory=dict)
+    source: str = "default"
+
+
 class ConfigManager:
     """Manages Tweek configuration with layered overrides."""
 
@@ -499,6 +509,337 @@ class ConfigManager:
             return dict(self._user)
         else:
             return dict(self._get_merged())
+
+    # ==================== PLUGIN CONFIGURATION ====================
+
+    def get_plugin_config(self, category: str, plugin_name: str) -> PluginConfig:
+        """
+        Get configuration for a plugin.
+
+        Args:
+            category: Plugin category (compliance, providers, detectors, screening)
+            plugin_name: Plugin name
+
+        Returns:
+            PluginConfig with merged settings
+        """
+        merged = self._get_merged()
+        plugins = merged.get("plugins", {})
+        cat_config = plugins.get(category, {})
+        modules = cat_config.get("modules", cat_config)
+
+        plugin_settings = modules.get(plugin_name, {})
+        if isinstance(plugin_settings, dict):
+            enabled = plugin_settings.get("enabled", True)
+            settings = {k: v for k, v in plugin_settings.items() if k != "enabled"}
+        else:
+            enabled = bool(plugin_settings)
+            settings = {}
+
+        # Determine source
+        source = "default"
+        if "plugins" in self._project:
+            proj_cat = self._project["plugins"].get(category, {})
+            proj_modules = proj_cat.get("modules", proj_cat)
+            if plugin_name in proj_modules:
+                source = "project"
+        if source == "default" and "plugins" in self._user:
+            user_cat = self._user["plugins"].get(category, {})
+            user_modules = user_cat.get("modules", user_cat)
+            if plugin_name in user_modules:
+                source = "user"
+
+        return PluginConfig(
+            name=plugin_name,
+            category=category,
+            enabled=enabled,
+            settings=settings,
+            source=source,
+        )
+
+    def set_plugin_enabled(
+        self,
+        category: str,
+        plugin_name: str,
+        enabled: bool,
+        scope: str = "user"
+    ) -> None:
+        """
+        Enable or disable a plugin.
+
+        Args:
+            category: Plugin category
+            plugin_name: Plugin name
+            enabled: Whether to enable the plugin
+            scope: Config scope (user or project)
+        """
+        target = self._project if scope == "project" else self._user
+
+        if "plugins" not in target:
+            target["plugins"] = {}
+        if category not in target["plugins"]:
+            target["plugins"][category] = {"modules": {}}
+        if "modules" not in target["plugins"][category]:
+            target["plugins"][category]["modules"] = {}
+
+        if plugin_name not in target["plugins"][category]["modules"]:
+            target["plugins"][category]["modules"][plugin_name] = {}
+
+        target["plugins"][category]["modules"][plugin_name]["enabled"] = enabled
+
+        path = self.project_config_path if scope == "project" else self.user_config_path
+        self._save_yaml(path, target)
+        self._invalidate_cache()
+
+    def set_plugin_setting(
+        self,
+        category: str,
+        plugin_name: str,
+        key: str,
+        value: Any,
+        scope: str = "user"
+    ) -> None:
+        """
+        Set a plugin setting.
+
+        Args:
+            category: Plugin category
+            plugin_name: Plugin name
+            key: Setting key
+            value: Setting value
+            scope: Config scope
+        """
+        target = self._project if scope == "project" else self._user
+
+        if "plugins" not in target:
+            target["plugins"] = {}
+        if category not in target["plugins"]:
+            target["plugins"][category] = {"modules": {}}
+        if "modules" not in target["plugins"][category]:
+            target["plugins"][category]["modules"] = {}
+        if plugin_name not in target["plugins"][category]["modules"]:
+            target["plugins"][category]["modules"][plugin_name] = {}
+
+        target["plugins"][category]["modules"][plugin_name][key] = value
+
+        path = self.project_config_path if scope == "project" else self.user_config_path
+        self._save_yaml(path, target)
+        self._invalidate_cache()
+
+    def list_plugin_configs(self, category: Optional[str] = None) -> List[PluginConfig]:
+        """
+        List all plugin configurations.
+
+        Args:
+            category: Optional category filter
+
+        Returns:
+            List of PluginConfig objects
+        """
+        merged = self._get_merged()
+        plugins = merged.get("plugins", {})
+        configs = []
+
+        categories = [category] if category else list(plugins.keys())
+
+        for cat in categories:
+            cat_config = plugins.get(cat, {})
+            modules = cat_config.get("modules", cat_config)
+
+            if isinstance(modules, dict):
+                for name in modules:
+                    configs.append(self.get_plugin_config(cat, name))
+
+        return configs
+
+    def get_plugins_dict(self) -> Dict[str, Any]:
+        """
+        Get the full plugins configuration dictionary.
+
+        Returns:
+            Dictionary with all plugin configurations
+        """
+        merged = self._get_merged()
+        return merged.get("plugins", {})
+
+    def reset_plugin(
+        self,
+        category: str,
+        plugin_name: str,
+        scope: str = "user"
+    ) -> bool:
+        """
+        Reset a plugin to default configuration.
+
+        Args:
+            category: Plugin category
+            plugin_name: Plugin name
+            scope: Config scope
+
+        Returns:
+            True if reset was performed
+        """
+        target = self._project if scope == "project" else self._user
+
+        if "plugins" not in target:
+            return False
+        if category not in target["plugins"]:
+            return False
+
+        modules = target["plugins"][category].get("modules", target["plugins"][category])
+        if plugin_name in modules:
+            del modules[plugin_name]
+
+            path = self.project_config_path if scope == "project" else self.user_config_path
+            self._save_yaml(path, target)
+            self._invalidate_cache()
+            return True
+
+        return False
+
+
+    # ==================== PLUGIN SCOPING ====================
+
+    def get_plugin_scope(self, plugin_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the scope configuration for a plugin.
+
+        Searches across all plugin categories in user config.
+
+        Args:
+            plugin_name: Plugin name
+
+        Returns:
+            Scope dict if configured, None if no scope (global plugin)
+        """
+        for source in [self._project, self._user]:
+            plugins = source.get("plugins", {})
+            for cat_name, cat_config in plugins.items():
+                modules = cat_config.get("modules", cat_config)
+                if isinstance(modules, dict) and plugin_name in modules:
+                    plugin_cfg = modules[plugin_name]
+                    if isinstance(plugin_cfg, dict) and "scope" in plugin_cfg:
+                        return plugin_cfg["scope"]
+        return None
+
+    def set_plugin_scope(
+        self,
+        plugin_name: str,
+        scope: Optional[Dict[str, Any]],
+        scope_level: str = "user"
+    ) -> None:
+        """
+        Set or clear the scope for a plugin.
+
+        Finds the plugin across categories and sets its scope.
+
+        Args:
+            plugin_name: Plugin name
+            scope: Scope dict (None to clear/make global)
+            scope_level: "user" or "project"
+        """
+        target = self._project if scope_level == "project" else self._user
+
+        # Find which category this plugin is in
+        category = self._find_plugin_category(plugin_name)
+
+        if "plugins" not in target:
+            target["plugins"] = {}
+        if category not in target["plugins"]:
+            target["plugins"][category] = {"modules": {}}
+        if "modules" not in target["plugins"][category]:
+            target["plugins"][category]["modules"] = {}
+        if plugin_name not in target["plugins"][category]["modules"]:
+            target["plugins"][category]["modules"][plugin_name] = {}
+
+        plugin_cfg = target["plugins"][category]["modules"][plugin_name]
+
+        if scope is None:
+            # Clear scope
+            plugin_cfg.pop("scope", None)
+        else:
+            plugin_cfg["scope"] = scope
+
+        path = self.project_config_path if scope_level == "project" else self.user_config_path
+        self._save_yaml(path, target)
+        self._invalidate_cache()
+
+    def _find_plugin_category(self, plugin_name: str) -> str:
+        """
+        Find which category a plugin belongs to.
+
+        Searches built-in configs and registry.
+        """
+        # Check known compliance plugins
+        compliance_plugins = {"gov", "hipaa", "pci", "legal", "soc2", "gdpr"}
+        if plugin_name in compliance_plugins:
+            return "compliance"
+
+        # Check known screening plugins
+        screening_plugins = {"rate_limiter", "pattern_matcher", "llm_reviewer", "session_analyzer"}
+        if plugin_name in screening_plugins:
+            return "screening"
+
+        # Check known provider plugins
+        provider_plugins = {"anthropic", "openai", "google", "bedrock", "azure_openai"}
+        if plugin_name in provider_plugins:
+            return "providers"
+
+        # Check known detector plugins
+        detector_plugins = {"moltbot", "cursor", "continue", "copilot", "windsurf"}
+        if plugin_name in detector_plugins:
+            return "detectors"
+
+        # Search existing config
+        for source in [self._project, self._user, self._builtin]:
+            plugins = source.get("plugins", {})
+            for cat_name, cat_config in plugins.items():
+                modules = cat_config.get("modules", cat_config)
+                if isinstance(modules, dict) and plugin_name in modules:
+                    return cat_name
+
+        # Default to screening
+        return "screening"
+
+    # ==================== FULL CONFIG ====================
+
+    def get_full_config(self) -> Dict[str, Any]:
+        """
+        Get the complete merged configuration as a dictionary.
+
+        Returns all configuration including tools, skills, plugins,
+        escalations, and any MCP/proxy settings.
+        """
+        merged = dict(self._get_merged())
+
+        # Include plugin configs
+        for source in [self._builtin, self._user, self._project]:
+            if "plugins" in source:
+                if "plugins" not in merged:
+                    merged["plugins"] = {}
+                for cat, cat_cfg in source["plugins"].items():
+                    if cat not in merged["plugins"]:
+                        merged["plugins"][cat] = {}
+                    if isinstance(cat_cfg, dict):
+                        for k, v in cat_cfg.items():
+                            if k == "modules" and isinstance(v, dict):
+                                if "modules" not in merged["plugins"][cat]:
+                                    merged["plugins"][cat]["modules"] = {}
+                                merged["plugins"][cat]["modules"].update(v)
+                            else:
+                                merged["plugins"][cat][k] = v
+
+        # Include MCP config
+        for source in [self._builtin, self._user, self._project]:
+            if "mcp" in source:
+                merged["mcp"] = source["mcp"]
+
+        # Include proxy config
+        for source in [self._builtin, self._user, self._project]:
+            if "proxy" in source:
+                merged["proxy"] = source["proxy"]
+
+        return merged
 
 
 def get_config() -> ConfigManager:
