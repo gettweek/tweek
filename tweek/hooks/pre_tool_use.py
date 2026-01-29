@@ -135,9 +135,6 @@ class TierManager:
 class PatternMatcher:
     """Matches commands against hostile patterns."""
 
-    # Default max pattern ID for free tier
-    FREE_TIER_MAX_ID = 23
-
     def __init__(self, patterns_path: Optional[Path] = None):
         # Try user patterns first (~/.tweek/patterns/), fall back to bundled
         user_patterns = Path.home() / ".tweek" / "patterns" / "patterns.yaml"
@@ -151,11 +148,10 @@ class PatternMatcher:
             self.patterns = self._load_patterns(bundled_patterns)
 
     def _load_patterns(self, path: Path) -> List[dict]:
-        """Load patterns from YAML config, filtered by license tier.
+        """Load patterns from YAML config.
 
-        Patterns are numbered sequentially:
-        - FREE tier: Patterns with id <= 23
-        - PRO tier: All patterns (1-116+)
+        All patterns are available to all users (FREE and PRO).
+        PRO tier unlocks advanced features like LLM review and session analysis.
         """
         if not path.exists():
             return []
@@ -163,22 +159,7 @@ class PatternMatcher:
         with open(path) as f:
             config = yaml.safe_load(f) or {}
 
-        all_patterns = config.get("patterns", [])
-        free_tier_max = config.get("free_tier_max", self.FREE_TIER_MAX_ID)
-
-        # Check license tier
-        try:
-            from tweek.licensing import get_license
-            is_pro = get_license().is_pro
-        except Exception:
-            is_pro = False
-
-        if is_pro:
-            # Pro users get all patterns
-            return all_patterns
-        else:
-            # Free users only get patterns where id <= free_tier_max
-            return [p for p in all_patterns if p.get("id", 999) <= free_tier_max]
+        return config.get("patterns", [])
 
     def check(self, content: str) -> Optional[dict]:
         """Check content against all patterns.

@@ -144,27 +144,27 @@ Patterns are stored in `~/.tweek/patterns/` and can be updated via git pull with
 
 Tweek offers two tiers:
 
-| Tier | Price | Patterns | Features |
-|------|-------|----------|----------|
-| **FREE** | $0 | 23 core patterns | Pattern matching, logging, vault, CLI |
-| **PRO** | $49 (one-time) | 116 patterns | + LLM review, session analysis, rate limiting, log export |
+| Tier | Price | Features |
+|------|-------|----------|
+| **FREE** | $0 | All 116 patterns, logging, vault, CLI |
+| **PRO** | $49 (one-time) | + LLM review, session analysis, rate limiting |
 
 ### FREE Tier
 
-Essential protection for credential theft and common attacks:
-- 23 core patterns covering SSH keys, AWS credentials, .env files
+Full pattern matching protection:
+- All 116 attack patterns (credential theft, prompt injection, MCP CVEs)
 - Basic security logging (SQLite)
 - Credential vault (system keychain)
 - Global and per-project installation
 
 ### PRO Tier
 
-Complete defense-in-depth protection:
-- 116 patterns including evasive techniques, MCP CVEs, advanced injection
+Advanced defense-in-depth features:
 - LLM semantic review (Claude Haiku) for novel attacks
 - Cross-turn session analysis for multi-step attacks
 - Rate limiting for resource theft protection
 - Advanced logging with CSV export
+- Custom per-tool security tiers
 
 ```bash
 # Activate Pro license

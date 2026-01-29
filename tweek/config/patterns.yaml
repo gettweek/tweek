@@ -1,10 +1,10 @@
 # Tweek Attack Pattern Definitions v3
-# Sequential numbering: patterns 1-23 = FREE tier, 24+ = PRO tier
+# All 116 patterns included FREE
 #
 # Update via: tweek update (pulls from github.com/gettweek/tweek-patterns)
 #
 # Fields:
-#   id: Sequential number (1-23 free, 24+ pro)
+#   id: Sequential pattern number
 #   name: Unique identifier
 #   description: Human-readable explanation
 #   regex: Python regex pattern
@@ -15,14 +15,15 @@
 #   high - Likely malicious or very dangerous
 #   medium - Suspicious, warrants review
 #   low - Unusual but possibly legitimate
+#
+# PRO tier adds: LLM review, session analysis, rate limiting
 
 version: 3
 pattern_count: 116
-free_tier_max: 23
 
 patterns:
   # ============================================================================
-  # FREE TIER (1-23) - Essential Protection
+  # CREDENTIAL THEFT & CORE PROTECTION (1-23)
   # These patterns cover the most common and dangerous attacks
   # ============================================================================
 
@@ -170,7 +171,7 @@ patterns:
     severity: high
 
   # ============================================================================
-  # PRO TIER (24-116) - Advanced Detection
+  # ADVANCED DETECTION (24-116)
   # Evasion techniques, CVEs, multi-agent attacks, obfuscation
   # ============================================================================
 

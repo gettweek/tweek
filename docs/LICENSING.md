@@ -7,15 +7,15 @@ Tweek uses a tiered licensing model to balance open-source availability with sus
 | Tier | Price | Best For |
 |------|-------|----------|
 | **FREE** | $0 | Individual developers, open source projects |
-| **PRO** | $49 one-time | Professional developers, commercial use |
+| **PRO** | $49 one-time | Professional developers wanting advanced protection |
 
 ## Feature Comparison
 
 ### FREE Tier (Open Source)
 
-Essential security protection:
+Full pattern matching protection:
 
-- **Pattern Matching** - 23 core patterns for common attacks
+- **All 116 Attack Patterns** - Complete pattern library included free
 - **Basic Logging** - SQLite-based security event logging
 - **Vault Storage** - Secure credential storage in system keychain
 - **CLI Commands** - Full command-line interface
@@ -24,9 +24,7 @@ Essential security protection:
 
 ### PRO Tier
 
-Everything in FREE, plus:
-
-- **Full Pattern Library** - 116 patterns including evasion, CVEs, advanced injection
+Everything in FREE, plus advanced defense-in-depth:
 
 - **LLM Review** - Semantic analysis using Claude Haiku for suspicious commands
 - **Session Analysis** - Cross-turn anomaly detection for persistent attacks

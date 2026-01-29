@@ -63,7 +63,7 @@ class LicenseInfo:
 # Feature definitions by tier
 TIER_FEATURES = {
     Tier.FREE: [
-        "pattern_matching_basic",  # 23 core patterns
+        "pattern_matching",       # All 116 patterns included free
         "basic_logging",
         "vault_storage",
         "cli_commands",
@@ -71,14 +71,13 @@ TIER_FEATURES = {
         "project_install",
     ],
     Tier.PRO: [
-        "pattern_matching_full",  # 116 patterns (all including advanced)
-        "llm_review",
-        "session_analysis",
-        "rate_limiting",
-        "advanced_logging",
-        "log_export",
-        "custom_tiers",
-        "priority_support",
+        "llm_review",             # Claude Haiku semantic analysis
+        "session_analysis",       # Cross-turn attack detection
+        "rate_limiting",          # Resource theft protection
+        "advanced_logging",       # Detailed event metadata
+        "log_export",             # CSV export
+        "custom_tiers",           # Per-tool security tiers
+        "priority_support",       # Email support
     ],
 }
 

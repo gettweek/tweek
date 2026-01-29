@@ -528,10 +528,8 @@ def update(check: bool):
     Patterns are stored in ~/.tweek/patterns/ and can be updated
     independently of the Tweek application.
 
-    \b
-    Pattern tiers:
-        - Patterns 1-23: FREE tier (essential protection)
-        - Patterns 24-116: PRO tier (advanced detection)
+    All 116 patterns are included free. PRO tier adds LLM review,
+    session analysis, and rate limiting.
     """
     import subprocess
 
@@ -633,21 +631,19 @@ def update(check: bool):
                 data = yaml.safe_load(f)
             version = data.get("version", "?")
             count = data.get("pattern_count", len(data.get("patterns", [])))
-            free_max = data.get("free_tier_max", 23)
-
-            # Check license
-            from tweek.licensing import get_license
-            lic = get_license()
-            active_patterns = count if lic.is_pro else free_max
 
             console.print()
             console.print(f"[cyan]Pattern version:[/cyan] {version}")
-            console.print(f"[cyan]Total patterns:[/cyan] {count}")
-            console.print(f"[cyan]Active patterns:[/cyan] {active_patterns} ({lic.tier.value.upper()} tier)")
+            console.print(f"[cyan]Total patterns:[/cyan] {count} (all included free)")
 
-            if not lic.is_pro:
+            # Check license for Pro features
+            from tweek.licensing import get_license
+            lic = get_license()
+            if lic.is_pro:
+                console.print(f"[cyan]Pro features:[/cyan] LLM review, session analysis, rate limiting")
+            else:
                 console.print()
-                console.print(f"[dim]Upgrade to Pro for all {count} patterns: gettweek.com/pricing[/dim]")
+                console.print(f"[dim]Upgrade to Pro for LLM review & session analysis: gettweek.com/pricing[/dim]")
 
         except Exception:
             pass
@@ -781,13 +777,9 @@ def status():
             with open(patterns_file) as f:
                 pdata = yaml.safe_load(f) or {}
             total_patterns = pdata.get("pattern_count", len(pdata.get("patterns", [])))
-            free_max = pdata.get("free_tier_max", 23)
-            active_count = total_patterns if lic.is_pro else free_max
 
-            pattern_status = f"✓ {active_count} active"
-            pattern_detail = f"{total_patterns} total ({patterns_source})"
-            if not lic.is_pro:
-                pattern_detail += f" - {total_patterns - free_max} more with Pro"
+            pattern_status = f"✓ {total_patterns} patterns"
+            pattern_detail = f"all free ({patterns_source})"
         except Exception:
             pattern_status = "✓ Loaded"
             pattern_detail = patterns_source
