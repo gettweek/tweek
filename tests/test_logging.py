@@ -21,7 +21,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tweek.logging.security_log import (
-    SecurityLogger, SecurityEvent, EventType, get_logger
+    SecurityLogger, SecurityEvent, EventType, get_logger,
+    LogRedactor, get_redactor
 )
 
 
@@ -415,3 +416,254 @@ class TestLoggerSingleton:
         # get_logger returns a new instance each time (no singleton)
         logger = get_logger()
         assert isinstance(logger, SecurityLogger)
+
+
+class TestLogRedactorBasic:
+    """Basic tests for LogRedactor."""
+
+    def test_redactor_enabled_by_default(self):
+        """Test that redactor is enabled by default."""
+        redactor = LogRedactor()
+        assert redactor.enabled is True
+
+    def test_redactor_can_be_disabled(self):
+        """Test that redactor can be disabled."""
+        redactor = LogRedactor(enabled=False)
+        assert redactor.enabled is False
+
+    def test_disabled_redactor_returns_unchanged(self):
+        """Test disabled redactor returns unchanged text."""
+        redactor = LogRedactor(enabled=False)
+        secret = "api_key=sk_live_abcdef123456789012345678901234567890"
+        result = redactor.redact_string(secret)
+        assert result == secret
+
+
+class TestLogRedactorPatterns:
+    """Tests for LogRedactor pattern matching."""
+
+    def test_redacts_api_keys(self):
+        """Test redaction of API keys."""
+        redactor = LogRedactor()
+        text = 'api_key="sk_live_abcdef123456789012345678901234567890"'
+        result = redactor.redact_string(text)
+        assert "sk_live_abcdef" not in result
+        assert "REDACTED" in result
+
+    def test_redacts_aws_access_keys(self):
+        """Test redaction of AWS access key IDs."""
+        redactor = LogRedactor()
+        text = "AKIAIOSFODNN7EXAMPLE"
+        result = redactor.redact_string(text)
+        assert "AKIAIOSFODNN7EXAMPLE" not in result
+        assert "AWS_KEY_REDACTED" in result
+
+    def test_redacts_bearer_tokens(self):
+        """Test redaction of bearer tokens."""
+        redactor = LogRedactor()
+        text = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+        result = redactor.redact_string(text)
+        assert "eyJhbGci" not in result
+        assert "REDACTED" in result
+
+    def test_redacts_jwt_tokens(self):
+        """Test redaction of JWT tokens."""
+        redactor = LogRedactor()
+        text = "token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        result = redactor.redact_string(text)
+        assert "eyJhbGci" not in result
+        assert "JWT_REDACTED" in result
+
+    def test_redacts_github_tokens(self):
+        """Test redaction of GitHub tokens."""
+        redactor = LogRedactor()
+        text = "token=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        result = redactor.redact_string(text)
+        assert "ghp_" not in result
+        assert "GITHUB_TOKEN_REDACTED" in result
+
+    def test_redacts_slack_tokens(self):
+        """Test redaction of Slack tokens."""
+        redactor = LogRedactor()
+        text = "xoxb-1234567890123-1234567890123-abc123def456"
+        result = redactor.redact_string(text)
+        assert "xoxb-" not in result
+        assert "SLACK_TOKEN_REDACTED" in result
+
+    def test_redacts_passwords(self):
+        """Test redaction of passwords."""
+        redactor = LogRedactor()
+        text = 'password="mysecretpassword123"'
+        result = redactor.redact_string(text)
+        assert "mysecretpassword" not in result
+        assert "REDACTED" in result
+
+    def test_redacts_connection_strings(self):
+        """Test redaction of connection strings."""
+        redactor = LogRedactor()
+        text = "mongodb://admin:secretpass@localhost:27017/db"
+        result = redactor.redact_string(text)
+        assert "secretpass" not in result
+        assert "REDACTED" in result
+
+    def test_redacts_private_keys(self):
+        """Test redaction of private keys."""
+        redactor = LogRedactor()
+        text = """-----BEGIN RSA PRIVATE KEY-----
+        MIIEpQIBAAKCAQEA...
+        -----END RSA PRIVATE KEY-----"""
+        result = redactor.redact_string(text)
+        assert "BEGIN RSA PRIVATE KEY" not in result
+        assert "PRIVATE_KEY_REDACTED" in result
+
+    def test_preserves_non_sensitive_text(self):
+        """Test that non-sensitive text is preserved."""
+        redactor = LogRedactor()
+        text = "Running command: ls -la /home/user"
+        result = redactor.redact_string(text)
+        assert result == text
+
+
+class TestLogRedactorDict:
+    """Tests for dictionary redaction."""
+
+    def test_redacts_sensitive_keys(self):
+        """Test redaction of values for sensitive keys."""
+        redactor = LogRedactor()
+        data = {
+            "username": "john",
+            "password": "secretpass123",
+            "api_key": "sk_live_12345",
+        }
+        result = redactor.redact_dict(data)
+
+        assert result["username"] == "john"
+        assert result["password"] == "***REDACTED***"
+        assert result["api_key"] == "***REDACTED***"
+
+    def test_redacts_nested_dicts(self):
+        """Test redaction of nested dictionaries."""
+        redactor = LogRedactor()
+        data = {
+            "config": {
+                "database": {
+                    "host": "localhost",
+                    "password": "dbpass123"
+                }
+            }
+        }
+        result = redactor.redact_dict(data)
+
+        assert result["config"]["database"]["host"] == "localhost"
+        assert result["config"]["database"]["password"] == "***REDACTED***"
+
+    def test_redacts_lists_in_dict(self):
+        """Test redaction of lists containing sensitive data."""
+        redactor = LogRedactor()
+        data = {
+            "items": [
+                {"name": "safe", "secret": "mysecret123"},
+                {"name": "also_safe", "token": "mytoken456"}
+            ]
+        }
+        result = redactor.redact_dict(data)
+
+        assert result["items"][0]["name"] == "safe"
+        assert result["items"][0]["secret"] == "***REDACTED***"
+        assert result["items"][1]["token"] == "***REDACTED***"
+
+
+class TestLogRedactorCommand:
+    """Tests for command redaction."""
+
+    def test_redacts_curl_auth_header(self):
+        """Test redaction of curl auth headers."""
+        redactor = LogRedactor()
+        # The Authorization header value should be redacted
+        cmd = 'curl -H "Authorization: Bearer sk_live_123456789012345678901234" https://api.example.com'
+        result = redactor.redact_command(cmd)
+        # Bearer tokens are redacted by the bearer pattern
+        assert "sk_live_123456" not in result
+
+    def test_redacts_env_exports(self):
+        """Test redaction of environment variable exports."""
+        redactor = LogRedactor()
+        cmd = "export API_KEY=sk_live_abcdef123456789012345678901234567890"
+        result = redactor.redact_command(cmd)
+        assert "sk_live_abcdef" not in result
+        assert "REDACTED" in result
+
+    def test_redacts_inline_env_vars(self):
+        """Test redaction of inline environment variables."""
+        redactor = LogRedactor()
+        cmd = "DATABASE_PASSWORD=secret123 ./run.sh"
+        result = redactor.redact_command(cmd)
+        assert "secret123" not in result
+        assert "REDACTED" in result
+
+
+class TestLogRedactionIntegration:
+    """Tests for log redaction integration with SecurityLogger."""
+
+    def test_logger_redacts_commands(self, tmp_path):
+        """Test that logger redacts sensitive commands."""
+        db_path = tmp_path / ".tweek" / "security.db"
+        logger = SecurityLogger(db_path=db_path, redact_logs=True)
+
+        event = SecurityEvent(
+            event_type=EventType.TOOL_INVOKED,
+            tool_name="Bash",
+            command="export API_KEY=sk_live_abcdef123456789012345678901234567890",
+            tier="safe",
+            decision="allow"
+        )
+
+        logger.log(event)
+
+        # Retrieve and verify redaction
+        events = logger.get_recent_events(limit=1)
+        assert len(events) == 1
+        assert "sk_live_abcdef" not in events[0]["command"]
+
+    def test_logger_redacts_metadata(self, tmp_path):
+        """Test that logger redacts sensitive metadata."""
+        db_path = tmp_path / ".tweek" / "security.db"
+        logger = SecurityLogger(db_path=db_path, redact_logs=True)
+
+        event = SecurityEvent(
+            event_type=EventType.TOOL_INVOKED,
+            tool_name="Bash",
+            command="ls",
+            tier="safe",
+            decision="allow",
+            metadata={"password": "secret123", "user": "john"}
+        )
+
+        logger.log(event)
+
+        events = logger.get_recent_events(limit=1)
+        import json
+        metadata = json.loads(events[0]["metadata_json"])
+
+        assert metadata["user"] == "john"
+        assert "secret123" not in metadata["password"]
+
+    def test_logger_without_redaction(self, tmp_path):
+        """Test logger with redaction disabled."""
+        db_path = tmp_path / ".tweek" / "security.db"
+        logger = SecurityLogger(db_path=db_path, redact_logs=False)
+
+        sensitive_cmd = "export API_KEY=sk_live_abcdef123456789012345678901234567890"
+        event = SecurityEvent(
+            event_type=EventType.TOOL_INVOKED,
+            tool_name="Bash",
+            command=sensitive_cmd,
+            tier="safe",
+            decision="allow"
+        )
+
+        logger.log(event)
+
+        events = logger.get_recent_events(limit=1)
+        # Without redaction, sensitive data remains
+        assert events[0]["command"] == sensitive_cmd

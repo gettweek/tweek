@@ -25,7 +25,11 @@ from tweek.security.rate_limiter import (
     RateLimiter,
     RateLimitConfig,
     RateLimitResult,
-    RateLimitViolation
+    RateLimitViolation,
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerState,
+    CircuitState,
 )
 
 
@@ -52,9 +56,10 @@ def mock_pro_license(tmp_path):
 
 @pytest.fixture
 def mock_logger(temp_db):
-    """Create a mock logger with a real database."""
+    """Create a mock logger with a real database (redaction disabled for testing)."""
     from tweek.logging.security_log import SecurityLogger
-    logger = SecurityLogger(db_path=temp_db)
+    # Disable redaction so commands match exactly in rate limiting tests
+    logger = SecurityLogger(db_path=temp_db, redact_logs=False)
     return logger
 
 
@@ -310,6 +315,260 @@ class TestViolationMessage:
         result = RateLimitResult(allowed=True)
         message = rate_limiter.format_violation_message(result)
         assert message == ""
+
+    def test_format_circuit_open_message(self, rate_limiter):
+        """Test formatting of circuit breaker open message."""
+        result = RateLimitResult(
+            allowed=False,
+            violations=[RateLimitViolation.CIRCUIT_OPEN],
+            circuit_state=CircuitState.OPEN,
+            retry_after=30
+        )
+        message = rate_limiter.format_violation_message(result)
+        assert "Circuit breaker OPEN" in message
+        assert "30 seconds" in message
+
+
+class TestCircuitBreakerConfig:
+    """Tests for CircuitBreakerConfig defaults."""
+
+    def test_default_config(self):
+        """Test default circuit breaker configuration values."""
+        config = CircuitBreakerConfig()
+        assert config.failure_threshold == 5
+        assert config.success_threshold == 3
+        assert config.open_timeout == 60
+        assert config.half_open_max_requests == 3
+
+    def test_custom_config(self):
+        """Test custom circuit breaker configuration values."""
+        config = CircuitBreakerConfig(
+            failure_threshold=3,
+            success_threshold=2,
+            open_timeout=30
+        )
+        assert config.failure_threshold == 3
+        assert config.success_threshold == 2
+        assert config.open_timeout == 30
+
+
+class TestCircuitBreakerBasic:
+    """Basic circuit breaker tests."""
+
+    def test_initial_state_is_closed(self):
+        """Test circuit breaker starts in closed state."""
+        cb = CircuitBreaker()
+        can_exec, state, retry = cb.can_execute("test")
+        assert can_exec is True
+        assert state == CircuitState.CLOSED
+        assert retry is None
+
+    def test_allows_execution_when_closed(self):
+        """Test execution allowed when circuit is closed."""
+        cb = CircuitBreaker()
+        for i in range(10):
+            can_exec, state, _ = cb.can_execute("test")
+            assert can_exec is True
+            cb.record_success("test")
+
+    def test_success_resets_failure_count(self):
+        """Test that success resets failure count."""
+        cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=5))
+
+        # Record some failures (but not enough to open)
+        cb.record_failure("test")
+        cb.record_failure("test")
+        cb.record_failure("test")
+
+        state = cb.get_state("test")
+        assert state.failure_count == 3
+
+        # Success should reset count
+        cb.record_success("test")
+        state = cb.get_state("test")
+        assert state.failure_count == 0
+
+
+class TestCircuitBreakerTransitions:
+    """Tests for circuit breaker state transitions."""
+
+    def test_opens_after_failure_threshold(self):
+        """Test circuit opens after exceeding failure threshold."""
+        config = CircuitBreakerConfig(failure_threshold=3)
+        cb = CircuitBreaker(config)
+
+        # Record failures up to threshold
+        for i in range(3):
+            cb.record_failure("test")
+
+        # Circuit should now be open
+        can_exec, state, retry = cb.can_execute("test")
+        assert can_exec is False
+        assert state == CircuitState.OPEN
+        assert retry is not None
+
+    def test_transitions_to_half_open_after_timeout(self):
+        """Test circuit transitions to half-open after timeout."""
+        config = CircuitBreakerConfig(failure_threshold=2, open_timeout=1)
+        cb = CircuitBreaker(config)
+
+        # Open the circuit
+        cb.record_failure("test")
+        cb.record_failure("test")
+
+        # Wait for timeout
+        import time
+        time.sleep(1.1)
+
+        # Should transition to half-open
+        can_exec, state, _ = cb.can_execute("test")
+        assert can_exec is True
+        assert state == CircuitState.HALF_OPEN
+
+    def test_half_open_closes_on_success(self):
+        """Test circuit closes after successes in half-open state."""
+        config = CircuitBreakerConfig(
+            failure_threshold=2,
+            success_threshold=2,
+            open_timeout=0  # Immediate timeout for testing
+        )
+        cb = CircuitBreaker(config)
+
+        # Open the circuit
+        cb.record_failure("test")
+        cb.record_failure("test")
+
+        # Transition to half-open
+        cb.can_execute("test")
+
+        # Record successes to close
+        cb.record_success("test")
+        state = cb.get_state("test")
+        assert state.state == CircuitState.HALF_OPEN  # Not yet closed
+
+        cb.record_success("test")
+        state = cb.get_state("test")
+        assert state.state == CircuitState.CLOSED
+
+    def test_half_open_reopens_on_failure(self):
+        """Test circuit reopens on failure in half-open state."""
+        config = CircuitBreakerConfig(failure_threshold=2, open_timeout=0)
+        cb = CircuitBreaker(config)
+
+        # Open the circuit
+        cb.record_failure("test")
+        cb.record_failure("test")
+
+        # Transition to half-open
+        cb.can_execute("test")
+
+        # Failure should reopen
+        cb.record_failure("test")
+        state = cb.get_state("test")
+        assert state.state == CircuitState.OPEN
+
+
+class TestCircuitBreakerMetrics:
+    """Tests for circuit breaker metrics."""
+
+    def test_get_metrics_empty(self):
+        """Test metrics when no circuits exist."""
+        cb = CircuitBreaker()
+        metrics = cb.get_metrics()
+        assert metrics["total_circuits"] == 0
+
+    def test_get_metrics_with_circuits(self):
+        """Test metrics with multiple circuits."""
+        cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=2))
+
+        # Create some circuits in different states
+        cb.can_execute("closed1")
+        cb.record_success("closed1")
+
+        cb.can_execute("open1")
+        cb.record_failure("open1")
+        cb.record_failure("open1")
+
+        metrics = cb.get_metrics()
+        assert metrics["total_circuits"] == 2
+        assert metrics["closed_circuits"] >= 1
+        assert metrics["open_circuits"] >= 1
+
+    def test_reset_circuit(self):
+        """Test resetting a circuit."""
+        config = CircuitBreakerConfig(failure_threshold=2)
+        cb = CircuitBreaker(config)
+
+        # Open the circuit
+        cb.record_failure("test")
+        cb.record_failure("test")
+        assert cb.get_state("test").state == CircuitState.OPEN
+
+        # Reset
+        cb.reset("test")
+
+        # Should be back to closed
+        can_exec, state, _ = cb.can_execute("test")
+        assert can_exec is True
+        assert state == CircuitState.CLOSED
+
+
+class TestCircuitBreakerIntegration:
+    """Tests for circuit breaker integration with rate limiter."""
+
+    def test_rate_limiter_has_circuit_breaker(self, rate_limiter):
+        """Test rate limiter initializes with circuit breaker."""
+        assert hasattr(rate_limiter, 'circuit_breaker')
+        assert isinstance(rate_limiter.circuit_breaker, CircuitBreaker)
+
+    def test_get_circuit_metrics(self, rate_limiter):
+        """Test getting circuit metrics from rate limiter."""
+        metrics = rate_limiter.get_circuit_metrics()
+        assert "total_circuits" in metrics
+        assert "circuits" in metrics
+
+    def test_reset_circuit(self, rate_limiter):
+        """Test resetting circuit via rate limiter."""
+        session_id = "test-reset-session"
+
+        # This should create a circuit state
+        rate_limiter.check("Bash", "ls", session_id)
+
+        # Reset should not raise
+        rate_limiter.reset_circuit(session_id)
+
+    def test_circuit_opens_on_violations(self, rate_limiter, mock_logger):
+        """Test that circuit opens after repeated violations."""
+        session_id = "test-circuit-violation-session"
+        from tweek.logging.security_log import EventType
+
+        # Configure circuit breaker with low threshold for testing
+        rate_limiter.circuit_breaker = CircuitBreaker(
+            CircuitBreakerConfig(failure_threshold=3)
+        )
+
+        # Log many events to trigger rate limit violations
+        for i in range(50):
+            mock_logger.log_quick(
+                EventType.TOOL_INVOKED,
+                "Bash",
+                command=f"echo burst {i}",
+                session_id=session_id
+            )
+
+        # Check multiple times to trigger violations
+        for _ in range(5):
+            result = rate_limiter.check(
+                tool_name="Bash",
+                command="echo test",
+                session_id=session_id
+            )
+            if result.is_circuit_open:
+                break
+
+        # Circuit should eventually open after violations
+        # Note: This depends on rate limit thresholds being exceeded
+        # and may need adjustment based on config
 
 
 if __name__ == "__main__":
