@@ -1,0 +1,506 @@
+#!/usr/bin/env python3
+"""
+Tweek Configuration Manager
+
+Manages user configuration with layered defaults:
+1. Built-in defaults (tiers.yaml)
+2. User overrides (~/.tweek/config.yaml)
+3. Project overrides (.tweek/config.yaml)
+
+Usage:
+    config = ConfigManager()
+    tier = config.get_tool_tier("Bash")
+    config.set_skill_tier("my-skill", "trusted")
+"""
+
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
+
+import yaml
+
+
+class SecurityTier(Enum):
+    """Security tier levels."""
+    SAFE = "safe"
+    DEFAULT = "default"
+    RISKY = "risky"
+    DANGEROUS = "dangerous"
+
+    @classmethod
+    def from_string(cls, value: str) -> "SecurityTier":
+        """Convert string to SecurityTier."""
+        try:
+            return cls(value.lower())
+        except ValueError:
+            return cls.DEFAULT
+
+
+@dataclass
+class TierConfig:
+    """Configuration for a security tier."""
+    description: str
+    screening: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ToolConfig:
+    """Configuration for a tool."""
+    name: str
+    tier: SecurityTier
+    source: str = "default"  # "default", "user", "project"
+    description: Optional[str] = None
+
+
+@dataclass
+class SkillConfig:
+    """Configuration for a skill."""
+    name: str
+    tier: SecurityTier
+    source: str = "default"
+    description: Optional[str] = None
+    credentials: List[str] = field(default_factory=list)
+
+
+class ConfigManager:
+    """Manages Tweek configuration with layered overrides."""
+
+    # Default paths
+    BUILTIN_CONFIG = Path(__file__).parent / "tiers.yaml"
+    USER_CONFIG = Path.home() / ".tweek" / "config.yaml"
+    PROJECT_CONFIG = Path(".tweek") / "config.yaml"
+
+    # Well-known tools with sensible defaults
+    KNOWN_TOOLS = {
+        "Read": ("safe", "Read files - no side effects"),
+        "Glob": ("safe", "Find files by pattern"),
+        "Grep": ("safe", "Search file contents"),
+        "Edit": ("default", "Modify existing files"),
+        "Write": ("default", "Create/overwrite files"),
+        "NotebookEdit": ("default", "Edit Jupyter notebooks"),
+        "WebFetch": ("risky", "Fetch content from URLs"),
+        "WebSearch": ("risky", "Search the web"),
+        "Bash": ("dangerous", "Execute shell commands"),
+        "Task": ("default", "Spawn subagent tasks"),
+    }
+
+    # Well-known skills with sensible defaults
+    KNOWN_SKILLS = {
+        "commit": ("default", "Git commit operations"),
+        "review-pr": ("safe", "Review pull requests (read-only)"),
+        "explore": ("safe", "Explore codebase (read-only)"),
+        "frontend-design": ("risky", "Generate frontend code"),
+        "dev-browser": ("risky", "Browser automation"),
+        "deploy": ("dangerous", "Deployment operations"),
+    }
+
+    def __init__(
+        self,
+        user_config_path: Optional[Path] = None,
+        project_config_path: Optional[Path] = None,
+    ):
+        """Initialize the config manager."""
+        self.user_config_path = user_config_path or self.USER_CONFIG
+        self.project_config_path = project_config_path or self.PROJECT_CONFIG
+
+        # Load configurations
+        self._builtin = self._load_yaml(self.BUILTIN_CONFIG)
+        self._user = self._load_yaml(self.user_config_path)
+        self._project = self._load_yaml(self.project_config_path)
+
+        # Merged configuration cache
+        self._merged: Optional[Dict] = None
+
+    def _load_yaml(self, path: Path) -> Dict:
+        """Load YAML file, return empty dict if not found."""
+        if path.exists():
+            try:
+                with open(path) as f:
+                    return yaml.safe_load(f) or {}
+            except Exception:
+                return {}
+        return {}
+
+    def _save_yaml(self, path: Path, data: Dict) -> None:
+        """Save configuration to YAML file."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+    def _get_merged(self) -> Dict:
+        """Get merged configuration (cached)."""
+        if self._merged is None:
+            self._merged = {
+                "tools": {},
+                "skills": {},
+                "escalations": [],
+                "default_tier": "default",
+            }
+
+            # Layer 1: Built-in defaults
+            if self._builtin:
+                self._merged["tools"].update(self._builtin.get("tools", {}))
+                self._merged["skills"].update(self._builtin.get("skills", {}))
+                self._merged["escalations"] = self._builtin.get("escalations", [])
+                self._merged["default_tier"] = self._builtin.get("default_tier", "default")
+
+            # Layer 2: User overrides
+            if self._user:
+                self._merged["tools"].update(self._user.get("tools", {}))
+                self._merged["skills"].update(self._user.get("skills", {}))
+                if "escalations" in self._user:
+                    self._merged["escalations"].extend(self._user["escalations"])
+                if "default_tier" in self._user:
+                    self._merged["default_tier"] = self._user["default_tier"]
+
+            # Layer 3: Project overrides
+            if self._project:
+                self._merged["tools"].update(self._project.get("tools", {}))
+                self._merged["skills"].update(self._project.get("skills", {}))
+                if "escalations" in self._project:
+                    self._merged["escalations"].extend(self._project["escalations"])
+                if "default_tier" in self._project:
+                    self._merged["default_tier"] = self._project["default_tier"]
+
+        return self._merged
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate the merged config cache."""
+        self._merged = None
+
+    # ==================== GETTERS ====================
+
+    def get_tool_tier(self, tool_name: str) -> SecurityTier:
+        """Get the security tier for a tool."""
+        merged = self._get_merged()
+        tier_str = merged["tools"].get(tool_name, merged["default_tier"])
+        return SecurityTier.from_string(tier_str)
+
+    def get_skill_tier(self, skill_name: str) -> SecurityTier:
+        """Get the security tier for a skill."""
+        merged = self._get_merged()
+        tier_str = merged["skills"].get(skill_name, merged["default_tier"])
+        return SecurityTier.from_string(tier_str)
+
+    def get_tool_config(self, tool_name: str) -> ToolConfig:
+        """Get full configuration for a tool."""
+        tier = self.get_tool_tier(tool_name)
+
+        # Determine source
+        if tool_name in self._project.get("tools", {}):
+            source = "project"
+        elif tool_name in self._user.get("tools", {}):
+            source = "user"
+        else:
+            source = "default"
+
+        # Get description
+        desc = self.KNOWN_TOOLS.get(tool_name, (None, None))[1]
+
+        return ToolConfig(
+            name=tool_name,
+            tier=tier,
+            source=source,
+            description=desc,
+        )
+
+    def get_skill_config(self, skill_name: str) -> SkillConfig:
+        """Get full configuration for a skill."""
+        tier = self.get_skill_tier(skill_name)
+
+        # Determine source
+        if skill_name in self._project.get("skills", {}):
+            source = "project"
+        elif skill_name in self._user.get("skills", {}):
+            source = "user"
+        else:
+            source = "default"
+
+        # Get description
+        desc = self.KNOWN_SKILLS.get(skill_name, (None, None))[1]
+
+        return SkillConfig(
+            name=skill_name,
+            tier=tier,
+            source=source,
+            description=desc,
+        )
+
+    def list_tools(self) -> List[ToolConfig]:
+        """List all configured tools."""
+        merged = self._get_merged()
+        tools = []
+
+        # Add all known tools
+        for name in self.KNOWN_TOOLS:
+            tools.append(self.get_tool_config(name))
+
+        # Add any custom tools from config
+        for name in merged["tools"]:
+            if name not in self.KNOWN_TOOLS:
+                tools.append(self.get_tool_config(name))
+
+        return sorted(tools, key=lambda t: t.name)
+
+    def list_skills(self) -> List[SkillConfig]:
+        """List all configured skills."""
+        merged = self._get_merged()
+        skills = []
+
+        # Add all known skills
+        for name in self.KNOWN_SKILLS:
+            skills.append(self.get_skill_config(name))
+
+        # Add any custom skills from config
+        for name in merged["skills"]:
+            if name not in self.KNOWN_SKILLS:
+                skills.append(self.get_skill_config(name))
+
+        return sorted(skills, key=lambda s: s.name)
+
+    def get_unknown_skills(self, skill_names: List[str]) -> List[str]:
+        """Get skills that aren't in the known list or user config."""
+        merged = self._get_merged()
+        known = set(self.KNOWN_SKILLS.keys()) | set(merged["skills"].keys())
+        return [s for s in skill_names if s not in known]
+
+    def get_escalations(self) -> List[Dict]:
+        """Get all escalation patterns."""
+        return self._get_merged()["escalations"]
+
+    def get_default_tier(self) -> SecurityTier:
+        """Get the default tier for unknown tools/skills."""
+        return SecurityTier.from_string(self._get_merged()["default_tier"])
+
+    # ==================== SETTERS ====================
+
+    def set_tool_tier(
+        self,
+        tool_name: str,
+        tier: SecurityTier,
+        scope: str = "user"
+    ) -> None:
+        """
+        Set the security tier for a tool.
+
+        Args:
+            tool_name: Name of the tool
+            tier: Security tier to set
+            scope: "user" or "project"
+        """
+        if scope == "project":
+            if "tools" not in self._project:
+                self._project["tools"] = {}
+            self._project["tools"][tool_name] = tier.value
+            self._save_yaml(self.project_config_path, self._project)
+        else:
+            if "tools" not in self._user:
+                self._user["tools"] = {}
+            self._user["tools"][tool_name] = tier.value
+            self._save_yaml(self.user_config_path, self._user)
+
+        self._invalidate_cache()
+
+    def set_skill_tier(
+        self,
+        skill_name: str,
+        tier: SecurityTier,
+        scope: str = "user"
+    ) -> None:
+        """
+        Set the security tier for a skill.
+
+        Args:
+            skill_name: Name of the skill
+            tier: Security tier to set
+            scope: "user" or "project"
+        """
+        if scope == "project":
+            if "skills" not in self._project:
+                self._project["skills"] = {}
+            self._project["skills"][skill_name] = tier.value
+            self._save_yaml(self.project_config_path, self._project)
+        else:
+            if "skills" not in self._user:
+                self._user["skills"] = {}
+            self._user["skills"][skill_name] = tier.value
+            self._save_yaml(self.user_config_path, self._user)
+
+        self._invalidate_cache()
+
+    def set_default_tier(self, tier: SecurityTier, scope: str = "user") -> None:
+        """Set the default tier for unknown tools/skills."""
+        if scope == "project":
+            self._project["default_tier"] = tier.value
+            self._save_yaml(self.project_config_path, self._project)
+        else:
+            self._user["default_tier"] = tier.value
+            self._save_yaml(self.user_config_path, self._user)
+
+        self._invalidate_cache()
+
+    def add_escalation(
+        self,
+        pattern: str,
+        description: str,
+        escalate_to: SecurityTier,
+        scope: str = "user"
+    ) -> None:
+        """Add a custom escalation pattern."""
+        escalation = {
+            "pattern": pattern,
+            "description": description,
+            "escalate_to": escalate_to.value,
+        }
+
+        if scope == "project":
+            if "escalations" not in self._project:
+                self._project["escalations"] = []
+            self._project["escalations"].append(escalation)
+            self._save_yaml(self.project_config_path, self._project)
+        else:
+            if "escalations" not in self._user:
+                self._user["escalations"] = []
+            self._user["escalations"].append(escalation)
+            self._save_yaml(self.user_config_path, self._user)
+
+        self._invalidate_cache()
+
+    def reset_tool(self, tool_name: str, scope: str = "user") -> bool:
+        """Reset a tool to its default tier."""
+        if scope == "project":
+            if "tools" in self._project and tool_name in self._project["tools"]:
+                del self._project["tools"][tool_name]
+                self._save_yaml(self.project_config_path, self._project)
+                self._invalidate_cache()
+                return True
+        else:
+            if "tools" in self._user and tool_name in self._user["tools"]:
+                del self._user["tools"][tool_name]
+                self._save_yaml(self.user_config_path, self._user)
+                self._invalidate_cache()
+                return True
+        return False
+
+    def reset_skill(self, skill_name: str, scope: str = "user") -> bool:
+        """Reset a skill to its default tier."""
+        if scope == "project":
+            if "skills" in self._project and skill_name in self._project["skills"]:
+                del self._project["skills"][skill_name]
+                self._save_yaml(self.project_config_path, self._project)
+                self._invalidate_cache()
+                return True
+        else:
+            if "skills" in self._user and skill_name in self._user["skills"]:
+                del self._user["skills"][skill_name]
+                self._save_yaml(self.user_config_path, self._user)
+                self._invalidate_cache()
+                return True
+        return False
+
+    def reset_all(self, scope: str = "user") -> None:
+        """Reset all configuration to defaults."""
+        if scope == "project":
+            self._project = {}
+            if self.project_config_path.exists():
+                self.project_config_path.unlink()
+        else:
+            self._user = {}
+            if self.user_config_path.exists():
+                self.user_config_path.unlink()
+
+        self._invalidate_cache()
+
+    # ==================== BULK OPERATIONS ====================
+
+    def apply_preset(self, preset: str, scope: str = "user") -> None:
+        """
+        Apply a configuration preset.
+
+        Presets:
+            paranoid: Maximum security, prompt for everything
+            cautious: Balanced security (recommended)
+            trusted: Minimal prompts, trust AI decisions
+        """
+        presets = {
+            "paranoid": {
+                "tools": {
+                    "Read": "default",
+                    "Glob": "default",
+                    "Grep": "default",
+                    "Edit": "risky",
+                    "Write": "risky",
+                    "WebFetch": "dangerous",
+                    "WebSearch": "dangerous",
+                    "Bash": "dangerous",
+                },
+                "default_tier": "risky",
+            },
+            "cautious": {
+                "tools": {
+                    "Read": "safe",
+                    "Glob": "safe",
+                    "Grep": "safe",
+                    "Edit": "default",
+                    "Write": "default",
+                    "WebFetch": "risky",
+                    "WebSearch": "risky",
+                    "Bash": "dangerous",
+                },
+                "default_tier": "default",
+            },
+            "trusted": {
+                "tools": {
+                    "Read": "safe",
+                    "Glob": "safe",
+                    "Grep": "safe",
+                    "Edit": "safe",
+                    "Write": "safe",
+                    "WebFetch": "default",
+                    "WebSearch": "default",
+                    "Bash": "risky",
+                },
+                "default_tier": "safe",
+            },
+        }
+
+        if preset not in presets:
+            raise ValueError(f"Unknown preset: {preset}. Use: paranoid, cautious, trusted")
+
+        config = presets[preset]
+
+        if scope == "project":
+            self._project.update(config)
+            self._save_yaml(self.project_config_path, self._project)
+        else:
+            self._user.update(config)
+            self._save_yaml(self.user_config_path, self._user)
+
+        self._invalidate_cache()
+
+    def import_config(self, config_dict: Dict, scope: str = "user") -> None:
+        """Import configuration from a dictionary."""
+        if scope == "project":
+            self._project.update(config_dict)
+            self._save_yaml(self.project_config_path, self._project)
+        else:
+            self._user.update(config_dict)
+            self._save_yaml(self.user_config_path, self._user)
+
+        self._invalidate_cache()
+
+    def export_config(self, scope: str = "user") -> Dict:
+        """Export configuration as a dictionary."""
+        if scope == "project":
+            return dict(self._project)
+        elif scope == "user":
+            return dict(self._user)
+        else:
+            return dict(self._get_merged())
+
+
+def get_config() -> ConfigManager:
+    """Get the global configuration manager."""
+    return ConfigManager()

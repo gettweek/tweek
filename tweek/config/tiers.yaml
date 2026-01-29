@@ -1,0 +1,129 @@
+# Tweek Security Tier Configuration
+# Defines screening levels for tools and skills
+#
+# Tiers:
+#   safe      - No screening (trusted operations)
+#   default   - Regex pattern matching only
+#   risky     - Regex + LLM rules
+#   dangerous - Regex + LLM + Sandbox preview
+#
+# Security Layers:
+#   1. Rate Limiting  - Detect resource theft and burst attacks
+#   2. Pattern Match  - Regex patterns for known attack vectors (100+ patterns)
+#   3. LLM Review     - Semantic analysis using Claude Haiku
+#   4. Session Scan   - Cross-turn anomaly detection
+#   5. Sandbox        - Speculative execution in isolated environment
+
+version: 2
+
+# LLM Review Configuration
+llm_review:
+  enabled: true
+  model: claude-3-5-haiku-latest
+  timeout_seconds: 5.0
+  # Only review if command length exceeds this
+  min_command_length: 20
+
+# Rate Limiting Configuration
+rate_limiting:
+  enabled: true
+  burst_window_seconds: 5
+  burst_threshold: 15
+  max_per_minute: 60
+  max_dangerous_per_minute: 10
+  max_same_command_per_minute: 5
+
+# Session Analysis Configuration
+session_analysis:
+  enabled: true
+  lookback_minutes: 30
+  alert_on_risk_score: 0.5
+
+tiers:
+  safe:
+    description: "Trusted operations - no screening"
+    screening: []
+
+  default:
+    description: "Standard operations - regex patterns only"
+    screening:
+      - regex
+
+  risky:
+    description: "Elevated risk - regex + LLM semantic review"
+    screening:
+      - regex
+      - llm
+
+  dangerous:
+    description: "High risk - full screening + sandbox preview"
+    screening:
+      - regex
+      - llm
+      - sandbox
+
+# Tool classifications
+tools:
+  # Safe - read-only, no external effects
+  Read: safe
+  Glob: safe
+  Grep: safe
+
+  # Default - modifications with standard screening
+  Edit: default
+  Write: default
+  NotebookEdit: default
+
+  # Risky - external communication or significant changes
+  WebFetch: risky
+  WebSearch: risky
+
+  # Dangerous - system commands, highest scrutiny
+  Bash: dangerous
+  Task: default  # Subagents inherit parent screening
+
+# Skill classifications (user-defined skills)
+skills:
+  # Safe skills (read-only, internal)
+  review-pr: safe
+  explore: safe
+
+  # Default skills
+  commit: default
+
+  # Risky skills (external effects)
+  frontend-design: risky
+  dev-browser: risky
+
+  # Dangerous skills (system-level)
+  deploy: dangerous
+
+# Content-based escalations
+# These patterns can escalate a tool's tier based on content
+escalations:
+  - pattern: '\b(prod|production)\b'
+    description: "Production environment reference"
+    escalate_to: risky
+
+  - pattern: 'rm\s+(-rf|-fr|--recursive)'
+    description: "Recursive deletion"
+    escalate_to: dangerous
+
+  - pattern: '(DROP|TRUNCATE|DELETE FROM)\s+\w+'
+    description: "Destructive SQL operation"
+    escalate_to: dangerous
+
+  - pattern: '(npm publish|pip upload|cargo publish)'
+    description: "Package publishing"
+    escalate_to: dangerous
+
+  - pattern: '(kubectl|gcloud|aws)\s+(apply|deploy|delete)'
+    description: "Cloud deployment operation"
+    escalate_to: dangerous
+
+  - pattern: 'sudo\s+'
+    description: "Elevated privileges"
+    escalate_to: dangerous
+
+# Default tier for unclassified tools/skills
+default_tier: default

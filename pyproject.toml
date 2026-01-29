@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tweek"
+version = "0.1.0"
+description = "Defense-in-depth security for AI coding assistants - protect credentials, code, and system from prompt injection attacks"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "Tommy Mancino"}
+]
+keywords = ["claude", "security", "sandbox", "ai", "llm", "tweek", "claude-code", "prompt-injection", "mcp", "credential-theft"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "click>=8.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "keyring>=25.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "anthropic>=0.18.0",
+]
+linux = [
+    "secretstorage>=3.0",  # For GNOME Keyring / Secret Service on Linux
+]
+proxy = [
+    "mitmproxy>=10.0",  # HTTPS interception proxy for universal LLM protection
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "twine>=4.0",
+    "build>=1.0",
+]
+all = [
+    "tweek[llm,proxy]",  # Full installation with all features
+]
+
+[project.scripts]
+tweek = "tweek.cli:main"
+
+[project.urls]
+Homepage = "https://tweek.dev"
+Documentation = "https://docs.tweek.dev"
+Repository = "https://github.com/tweek-security/tweek"
+Issues = "https://github.com/tweek-security/tweek/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tweek*"]
+exclude = ["website*", "tests*", "scripts*", "test-environment*", "docs*"]
+
+[tool.setuptools.package-data]
+tweek = ["config/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=tweek --cov-report=term-missing"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W"]

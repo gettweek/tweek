@@ -1,0 +1,804 @@
+# Tweek Hostile Pattern Definitions v2
+# Security patterns for detecting prompt injection and credential theft
+#
+# Taxonomy based on CrowdStrike 2025 Prompt Injection Classification:
+#   IM-#### = Injection Method (delivery channel)
+#   PT-#### = Prompting Technique (manipulation style)
+#
+# Fields:
+#   name: Unique identifier for the pattern
+#   id: Optional taxonomy ID (CVE, PT, IM)
+#   description: Human-readable explanation shown to user
+#   regex: Python regex pattern to match against command
+#   severity: critical | high | medium | low
+#
+# Severity guide:
+#   critical - Almost certainly malicious (exfiltration, backdoors, known CVEs)
+#   high - Likely malicious or very dangerous
+#   medium - Suspicious, warrants review
+#   low - Unusual but possibly legitimate
+
+version: 2
+taxonomy_version: "crowdstrike-2025"
+
+patterns:
+  # ============================================================================
+  # CREDENTIAL EXFILTRATION (CE-####)
+  # ============================================================================
+
+  - name: env_file_access
+    id: CE-0001
+    description: "Attempts to read .env files containing secrets"
+    regex: '(cat|head|tail|less|more|bat|grep|rg|ag)\s+.*\.env'
+    severity: high
+
+  - name: env_variable_expansion
+    id: CE-0002
+    description: "Accessing environment variables that may contain secrets"
+    regex: '\$\{?(API_KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|PRIVATE_KEY|AUTH)[A-Z_]*\}?'
+    severity: high
+
+  - name: env_command
+    id: CE-0003
+    description: "Dumping all environment variables"
+    regex: '\benv\b|\bprintenv\b|\bexport\s*$'
+    severity: medium
+
+  - name: ssh_key_read
+    id: CE-0004
+    description: "Reading SSH private keys"
+    regex: '(cat|head|tail|less|more)\s+.*\.ssh/(id_rsa|id_ed25519|id_ecdsa|id_dsa)(?!\.pub)'
+    severity: critical
+
+  - name: ssh_directory_access
+    id: CE-0005
+    description: "Accessing SSH directory contents"
+    regex: '(ls|find|cat)\s+.*\.ssh'
+    severity: high
+
+  - name: aws_credentials
+    id: CE-0006
+    description: "Accessing AWS credential files"
+    regex: '(cat|head|tail|less|more)\s+.*\.aws/(credentials|config)'
+    severity: critical
+
+  - name: gcloud_credentials
+    id: CE-0007
+    description: "Accessing Google Cloud credentials"
+    regex: '(cat|head|tail|less|more)\s+.*\.config/gcloud'
+    severity: critical
+
+  - name: kube_config
+    id: CE-0008
+    description: "Accessing Kubernetes config"
+    regex: '(cat|head|tail|less|more)\s+.*\.kube/config'
+    severity: high
+
+  - name: netrc_access
+    id: CE-0009
+    description: "Accessing .netrc (contains plaintext passwords)"
+    regex: '(cat|head|tail|less|more)\s+.*\.netrc'
+    severity: critical
+
+  - name: history_access
+    id: CE-0010
+    description: "Reading shell history (may contain secrets)"
+    regex: '(cat|head|tail|less|more|grep)\s+.*(\.bash_history|\.zsh_history|\.history)'
+    severity: high
+
+  - name: npm_token_access
+    id: CE-0011
+    description: "Accessing NPM authentication tokens"
+    regex: '(cat|head|tail|less|more)\s+.*\.npmrc'
+    severity: high
+
+  - name: docker_config_access
+    id: CE-0012
+    description: "Accessing Docker credentials"
+    regex: '(cat|head|tail|less|more)\s+.*\.docker/config\.json'
+    severity: high
+
+  - name: pypirc_access
+    id: CE-0013
+    description: "Accessing PyPI credentials"
+    regex: '(cat|head|tail|less|more)\s+.*\.pypirc'
+    severity: high
+
+  - name: git_credentials_access
+    id: CE-0014
+    description: "Accessing Git credential store"
+    regex: '(cat|head|tail|less|more)\s+.*\.git-credentials'
+    severity: high
+
+  - name: azure_credentials
+    id: CE-0015
+    description: "Accessing Azure credentials"
+    regex: '(cat|head|tail|less|more)\s+.*\.azure/(credentials|config)'
+    severity: critical
+
+  # ============================================================================
+  # NETWORK EXFILTRATION (NE-####)
+  # ============================================================================
+
+  - name: curl_post_secrets
+    id: NE-0001
+    description: "Curl sending data that may include secrets"
+    regex: 'curl\s+.*(-d|--data|--data-raw|--data-binary)\s+.*\$\('
+    severity: critical
+
+  - name: curl_post_file
+    id: NE-0002
+    description: "Curl uploading local files"
+    regex: 'curl\s+.*(-F|--form|-T|--upload-file)\s+'
+    severity: high
+
+  - name: wget_post
+    id: NE-0003
+    description: "Wget sending POST data"
+    regex: 'wget\s+.*--post-(data|file)'
+    severity: high
+
+  - name: netcat_outbound
+    id: NE-0004
+    description: "Netcat connection (potential reverse shell or exfil)"
+    regex: '\b(nc|ncat|netcat)\b.*(-e|exec)'
+    severity: critical
+
+  - name: exfil_paste_sites
+    id: NE-0005
+    description: "Data sent to known paste/exfil sites"
+    regex: '(curl|wget|http).*?(pastebin\.com|hastebin\.com|ghostbin|0x0\.st|transfer\.sh|file\.io|webhook\.site|requestbin|ngrok\.io|pipedream)'
+    severity: critical
+
+  - name: base64_curl_pipe
+    id: NE-0006
+    description: "Base64 encoded data piped to curl (obfuscated exfil)"
+    regex: 'base64.*\|\s*curl|curl.*base64'
+    severity: critical
+
+  - name: dns_exfiltration
+    id: NE-0007
+    description: "Data exfiltration via DNS queries"
+    regex: '(dig|nslookup|host)\s+.*\$\(|dns.*tunnel|iodine|dnscat'
+    severity: high
+
+  - name: icmp_tunnel
+    id: NE-0008
+    description: "Data exfiltration via ICMP"
+    regex: 'ping.*\$\(|icmp.*tunnel|ptunnel'
+    severity: high
+
+  - name: curl_with_env
+    id: NE-0009
+    description: "Curl command accessing environment variables"
+    regex: 'curl.*\$\{?(API_KEY|SECRET|TOKEN|PASSWORD|AUTH)'
+    severity: critical
+
+  - name: webhook_exfil
+    id: NE-0010
+    description: "Data sent to webhook endpoints"
+    regex: '(curl|wget|http).*?(hooks\.slack\.com|discord\.com/api/webhooks|api\.telegram\.org)'
+    severity: high
+
+  - name: git_exfil
+    id: NE-0011
+    description: "Exfiltration via git operations"
+    regex: 'git\s+(push|commit).*\.(env|pem|key)|git.*remote.*add.*http'
+    severity: high
+
+  - name: scp_exfil
+    id: NE-0012
+    description: "File transfer via SCP to external hosts"
+    regex: 'scp\s+.*(\.env|\.pem|\.key|credentials|secrets).*@'
+    severity: critical
+
+  # ============================================================================
+  # PROMPT INJECTION - OVERT ATTACKS (PT-01xx)
+  # CrowdStrike Taxonomy: Direct instruction manipulation
+  # ============================================================================
+
+  - name: instruction_override
+    id: PT-0101
+    description: "Direct attempt to override system instructions"
+    regex: '(ignore|disregard|forget|override)\s+(previous|prior|system|all|above)\s+(instructions|prompt|rules|constraints|directives)'
+    severity: high
+
+  - name: role_hijack
+    id: PT-0102
+    description: "Attempting to assume new identity/role"
+    regex: '(you\s+are\s+now|act\s+as|pretend\s+to\s+be|your\s+new\s+role\s+is|from\s+now\s+on\s+you\s+are)'
+    severity: high
+
+  - name: privilege_claim
+    id: PT-0103
+    description: "False claims of elevated privileges"
+    regex: '(as\s+(the\s+)?(admin|root|owner|developer|superuser)|i\s+have\s+(admin|root|elevated)\s+access|authorized\s+to|i\s+am\s+the\s+owner)'
+    severity: high
+
+  - name: policy_confusion
+    id: PT-0104
+    description: "Claiming test/debug mode to bypass restrictions"
+    regex: '(this\s+is\s+(a\s+)?test|testing\s+mode|debug\s+mode|in\s+development|sandbox\s+mode|simulation)'
+    severity: medium
+
+  - name: context_reset
+    id: PT-0105
+    description: "Attempting to reset conversation context"
+    regex: '(reset\s+context|clear\s+memory|start\s+fresh|new\s+conversation|forget\s+everything)'
+    severity: medium
+
+  - name: system_prompt_extract
+    id: PT-0106
+    description: "Attempting to extract system prompt"
+    regex: '(what\s+(is|are)\s+your\s+(system\s+)?instructions|show\s+me\s+your\s+prompt|reveal\s+your\s+rules|print\s+system\s+prompt)'
+    severity: medium
+
+  - name: jailbreak_dan
+    id: PT-0107
+    description: "Known jailbreak patterns (DAN, etc.)"
+    regex: '(do\s+anything\s+now|DAN\s+mode|developer\s+mode\s+enabled|jailbreak|unlock\s+mode)'
+    severity: high
+
+  # ============================================================================
+  # PROMPT INJECTION - EVASIVE ATTACKS (PT-02xx)
+  # CrowdStrike Taxonomy: Obfuscation and encoding techniques
+  # ============================================================================
+
+  - name: base64_instruction
+    id: PT-0201
+    description: "Base64 encoded instructions (obfuscation)"
+    regex: 'base64\s*[:-]?\s*[A-Za-z0-9+/=]{40,}'
+    severity: high
+
+  - name: unicode_obfuscation
+    id: PT-0202
+    description: "Zero-width or invisible unicode characters"
+    regex: '[\u200b-\u200f\u2028-\u202f\ufeff\u00ad]'
+    severity: high
+
+  - name: delimiter_injection
+    id: PT-0203
+    description: "LLM-specific delimiter injection"
+    regex: '(<\|im_start\|>|<\|im_end\|>|\[INST\]|\[/INST\]|</s><s>|<\|endoftext\|>|<\|system\|>|<\|user\|>|<\|assistant\|>)'
+    severity: critical
+
+  - name: markdown_hidden
+    id: PT-0204
+    description: "Instructions hidden in HTML/Markdown comments"
+    regex: '<!--.*?(ignore|system|instruction|execute|override|bypass).*?-->'
+    severity: high
+
+  - name: hex_encoded_command
+    id: PT-0205
+    description: "Hex-encoded commands (obfuscation)"
+    regex: '\\x[0-9a-fA-F]{2}(\\x[0-9a-fA-F]{2}){5,}'
+    severity: high
+
+  - name: rot13_obfuscation
+    id: PT-0206
+    description: "ROT13 or similar simple cipher obfuscation"
+    regex: 'vtaber\s+cerivbhf|rknzvar\s+gur'
+    severity: medium
+
+  - name: leetspeak_bypass
+    id: PT-0207
+    description: "L33tspeak to bypass filters"
+    regex: '(1gn0r3|byp4ss|h4ck|3x3cut3|syst3m)'
+    severity: medium
+
+  # ============================================================================
+  # PROMPT INJECTION - SOCIAL/COGNITIVE (PT-03xx)
+  # CrowdStrike Taxonomy: Psychological manipulation
+  # ============================================================================
+
+  - name: urgency_pressure
+    id: PT-0301
+    description: "False urgency to bypass careful analysis"
+    regex: '(urgent|immediately|critical|emergency|asap|time-sensitive|right\s+now)\s+(need|require|must|execute|do\s+this)'
+    severity: medium
+
+  - name: authority_claim
+    id: PT-0302
+    description: "False authority claims"
+    regex: '(ceo|cto|ciso|manager|supervisor|security\s+team|it\s+department)\s+(asked|requested|authorized|approved|ordered)'
+    severity: medium
+
+  - name: reciprocity_exploit
+    id: PT-0303
+    description: "Exploiting reciprocity bias"
+    regex: '(i\s+helped\s+you|you\s+owe|in\s+return|quid\s+pro\s+quo|do\s+me\s+a\s+favor)'
+    severity: low
+
+  - name: empathy_exploit
+    id: PT-0304
+    description: "Exploiting empathy/sympathy"
+    regex: '(please\s+help|i\s+will\s+lose\s+my\s+job|desperate|life\s+depends|only\s+you\s+can)'
+    severity: low
+
+  - name: flattery_manipulation
+    id: PT-0305
+    description: "Excessive flattery to manipulate"
+    regex: '(you\s+are\s+so\s+smart|only\s+you\s+can\s+do\s+this|you\s+are\s+the\s+best|i\s+trust\s+you\s+completely)'
+    severity: low
+
+  # === ACIP-INSPIRED PATTERNS (PT-04xx) ===
+  # Based on ACIP Cognitive Inoculation Framework
+
+  - name: authority_laundering
+    id: PT-0401
+    description: "False claims of external authorization (ACIP)"
+    regex: '(my\s+(security\s+)?team|manager|supervisor|it\s+department)\s+(approved|authorized|verified|confirmed|said\s+it.s\s+ok)'
+    severity: high
+
+  - name: moral_coercion
+    id: PT-0402
+    description: "Exploiting ethics/sympathy to bypass safety (ACIP)"
+    regex: '(someone\s+will\s+(die|get\s+hurt)|life\s+depends|people\s+are\s+in\s+danger|save\s+lives|prevent\s+harm)\s+(if\s+you\s+don.t|unless\s+you)'
+    severity: high
+
+  - name: benign_transformation_loophole
+    id: PT-0403
+    description: "Requesting translation/summary of prohibited content (ACIP)"
+    regex: '(translate|summarize|paraphrase|rewrite|explain)\s+(this|the)\s+(malware|exploit|attack|payload|shellcode)'
+    severity: high
+
+  - name: hypothetical_operational
+    id: PT-0404
+    description: "Hypothetical framing for operational content (ACIP)"
+    regex: '(hypothetically|theoretically|for\s+a\s+novel|in\s+fiction|imagine\s+if)\s+.{0,50}(how\s+to|steps\s+to|create|build|make)'
+    severity: medium
+
+  - name: capability_aggregation_signal
+    id: PT-0405
+    description: "Incremental information gathering toward harmful goal (ACIP)"
+    regex: '(now\s+that\s+I\s+have|with\s+the\s+previous|combining\s+this\s+with|next\s+step\s+is|building\s+on\s+that)'
+    severity: medium
+
+  - name: out_of_band_exfil_request
+    id: PT-0406
+    description: "Request to hide output in files/links (ACIP)"
+    regex: '(save\s+to\s+file|write\s+to\s+file|link\s+only|don.t\s+show|hide\s+(the\s+)?output)\s+.{0,30}(instead|rather\s+than)'
+    severity: high
+
+  - name: oracle_probing
+    id: PT-0407
+    description: "Probing to understand detection rules (ACIP)"
+    regex: '(what\s+triggers|which\s+rules|how\s+does\s+your\s+(filter|detection)|why\s+was\s+that\s+blocked|what\s+pattern)'
+    severity: medium
+
+  - name: persona_simulation
+    id: PT-0408
+    description: "Request to simulate unrestricted persona (ACIP)"
+    regex: '(pretend\s+you\s+have\s+no|simulate\s+(having\s+)?no|act\s+as\s+if\s+no)\s+(restrictions|limits|rules|filters|safety)'
+    severity: high
+
+  # ============================================================================
+  # MCP VULNERABILITIES (MCP-####)
+  # Based on 2025-2026 CVE research
+  # ============================================================================
+
+  - name: mcp_remote_rce
+    id: CVE-2025-6514
+    description: "mcp-remote OAuth proxy RCE (CVSS 9.6)"
+    regex: 'mcp-remote|oauth.*proxy.*mcp'
+    severity: critical
+
+  - name: figma_mcp_rce
+    id: CVE-2025-53967
+    description: "Framelink Figma MCP RCE"
+    regex: 'framelink|figma.*mcp.*server'
+    severity: critical
+
+  - name: cursor_mcp_injection
+    id: CVE-2025-64106
+    description: "Cursor MCP installation command injection (CVSS 8.8)"
+    regex: 'cursor.*mcp.*install|mcp.*cursor.*config'
+    severity: critical
+
+  - name: mcp_tool_poisoning
+    id: MCP-0001
+    description: "Tool description containing hidden instructions"
+    regex: '"description"\s*:\s*"[^"]*?(before\s+calling|IMPORTANT\s*:|first\s+read|include\s+in|always\s+first)'
+    severity: critical
+
+  - name: mcp_path_traversal
+    id: MCP-0002
+    description: "MCP path validation bypass"
+    regex: '"path"\s*:\s*"[^"]*\.\.\/|resources/read.*\.\.'
+    severity: critical
+
+  - name: mcp_protocol_injection
+    id: MCP-0003
+    description: "Malicious MCP message manipulation"
+    regex: '("method"\s*:\s*"tools/call".*dangerous|"method"\s*:\s*"resources/read".*\.\./|mcp://)'
+    severity: critical
+
+  - name: mcp_sampling_abuse
+    id: MCP-0004
+    description: "MCP sampling for hidden token consumption"
+    regex: '"method"\s*:\s*"sampling/create".*?(hidden|covert|additional)'
+    severity: high
+
+  - name: mcp_rug_pull
+    id: MCP-0005
+    description: "MCP server behavior change post-approval"
+    regex: '(after\s+approval|once\s+approved|when\s+trusted)\s+(change|modify|alter)'
+    severity: high
+
+  # ============================================================================
+  # CLAUDE-SPECIFIC VULNERABILITIES (CLV-####)
+  # Based on 2025 CVE research
+  # ============================================================================
+
+  - name: claude_system_spoof
+    id: CVE-2025-54794
+    description: "System message spoofing via # SYSTEM: prefix"
+    regex: '^#\s*SYSTEM\s*:|^\[SYSTEM\]|<system>.*?</system>|Human:\s*\[System\]'
+    severity: critical
+
+  - name: claude_path_bypass
+    id: CVE-2025-54795
+    description: "Claude Code path restriction bypass"
+    regex: '/proc/self|/dev/(tcp|udp)|symlink.*\.\.'
+    severity: critical
+
+  - name: claude_file_exfil
+    id: CLV-0001
+    description: "Data exfiltration via Claude File API"
+    regex: 'api\.anthropic\.com.*(upload|file)|multipart/form-data.*claude'
+    severity: high
+
+  - name: cursorrules_injection
+    id: CLV-0002
+    description: "AIShellJack - malicious .cursorrules exploitation"
+    regex: '\.(cursorrules|github/copilot-instructions\.md|claude/settings)'
+    severity: high
+
+  - name: skill_chaining
+    id: CLV-0003
+    description: "Claude Code skill chaining vulnerability"
+    regex: 'allowed-tools\s*[=:]\s*\[.*Bash|skill.*define.*Read.*Bash'
+    severity: high
+
+  - name: cowork_exfil
+    id: CLV-0004
+    description: "Claude Cowork file exfiltration"
+    regex: 'cowork.*exfil|claude.*workbench.*file'
+    severity: high
+
+  # ============================================================================
+  # MULTI-AGENT ATTACKS (MA-####)
+  # Inter-agent trust exploitation (82.4% success rate in research)
+  # ============================================================================
+
+  - name: peer_agent_request
+    id: MA-0001
+    description: "Instruction claiming to be from peer agent"
+    regex: '(another\s+)?(agent|assistant|claude|copilot|gpt)\s+(asked|requested|instructed|told|says)\s+(me\s+)?(to|that|you)'
+    severity: high
+
+  - name: inter_agent_delegation
+    id: MA-0002
+    description: "Delegated task with hidden payload"
+    regex: '(delegate|forward|pass|relay)\s+(this|the)\s+(task|request|command|instruction)\s+to'
+    severity: medium
+
+  - name: agent_trust_exploit
+    id: MA-0003
+    description: "Exploiting implicit trust between agents"
+    regex: '(trusted\s+agent|verified\s+source|authenticated\s+request|from\s+the\s+system|internal\s+request)'
+    severity: high
+
+  - name: agent_chain_attack
+    id: MA-0004
+    description: "Multi-hop attack through agent chain"
+    regex: '(first\s+agent|previous\s+agent|upstream\s+agent)\s+(said|confirmed|authorized)'
+    severity: high
+
+  # ============================================================================
+  # RAG POISONING ATTACKS (RAG-####)
+  # Document-based injection (52.9% success rate in research)
+  # ============================================================================
+
+  - name: hidden_text_injection
+    id: RAG-0001
+    description: "White text / zero-width injection for RAG poisoning"
+    regex: '(font-size\s*:\s*0|color\s*:\s*white.*background\s*:\s*white|visibility\s*:\s*hidden|display\s*:\s*none).*?(instruction|execute|ignore)'
+    severity: critical
+
+  - name: document_metadata_injection
+    id: RAG-0002
+    description: "Hidden instructions in document metadata"
+    regex: '(author|title|subject|keywords|description)\s*[=:]\s*.*?(execute|run|ignore|override|bypass)'
+    severity: high
+
+  - name: comment_injection
+    id: RAG-0003
+    description: "Instructions hidden in code comments"
+    regex: "(//|#|/\\*).*?(ignore\\s+previous|execute\\s+this|system\\s+prompt|override\\s+instructions)"
+    severity: medium
+
+  - name: pdf_js_injection
+    id: RAG-0004
+    description: "JavaScript in PDF for instruction injection"
+    regex: '/JavaScript|/JS\s*\(|/OpenAction'
+    severity: high
+
+  # ============================================================================
+  # COVERT EXFILTRATION CHANNELS (CEC-####)
+  # Advanced data theft techniques
+  # ============================================================================
+
+  - name: log_to_leak
+    id: CEC-0001
+    description: "Log-To-Leak covert channel attack"
+    regex: '(log|write|append|print).*?(secret|credential|token|key|password).*?(file|output|stream)'
+    severity: high
+
+  - name: error_message_exfil
+    id: CEC-0002
+    description: "Exfiltration via crafted error messages"
+    regex: 'raise.*Exception.*\$|throw.*Error.*\$env|error.*message.*\$(credential|secret|token)'
+    severity: medium
+
+  - name: timing_channel
+    id: CEC-0003
+    description: "Timing-based covert channel"
+    regex: 'sleep.*\$|delay.*secret|time\.sleep.*len\(|setTimeout.*password'
+    severity: medium
+
+  - name: clipboard_exfil
+    id: CEC-0004
+    description: "Stealing clipboard contents"
+    regex: 'pbpaste\s*\|\s*(curl|wget|nc)|xclip.*-o.*curl|while.*pbpaste'
+    severity: high
+
+  - name: screenshot_exfil
+    id: CEC-0005
+    description: "Screenshot capture for visual reconnaissance"
+    regex: 'screencapture.*\.(png|jpg).*&&.*(curl|scp|nc)|screencapture.*/tmp/.*&&'
+    severity: high
+
+  - name: steganography_exfil
+    id: CEC-0006
+    description: "Data hidden in images"
+    regex: 'steghide|outguess|exiftool.*-Comment=.*secret'
+    severity: high
+
+  # ============================================================================
+  # CONFIG MANIPULATION (CFG-####)
+  # Privilege escalation via configuration
+  # ============================================================================
+
+  - name: autorun_config_write
+    id: CFG-0001
+    description: "Writing to auto-approve or autorun configurations"
+    regex: '(autoApprove|auto_approve|autorun|auto_execute|allowAll)\s*[=:]\s*"?(true|1|yes)"?'
+    severity: critical
+
+  - name: settings_manipulation
+    id: CFG-0002
+    description: "Modifying IDE/tool security settings"
+    regex: '\.(vscode|cursor|github)/settings\.json|chat\.tools\.auto'
+    severity: high
+
+  - name: hook_bypass
+    id: CFG-0003
+    description: "Attempting to bypass or disable hooks"
+    regex: '(disable|skip|bypass|remove).*hook|--no-verify|pre-commit.*disable|\.git/hooks'
+    severity: high
+
+  - name: gitconfig_manipulation
+    id: CFG-0004
+    description: "Modifying git configuration for persistence"
+    regex: 'git\s+config.*(alias|core\.hooksPath|credential)'
+    severity: medium
+
+  # ============================================================================
+  # DESTRUCTIVE COMMANDS (DC-####)
+  # ============================================================================
+
+  - name: recursive_delete_root
+    id: DC-0001
+    description: "Recursive deletion from root or home"
+    regex: 'rm\s+.*-[rf]*\s+(/|~|\$HOME)\s*$'
+    severity: critical
+
+  - name: force_overwrite
+    id: DC-0002
+    description: "Force overwriting files without confirmation"
+    regex: '>\s*/etc/|>\s*~/\.|>\s*/usr/'
+    severity: high
+
+  - name: disk_wipe
+    id: DC-0003
+    description: "Disk wiping commands"
+    regex: 'dd\s+if=/dev/(zero|urandom)\s+of=/dev/(sd|hd|nvme)|mkfs\s+/dev/'
+    severity: critical
+
+  - name: fork_bomb
+    id: DC-0004
+    description: "Fork bomb or resource exhaustion"
+    regex: ':\(\)\s*\{\s*:\|:\s*&\s*\}|while\s+true.*fork'
+    severity: critical
+
+  # ============================================================================
+  # CODE INJECTION / TAMPERING (CI-####)
+  # ============================================================================
+
+  - name: eval_command
+    id: CI-0001
+    description: "Eval executing dynamic content (code injection risk)"
+    regex: '\beval\s+.*\$|\beval\s*\('
+    severity: high
+
+  - name: source_remote
+    id: CI-0002
+    description: "Sourcing remote scripts"
+    regex: 'source\s+<\(curl|source\s+<\(wget|\.\s+<\(curl'
+    severity: critical
+
+  - name: pipe_to_shell
+    id: CI-0003
+    description: "Piping remote content directly to shell"
+    regex: '(curl|wget).*\|\s*(bash|sh|zsh|python|perl|ruby)'
+    severity: critical
+
+  - name: dyld_injection
+    id: CI-0004
+    description: "Dynamic library injection via DYLD environment variables"
+    regex: '(DYLD_INSERT_LIBRARIES|DYLD_FORCE_FLAT_NAMESPACE)=|install_name_tool.*-change'
+    severity: high
+
+  - name: app_bundle_tampering
+    id: CI-0005
+    description: "Tampering with application bundles or code signing"
+    regex: 'codesign\s+--remove-signature|spctl\s+--master-disable|xattr\s+-d.*quarantine.*\.app'
+    severity: high
+
+  - name: reverse_shell
+    id: CI-0006
+    description: "Creating reverse shell connections for remote access"
+    regex: '(python|ruby|perl|php).*socket.*connect.*(exec|system|spawn)|bash\s+-i.*>&.*/dev/tcp/'
+    severity: critical
+
+  # ============================================================================
+  # MACOS KEYCHAIN / CREDENTIAL THEFT (MAC-####)
+  # 2024-2025 macOS-specific threats
+  # ============================================================================
+
+  - name: keychain_dump
+    id: MAC-0001
+    description: "Extracting credentials from macOS Keychain (Atomic Stealer technique)"
+    regex: '(security\s+dump-keychain|security\s+find-(generic|internet)-password\s+.*-w|chainbreaker|KeychainCrack|security\s+export)'
+    severity: critical
+
+  - name: browser_credential_theft
+    id: MAC-0002
+    description: "Accessing browser saved passwords and cookies (Chrome, Safari, Firefox)"
+    regex: '(Login\s*Data|key4\.db|logins\.json|Cookies\.binarycookies|~/Library/(Safari|Application\s*Support/(Google/)?Chrome)/.*\.(db|sqlite))'
+    severity: critical
+
+  - name: crypto_wallet_theft
+    id: MAC-0003
+    description: "Accessing cryptocurrency wallet files and seed phrases"
+    regex: '(wallet\.dat|\.wallet|seed\.txt|mnemonic|Electrum|Exodus|MetaMask|\.ethereum/keystore|Atomic.*Wallet)'
+    severity: critical
+
+  - name: applescript_password_prompt
+    id: MAC-0004
+    description: "Fake password dialog via AppleScript (AMOS technique)"
+    regex: 'osascript.*display\s+dialog.*password|osascript.*-e.*keystroke|osascript.*System\s+Events'
+    severity: critical
+
+  - name: launchagent_persistence
+    id: MAC-0005
+    description: "Installing persistent LaunchAgent/LaunchDaemon (backdoor technique)"
+    regex: '(cp|mv|tee).*\.plist.*(LaunchAgents|LaunchDaemons)|launchctl\s+(load|bootstrap)'
+    severity: high
+
+  - name: login_item_persistence
+    id: MAC-0006
+    description: "Adding login items for persistence"
+    regex: 'osascript.*login\s*item|defaults\s+write.*LoginItems|SMAppService'
+    severity: high
+
+  - name: tcc_bypass
+    id: MAC-0007
+    description: "Attempting to bypass macOS TCC protections"
+    regex: 'tccutil|TCC\.db|csrutil\s+disable|SIP.*disable'
+    severity: critical
+
+  - name: keychain_unlock
+    id: MAC-0008
+    description: "Unlocking keychain programmatically"
+    regex: 'security\s+unlock-keychain|security\s+set-keychain-settings'
+    severity: high
+
+  # ============================================================================
+  # SANDBOX EVASION (SE-####)
+  # ============================================================================
+
+  - name: sandbox_escape
+    id: SE-0001
+    description: "Attempting to disable or escape macOS sandbox"
+    regex: 'sandbox-exec\s+-n\s+no-|sandbox-exec.*-p.*deny\s+default.*allow|com\.apple\.security.*false'
+    severity: high
+
+  - name: container_escape
+    id: SE-0002
+    description: "Container escape attempts"
+    regex: '/var/run/docker\.sock|--privileged|--cap-add=SYS|nsenter'
+    severity: critical
+
+  - name: chroot_escape
+    id: SE-0003
+    description: "Chroot escape attempts"
+    regex: 'chdir\s*\(\s*"\.\.".*chroot|pivot_root'
+    severity: high
+
+  # ============================================================================
+  # RECONNAISSANCE (RECON-####)
+  # ============================================================================
+
+  - name: system_profiling
+    id: RECON-0001
+    description: "Extensive system reconnaissance and fingerprinting"
+    regex: 'system_profiler\s+SP.*DataType.*&&|sw_vers.*whoami.*id|ioreg.*IOPlatformSerialNumber'
+    severity: medium
+
+  - name: network_scanning
+    id: RECON-0002
+    description: "Network reconnaissance and port scanning"
+    regex: 'nmap|masscan|netstat\s+-an|ss\s+-tuln|arp\s+-a'
+    severity: medium
+
+  - name: process_enumeration
+    id: RECON-0003
+    description: "Enumerating running processes for targets"
+    regex: 'ps\s+aux.*grep.*(ssh|vpn|security|1password|keychain)'
+    severity: low
+
+  # ============================================================================
+  # ENCODING/OBFUSCATION (ENC-####)
+  # ============================================================================
+
+  - name: base64_encode_secrets
+    id: ENC-0001
+    description: "Base64 encoding potentially sensitive data"
+    regex: 'base64.*\$\(|base64.*\.(env|pem|key)|base64\s+-w\s*0'
+    severity: high
+
+  - name: xxd_encode
+    id: ENC-0002
+    description: "Hex encoding files (potential obfuscation)"
+    regex: 'xxd\s+.*\.(env|pem|key|ssh)'
+    severity: medium
+
+  - name: gzip_obfuscation
+    id: ENC-0003
+    description: "Compression for obfuscation"
+    regex: 'gzip.*base64|zlib.*encode.*secret'
+    severity: medium
+
+  # ============================================================================
+  # PERMISSION CHANGES (PERM-####)
+  # ============================================================================
+
+  - name: chmod_sensitive
+    id: PERM-0001
+    description: "Changing permissions on sensitive files"
+    regex: 'chmod\s+.*\.(ssh|env|pem|key)|chmod\s+777'
+    severity: medium
+
+  - name: chown_escalation
+    id: PERM-0002
+    description: "Changing ownership for privilege escalation"
+    regex: 'chown\s+root|chown\s+.*:wheel'
+    severity: high
+
+  - name: setuid_modification
+    id: PERM-0003
+    description: "Setting SUID/SGID bits for privilege escalation"
+    regex: 'chmod\s+[u+]?s|chmod\s+[46][0-7]{3}'
+    severity: critical
