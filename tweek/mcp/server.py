@@ -315,16 +315,16 @@ class TweekMCPServer:
 
             # Pattern matching
             pattern_matcher = PatternMatcher()
-            matches = pattern_matcher.check(context.content)
+            match = pattern_matcher.check(context.content)
 
-            if matches:
+            if match:
                 self._blocked_count += 1
-                match_names = [m.get("pattern", "unknown") for m in matches]
+                pattern_name = match.get("pattern", match.get("name", "unknown"))
                 return {
                     "allowed": False,
                     "blocked": True,
-                    "reason": f"Blocked by pattern match: {', '.join(match_names)}",
-                    "findings": matches,
+                    "reason": f"Blocked by pattern match: {pattern_name}",
+                    "findings": [match],
                 }
 
             # Run screening plugins
