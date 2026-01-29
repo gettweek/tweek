@@ -1953,5 +1953,624 @@ def proxy_detect():
             console.print(f"  [dim]tweek proxy wrap {name} '<start command>'[/dim]")
 
 
+# ============================================================
+# PLUGINS COMMANDS
+# ============================================================
+
+@main.group()
+def plugins():
+    """Manage Tweek plugins (compliance, providers, detectors, screening)."""
+    pass
+
+
+@plugins.command("list")
+@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
+              help="Filter by plugin category")
+@click.option("--all", "show_all", is_flag=True, help="Show all plugins including disabled")
+def plugins_list(category: str, show_all: bool):
+    """List installed plugins."""
+    try:
+        from tweek.plugins import get_registry, init_plugins, PluginCategory, LicenseTier
+        from tweek.config.manager import ConfigManager
+
+        init_plugins()
+        registry = get_registry()
+        cfg = ConfigManager()
+
+        category_map = {
+            "compliance": PluginCategory.COMPLIANCE,
+            "providers": PluginCategory.LLM_PROVIDER,
+            "detectors": PluginCategory.TOOL_DETECTOR,
+            "screening": PluginCategory.SCREENING,
+        }
+
+        categories = [category_map[category]] if category else list(PluginCategory)
+
+        for cat in categories:
+            cat_name = cat.value.split(".")[-1]
+            plugins_list = registry.list_plugins(cat)
+
+            if not plugins_list and not show_all:
+                continue
+
+            table = Table(title=f"{cat_name.replace('_', ' ').title()} Plugins")
+            table.add_column("Name", style="cyan")
+            table.add_column("Version")
+            table.add_column("Source")
+            table.add_column("Enabled")
+            table.add_column("License")
+            table.add_column("Description", max_width=40)
+
+            for info in plugins_list:
+                if not show_all and not info.enabled:
+                    continue
+
+                # Get config status
+                plugin_cfg = cfg.get_plugin_config(cat_name, info.name)
+
+                license_tier = info.metadata.requires_license
+                license_style = "green" if license_tier == LicenseTier.FREE else "cyan"
+
+                source_str = info.source.value if hasattr(info, 'source') else "builtin"
+                source_style = "blue" if source_str == "git" else "dim"
+
+                table.add_row(
+                    info.name,
+                    info.metadata.version,
+                    f"[{source_style}]{source_str}[/{source_style}]",
+                    "[green]✓[/green]" if info.enabled else "[red]✗[/red]",
+                    f"[{license_style}]{license_tier.value}[/{license_style}]",
+                    info.metadata.description[:40] + "..." if len(info.metadata.description) > 40 else info.metadata.description,
+                )
+
+            console.print(table)
+            console.print()
+
+    except ImportError as e:
+        console.print(f"[red]Plugin system not available: {e}[/red]")
+
+
+@plugins.command("info")
+@click.argument("plugin_name")
+@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
+              help="Plugin category (auto-detected if not specified)")
+def plugins_info(plugin_name: str, category: str):
+    """Show detailed information about a plugin."""
+    try:
+        from tweek.plugins import get_registry, init_plugins, PluginCategory
+        from tweek.config.manager import ConfigManager
+
+        init_plugins()
+        registry = get_registry()
+        cfg = ConfigManager()
+
+        category_map = {
+            "compliance": PluginCategory.COMPLIANCE,
+            "providers": PluginCategory.LLM_PROVIDER,
+            "detectors": PluginCategory.TOOL_DETECTOR,
+            "screening": PluginCategory.SCREENING,
+        }
+
+        # Find the plugin
+        found_info = None
+        found_cat = None
+
+        if category:
+            cat_enum = category_map[category]
+            found_info = registry.get_info(plugin_name, cat_enum)
+            found_cat = category
+        else:
+            # Search all categories
+            for cat_name, cat_enum in category_map.items():
+                info = registry.get_info(plugin_name, cat_enum)
+                if info:
+                    found_info = info
+                    found_cat = cat_name
+                    break
+
+        if not found_info:
+            console.print(f"[red]Plugin not found: {plugin_name}[/red]")
+            return
+
+        # Get config
+        plugin_cfg = cfg.get_plugin_config(found_cat, plugin_name)
+
+        console.print(f"\n[bold]{found_info.name}[/bold] ({found_cat})")
+        console.print(f"[dim]{found_info.metadata.description}[/dim]")
+        console.print()
+
+        table = Table(show_header=False)
+        table.add_column("Key", style="cyan")
+        table.add_column("Value")
+
+        table.add_row("Version", found_info.metadata.version)
+        table.add_row("Author", found_info.metadata.author or "Unknown")
+        table.add_row("License Required", found_info.metadata.requires_license.value.upper())
+        table.add_row("Enabled", "Yes" if found_info.enabled else "No")
+        table.add_row("Config Source", plugin_cfg.source)
+
+        if found_info.metadata.tags:
+            table.add_row("Tags", ", ".join(found_info.metadata.tags))
+
+        if plugin_cfg.settings:
+            table.add_row("Settings", str(plugin_cfg.settings))
+
+        if found_info.load_error:
+            table.add_row("[red]Load Error[/red]", found_info.load_error)
+
+        console.print(table)
+
+    except ImportError as e:
+        console.print(f"[red]Plugin system not available: {e}[/red]")
+
+
+@plugins.command("enable")
+@click.argument("plugin_name")
+@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
+              required=True, help="Plugin category")
+@click.option("--scope", type=click.Choice(["user", "project"]), default="user")
+def plugins_enable(plugin_name: str, category: str, scope: str):
+    """Enable a plugin."""
+    from tweek.config.manager import ConfigManager
+
+    cfg = ConfigManager()
+    cfg.set_plugin_enabled(category, plugin_name, True, scope=scope)
+    console.print(f"[green]✓[/green] Enabled plugin '{plugin_name}' ({category}) - {scope} config")
+
+
+@plugins.command("disable")
+@click.argument("plugin_name")
+@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
+              required=True, help="Plugin category")
+@click.option("--scope", type=click.Choice(["user", "project"]), default="user")
+def plugins_disable(plugin_name: str, category: str, scope: str):
+    """Disable a plugin."""
+    from tweek.config.manager import ConfigManager
+
+    cfg = ConfigManager()
+    cfg.set_plugin_enabled(category, plugin_name, False, scope=scope)
+    console.print(f"[green]✓[/green] Disabled plugin '{plugin_name}' ({category}) - {scope} config")
+
+
+@plugins.command("set")
+@click.argument("plugin_name")
+@click.argument("key")
+@click.argument("value")
+@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
+              required=True, help="Plugin category")
+@click.option("--scope", type=click.Choice(["user", "project"]), default="user")
+def plugins_set(plugin_name: str, key: str, value: str, category: str, scope: str):
+    """Set a plugin configuration value."""
+    from tweek.config.manager import ConfigManager
+    import json
+
+    cfg = ConfigManager()
+
+    # Try to parse value as JSON (for booleans, numbers, objects)
+    try:
+        parsed_value = json.loads(value)
+    except json.JSONDecodeError:
+        parsed_value = value
+
+    cfg.set_plugin_setting(category, plugin_name, key, parsed_value, scope=scope)
+    console.print(f"[green]✓[/green] Set {plugin_name}.{key} = {parsed_value} ({scope} config)")
+
+
+@plugins.command("reset")
+@click.argument("plugin_name")
+@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
+              required=True, help="Plugin category")
+@click.option("--scope", type=click.Choice(["user", "project"]), default="user")
+def plugins_reset(plugin_name: str, category: str, scope: str):
+    """Reset a plugin to default configuration."""
+    from tweek.config.manager import ConfigManager
+
+    cfg = ConfigManager()
+
+    if cfg.reset_plugin(category, plugin_name, scope=scope):
+        console.print(f"[green]✓[/green] Reset plugin '{plugin_name}' to defaults ({scope} config)")
+    else:
+        console.print(f"[yellow]![/yellow] Plugin '{plugin_name}' has no {scope} configuration to reset")
+
+
+@plugins.command("scan")
+@click.argument("content")
+@click.option("--direction", "-d", type=click.Choice(["input", "output"]), default="output",
+              help="Scan direction (input=incoming data, output=LLM response)")
+@click.option("--plugin", "-p", help="Specific compliance plugin to use (default: all enabled)")
+def plugins_scan(content: str, direction: str, plugin: str):
+    """Run compliance scan on content.
+
+    \b
+    Examples:
+        tweek plugins scan "This document is TOP SECRET//NOFORN"
+        tweek plugins scan "Patient MRN: 123456" --plugin hipaa
+        tweek plugins scan @file.txt  # Scan file contents
+    """
+    try:
+        from tweek.plugins import get_registry, init_plugins, PluginCategory
+        from tweek.plugins.base import ScanDirection
+
+        # Handle file input
+        if content.startswith("@"):
+            file_path = Path(content[1:])
+            if file_path.exists():
+                content = file_path.read_text()
+            else:
+                console.print(f"[red]File not found: {file_path}[/red]")
+                return
+
+        init_plugins()
+        registry = get_registry()
+        direction_enum = ScanDirection(direction)
+
+        total_findings = []
+
+        if plugin:
+            # Scan with specific plugin
+            plugin_instance = registry.get(plugin, PluginCategory.COMPLIANCE)
+            if not plugin_instance:
+                console.print(f"[red]Plugin not found: {plugin}[/red]")
+                return
+            plugins_to_use = [plugin_instance]
+        else:
+            # Use all enabled compliance plugins
+            plugins_to_use = registry.get_all(PluginCategory.COMPLIANCE)
+
+        if not plugins_to_use:
+            console.print("[yellow]No compliance plugins enabled.[/yellow]")
+            console.print("[dim]Enable plugins with: tweek plugins enable <name> -c compliance[/dim]")
+            return
+
+        for p in plugins_to_use:
+            result = p.scan(content, direction_enum)
+
+            if result.findings:
+                console.print(f"\n[bold]{p.name.upper()}[/bold]: {len(result.findings)} finding(s)")
+
+                for finding in result.findings:
+                    severity_styles = {
+                        "critical": "red bold",
+                        "high": "red",
+                        "medium": "yellow",
+                        "low": "dim",
+                    }
+                    style = severity_styles.get(finding.severity.value, "white")
+
+                    console.print(f"  [{style}]{finding.severity.value.upper()}[/{style}] {finding.pattern_name}")
+                    console.print(f"    [dim]Matched: {finding.matched_text[:60]}{'...' if len(finding.matched_text) > 60 else ''}[/dim]")
+                    if finding.description:
+                        console.print(f"    {finding.description}")
+
+                total_findings.extend(result.findings)
+
+        if not total_findings:
+            console.print("[green]✓[/green] No compliance issues found")
+        else:
+            console.print(f"\n[yellow]Total: {len(total_findings)} finding(s)[/yellow]")
+
+    except ImportError as e:
+        console.print(f"[red]Plugin system not available: {e}[/red]")
+
+
+# ============================================================
+# GIT PLUGIN MANAGEMENT COMMANDS
+# ============================================================
+
+@plugins.command("install")
+@click.argument("name")
+@click.option("--version", "-v", "version", default=None, help="Specific version to install")
+@click.option("--from-lockfile", is_flag=True, help="Install all plugins from lockfile")
+@click.option("--no-verify", is_flag=True, help="Skip security verification (not recommended)")
+def plugins_install(name: str, version: str, from_lockfile: bool, no_verify: bool):
+    """Install a plugin from the Tweek registry."""
+    try:
+        from tweek.plugins.git_installer import GitPluginInstaller
+        from tweek.plugins.git_registry import PluginRegistryClient
+        from tweek.plugins.git_lockfile import PluginLockfile
+
+        if from_lockfile:
+            lockfile = PluginLockfile()
+            if not lockfile.has_lockfile:
+                console.print("[red]No lockfile found. Run 'tweek plugins lock' first.[/red]")
+                return
+
+            locks = lockfile.load()
+            registry = PluginRegistryClient()
+            installer = GitPluginInstaller(registry_client=registry)
+
+            for plugin_name, lock in locks.items():
+                console.print(f"Installing {plugin_name} v{lock.version}...")
+                success, msg = installer.install(
+                    plugin_name,
+                    version=lock.version,
+                    verify=not no_verify,
+                )
+                if success:
+                    console.print(f"  [green]✓[/green] {msg}")
+                else:
+                    console.print(f"  [red]✗[/red] {msg}")
+            return
+
+        registry = PluginRegistryClient()
+        installer = GitPluginInstaller(registry_client=registry)
+
+        console.print(f"Installing {name}...")
+        success, msg = installer.install(name, version=version, verify=not no_verify)
+
+        if success:
+            console.print(f"[green]✓[/green] {msg}")
+        else:
+            console.print(f"[red]✗[/red] {msg}")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@plugins.command("update")
+@click.argument("name", required=False)
+@click.option("--all", "update_all", is_flag=True, help="Update all installed plugins")
+@click.option("--check", "check_only", is_flag=True, help="Check for updates without installing")
+@click.option("--version", "-v", "version", default=None, help="Specific version to update to")
+@click.option("--no-verify", is_flag=True, help="Skip security verification")
+def plugins_update(name: str, update_all: bool, check_only: bool, version: str, no_verify: bool):
+    """Update installed plugins."""
+    try:
+        from tweek.plugins.git_installer import GitPluginInstaller
+        from tweek.plugins.git_registry import PluginRegistryClient
+
+        registry = PluginRegistryClient()
+        installer = GitPluginInstaller(registry_client=registry)
+
+        if check_only:
+            console.print("Checking for updates...")
+            updates = installer.check_updates()
+            if not updates:
+                console.print("[green]All plugins are up to date.[/green]")
+            else:
+                table = Table(title="Available Updates")
+                table.add_column("Plugin", style="cyan")
+                table.add_column("Current")
+                table.add_column("Latest", style="green")
+                for u in updates:
+                    table.add_row(u["name"], u["current_version"], u["latest_version"])
+                console.print(table)
+            return
+
+        if update_all:
+            installed = installer.list_installed()
+            if not installed:
+                console.print("No git plugins installed.")
+                return
+            for plugin in installed:
+                console.print(f"Updating {plugin['name']}...")
+                success, msg = installer.update(
+                    plugin["name"],
+                    verify=not no_verify,
+                )
+                if success:
+                    console.print(f"  [green]✓[/green] {msg}")
+                else:
+                    console.print(f"  [yellow]![/yellow] {msg}")
+            return
+
+        if not name:
+            console.print("[red]Specify a plugin name or use --all[/red]")
+            return
+
+        success, msg = installer.update(name, version=version, verify=not no_verify)
+        if success:
+            console.print(f"[green]✓[/green] {msg}")
+        else:
+            console.print(f"[red]✗[/red] {msg}")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@plugins.command("remove")
+@click.argument("name")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
+def plugins_remove(name: str, force: bool):
+    """Remove an installed git plugin."""
+    try:
+        from tweek.plugins.git_installer import GitPluginInstaller
+        from tweek.plugins.git_registry import PluginRegistryClient
+
+        installer = GitPluginInstaller(registry_client=PluginRegistryClient())
+
+        if not force:
+            if not click.confirm(f"Remove plugin '{name}'?"):
+                return
+
+        success, msg = installer.remove(name)
+        if success:
+            console.print(f"[green]✓[/green] {msg}")
+        else:
+            console.print(f"[red]✗[/red] {msg}")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@plugins.command("search")
+@click.argument("query", required=False)
+@click.option("--category", "-c", type=click.Choice(["compliance", "providers", "detectors", "screening"]),
+              help="Filter by category")
+@click.option("--tier", "-t", type=click.Choice(["free", "pro", "enterprise"]),
+              help="Filter by license tier")
+@click.option("--include-deprecated", is_flag=True, help="Include deprecated plugins")
+def plugins_search(query: str, category: str, tier: str, include_deprecated: bool):
+    """Search the Tweek plugin registry."""
+    try:
+        from tweek.plugins.git_registry import PluginRegistryClient
+
+        registry = PluginRegistryClient()
+        console.print("Searching registry...")
+        results = registry.search(
+            query=query,
+            category=category,
+            tier=tier,
+            include_deprecated=include_deprecated,
+        )
+
+        if not results:
+            console.print("[yellow]No plugins found matching your criteria.[/yellow]")
+            return
+
+        table = Table(title=f"Registry Results ({len(results)} found)")
+        table.add_column("Name", style="cyan")
+        table.add_column("Version")
+        table.add_column("Category")
+        table.add_column("Tier")
+        table.add_column("Description", max_width=40)
+
+        for entry in results:
+            table.add_row(
+                entry.name,
+                entry.latest_version,
+                entry.category,
+                entry.requires_license_tier,
+                entry.description[:40] + "..." if len(entry.description) > 40 else entry.description,
+            )
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@plugins.command("lock")
+@click.option("--plugin", "-p", "plugin_name", default=None, help="Lock a specific plugin")
+@click.option("--version", "-v", "version", default=None, help="Lock to specific version")
+@click.option("--project", is_flag=True, help="Create project-level lockfile (.tweek/plugins.lock.json)")
+def plugins_lock(plugin_name: str, version: str, project: bool):
+    """Generate or update a plugin version lockfile."""
+    try:
+        from tweek.plugins.git_lockfile import PluginLockfile
+
+        lockfile = PluginLockfile()
+        target = "project" if project else "user"
+
+        specific = None
+        if plugin_name:
+            specific = {plugin_name: version or "latest"}
+
+        path = lockfile.generate(target=target, specific_plugins=specific)
+        console.print(f"[green]✓[/green] Lockfile generated: {path}")
+
+        # Show lock contents
+        locks = lockfile.load()
+        if locks:
+            table = Table(title="Locked Plugins")
+            table.add_column("Plugin", style="cyan")
+            table.add_column("Version")
+            table.add_column("Commit")
+            for name, lock in locks.items():
+                table.add_row(
+                    name,
+                    lock.version,
+                    lock.commit_sha[:12] if lock.commit_sha else "n/a",
+                )
+            console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@plugins.command("verify")
+@click.argument("name", required=False)
+@click.option("--all", "verify_all", is_flag=True, help="Verify all installed plugins")
+def plugins_verify(name: str, verify_all: bool):
+    """Verify integrity of installed git plugins."""
+    try:
+        from tweek.plugins.git_installer import GitPluginInstaller
+        from tweek.plugins.git_registry import PluginRegistryClient
+
+        installer = GitPluginInstaller(registry_client=PluginRegistryClient())
+
+        if verify_all:
+            results = installer.verify_all()
+            if not results:
+                console.print("No git plugins installed.")
+                return
+
+            all_valid = True
+            for plugin_name, (valid, issues) in results.items():
+                if valid:
+                    console.print(f"  [green]✓[/green] {plugin_name}: integrity verified")
+                else:
+                    all_valid = False
+                    console.print(f"  [red]✗[/red] {plugin_name}: {len(issues)} issue(s)")
+                    for issue in issues:
+                        console.print(f"      - {issue}")
+
+            if all_valid:
+                console.print(f"\n[green]All {len(results)} plugin(s) verified.[/green]")
+            return
+
+        if not name:
+            console.print("[red]Specify a plugin name or use --all[/red]")
+            return
+
+        valid, issues = installer.verify_plugin(name)
+        if valid:
+            console.print(f"[green]✓[/green] Plugin '{name}' integrity verified")
+        else:
+            console.print(f"[red]✗[/red] Plugin '{name}' failed verification:")
+            for issue in issues:
+                console.print(f"  - {issue}")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@plugins.command("registry")
+@click.option("--refresh", is_flag=True, help="Force refresh the registry cache")
+@click.option("--info", "show_info", is_flag=True, help="Show registry metadata")
+def plugins_registry(refresh: bool, show_info: bool):
+    """Manage the plugin registry cache."""
+    try:
+        from tweek.plugins.git_registry import PluginRegistryClient
+
+        registry = PluginRegistryClient()
+
+        if refresh:
+            console.print("Refreshing registry...")
+            try:
+                entries = registry.fetch(force_refresh=True)
+                console.print(f"[green]✓[/green] Registry refreshed: {len(entries)} plugins available")
+            except Exception as e:
+                console.print(f"[red]✗[/red] Failed to refresh: {e}")
+            return
+
+        if show_info:
+            info = registry.get_registry_info()
+            panel_content = "\n".join([
+                f"URL: {info.get('url', 'unknown')}",
+                f"Cache: {info.get('cache_path', 'unknown')}",
+                f"Cache TTL: {info.get('cache_ttl_seconds', 0)}s",
+                f"Cache valid: {info.get('cache_valid', False)}",
+                f"Schema version: {info.get('schema_version', 'unknown')}",
+                f"Last updated: {info.get('updated_at', 'unknown')}",
+                f"Total plugins: {info.get('total_plugins', 'unknown')}",
+                f"Cache fetched: {info.get('cache_fetched_at', 'never')}",
+            ])
+            console.print(Panel(panel_content, title="Registry Info"))
+            return
+
+        # Default: show summary
+        try:
+            entries = registry.fetch()
+            verified = [e for e in entries.values() if e.verified and not e.deprecated]
+            console.print(f"Registry: {len(verified)} verified plugins available")
+            console.print("Use 'tweek plugins search' to browse or 'tweek plugins registry --refresh' to update cache")
+        except Exception as e:
+            console.print(f"[yellow]Registry unavailable: {e}[/yellow]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 if __name__ == "__main__":
     main()
