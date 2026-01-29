@@ -774,6 +774,17 @@ body {
     font-weight: 600;
 }
 
+.layer-badge {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--bg-primary);
+    background: var(--accent-primary);
+    padding: 2px 8px;
+    border-radius: 100px;
+    margin-left: auto;
+}
+
 .layer-features {
     list-style: none;
     padding: 0;
@@ -1236,6 +1247,49 @@ body {
     width: 100%;
 }
 
+.pricing-note {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: var(--space-md);
+    text-align: center;
+}
+
+/* Two-column pricing grid for FREE/PRO only */
+.pricing-grid-two {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 800px;
+}
+
+/* FAQ section under pricing */
+.pricing-faq {
+    max-width: 800px;
+    margin: var(--space-2xl) auto 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-lg);
+}
+
+.faq-item {
+    text-align: center;
+    padding: var(--space-lg);
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+}
+
+.faq-q {
+    display: block;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.faq-a {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
 /* ============================================
    SECTION 7: FINAL CTA
    ============================================ */
@@ -1497,6 +1551,8 @@ body {
     .execution-modes,
     .features-row,
     .pricing-grid,
+    .pricing-grid-two,
+    .pricing-faq,
     .attack-coverage-grid,
     .differentiators-grid {
         grid-template-columns: 1fr;

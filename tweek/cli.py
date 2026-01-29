@@ -426,6 +426,7 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
 
     console.print("\n[green]Installation complete![/green]")
     console.print("[dim]Run 'tweek status' to verify installation[/dim]")
+    console.print("[dim]Run 'tweek update' to get latest attack patterns[/dim]")
     console.print("[dim]Run 'tweek config list' to see security settings[/dim]")
 
 
@@ -517,6 +518,139 @@ def uninstall(scope: str, confirm: bool):
 
     console.print("\n[green]Uninstall complete![/green]")
     console.print("[dim]Tweek data directory (~/.tweek) was preserved. Remove manually if desired.[/dim]")
+
+
+@main.command()
+@click.option("--check", is_flag=True, help="Check for updates without installing")
+def update(check: bool):
+    """Update attack patterns from GitHub.
+
+    Patterns are stored in ~/.tweek/patterns/ and can be updated
+    independently of the Tweek application.
+
+    \b
+    Pattern tiers:
+        - Patterns 1-23: FREE tier (essential protection)
+        - Patterns 24-116: PRO tier (advanced detection)
+    """
+    import subprocess
+
+    patterns_dir = Path("~/.tweek/patterns").expanduser()
+    patterns_repo = "https://github.com/gettweek/tweek-patterns.git"
+
+    console.print(TWEEK_BANNER, style="cyan")
+
+    if not patterns_dir.exists():
+        # First time: clone the repo
+        if check:
+            console.print("[yellow]Patterns not installed.[/yellow]")
+            console.print(f"[dim]Run 'tweek update' to install from {patterns_repo}[/dim]")
+            return
+
+        console.print(f"[cyan]Installing patterns from {patterns_repo}...[/cyan]")
+
+        try:
+            result = subprocess.run(
+                ["git", "clone", "--depth", "1", patterns_repo, str(patterns_dir)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            console.print("[green]✓[/green] Patterns installed successfully")
+
+            # Show pattern count
+            patterns_file = patterns_dir / "patterns.yaml"
+            if patterns_file.exists():
+                import yaml
+                with open(patterns_file) as f:
+                    data = yaml.safe_load(f)
+                count = data.get("pattern_count", len(data.get("patterns", [])))
+                free_max = data.get("free_tier_max", 23)
+                console.print(f"[dim]Installed {count} patterns ({free_max} free, {count - free_max} pro)[/dim]")
+
+        except subprocess.CalledProcessError as e:
+            console.print(f"[red]✗[/red] Failed to clone patterns: {e.stderr}")
+            return
+        except FileNotFoundError:
+            console.print("[red]✗[/red] git not found. Please install git.")
+            return
+
+    else:
+        # Update existing repo
+        if check:
+            console.print("[cyan]Checking for pattern updates...[/cyan]")
+            try:
+                result = subprocess.run(
+                    ["git", "-C", str(patterns_dir), "fetch", "--dry-run"],
+                    capture_output=True,
+                    text=True
+                )
+                # Check if there are updates
+                result2 = subprocess.run(
+                    ["git", "-C", str(patterns_dir), "status", "-uno"],
+                    capture_output=True,
+                    text=True
+                )
+                if "behind" in result2.stdout:
+                    console.print("[yellow]Updates available.[/yellow]")
+                    console.print("[dim]Run 'tweek update' to install[/dim]")
+                else:
+                    console.print("[green]✓[/green] Patterns are up to date")
+            except Exception as e:
+                console.print(f"[red]✗[/red] Failed to check for updates: {e}")
+            return
+
+        console.print("[cyan]Updating patterns...[/cyan]")
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(patterns_dir), "pull", "--ff-only"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            if "Already up to date" in result.stdout:
+                console.print("[green]✓[/green] Patterns already up to date")
+            else:
+                console.print("[green]✓[/green] Patterns updated successfully")
+
+                # Show what changed
+                if result.stdout.strip():
+                    console.print(f"[dim]{result.stdout.strip()}[/dim]")
+
+        except subprocess.CalledProcessError as e:
+            console.print(f"[red]✗[/red] Failed to update patterns: {e.stderr}")
+            console.print("[dim]Try: rm -rf ~/.tweek/patterns && tweek update[/dim]")
+            return
+
+    # Show current version info
+    patterns_file = patterns_dir / "patterns.yaml"
+    if patterns_file.exists():
+        import yaml
+        try:
+            with open(patterns_file) as f:
+                data = yaml.safe_load(f)
+            version = data.get("version", "?")
+            count = data.get("pattern_count", len(data.get("patterns", [])))
+            free_max = data.get("free_tier_max", 23)
+
+            # Check license
+            from tweek.licensing import get_license
+            lic = get_license()
+            active_patterns = count if lic.is_pro else free_max
+
+            console.print()
+            console.print(f"[cyan]Pattern version:[/cyan] {version}")
+            console.print(f"[cyan]Total patterns:[/cyan] {count}")
+            console.print(f"[cyan]Active patterns:[/cyan] {active_patterns} ({lic.tier.value.upper()} tier)")
+
+            if not lic.is_pro:
+                console.print()
+                console.print(f"[dim]Upgrade to Pro for all {count} patterns: gettweek.com/pricing[/dim]")
+
+        except Exception:
+            pass
 
 
 @main.command()
@@ -626,6 +760,42 @@ def status():
         license_detail = f"Licensed to: {lic.info.email}" if lic.info else ""
 
     table.add_row("License", tier_display, license_detail)
+
+    # Pattern status
+    user_patterns = Path("~/.tweek/patterns/patterns.yaml").expanduser()
+    bundled_patterns = Path(__file__).parent / "config" / "patterns.yaml"
+
+    patterns_source = None
+    patterns_file = None
+
+    if user_patterns.exists():
+        patterns_source = "~/.tweek/patterns"
+        patterns_file = user_patterns
+    elif bundled_patterns.exists():
+        patterns_source = "bundled"
+        patterns_file = bundled_patterns
+
+    if patterns_file and patterns_file.exists():
+        try:
+            import yaml
+            with open(patterns_file) as f:
+                pdata = yaml.safe_load(f) or {}
+            total_patterns = pdata.get("pattern_count", len(pdata.get("patterns", [])))
+            free_max = pdata.get("free_tier_max", 23)
+            active_count = total_patterns if lic.is_pro else free_max
+
+            pattern_status = f"✓ {active_count} active"
+            pattern_detail = f"{total_patterns} total ({patterns_source})"
+            if not lic.is_pro:
+                pattern_detail += f" - {total_patterns - free_max} more with Pro"
+        except Exception:
+            pattern_status = "✓ Loaded"
+            pattern_detail = patterns_source
+    else:
+        pattern_status = "[yellow]○ Not Found[/yellow]"
+        pattern_detail = "Run 'tweek update'"
+
+    table.add_row("Attack Patterns", pattern_status, pattern_detail)
 
     console.print(table)
 

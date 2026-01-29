@@ -135,17 +135,27 @@ class TierManager:
 class PatternMatcher:
     """Matches commands against hostile patterns."""
 
-    def __init__(self, patterns_path: Optional[Path] = None):
-        if patterns_path is None:
-            patterns_path = Path(__file__).parent.parent / "config" / "patterns.yaml"
+    # Default max pattern ID for free tier
+    FREE_TIER_MAX_ID = 23
 
-        self.patterns = self._load_patterns(patterns_path)
+    def __init__(self, patterns_path: Optional[Path] = None):
+        # Try user patterns first (~/.tweek/patterns/), fall back to bundled
+        user_patterns = Path.home() / ".tweek" / "patterns" / "patterns.yaml"
+        bundled_patterns = Path(__file__).parent.parent / "config" / "patterns.yaml"
+
+        if patterns_path is not None:
+            self.patterns = self._load_patterns(patterns_path)
+        elif user_patterns.exists():
+            self.patterns = self._load_patterns(user_patterns)
+        else:
+            self.patterns = self._load_patterns(bundled_patterns)
 
     def _load_patterns(self, path: Path) -> List[dict]:
         """Load patterns from YAML config, filtered by license tier.
 
-        FREE tier: Only patterns with tier: free
-        PRO tier: All patterns (free + pro)
+        Patterns are numbered sequentially:
+        - FREE tier: Patterns with id <= 23
+        - PRO tier: All patterns (1-116+)
         """
         if not path.exists():
             return []
@@ -154,6 +164,7 @@ class PatternMatcher:
             config = yaml.safe_load(f) or {}
 
         all_patterns = config.get("patterns", [])
+        free_tier_max = config.get("free_tier_max", self.FREE_TIER_MAX_ID)
 
         # Check license tier
         try:
@@ -166,8 +177,8 @@ class PatternMatcher:
             # Pro users get all patterns
             return all_patterns
         else:
-            # Free users only get patterns with tier: free
-            return [p for p in all_patterns if p.get("tier") == "free"]
+            # Free users only get patterns where id <= free_tier_max
+            return [p for p in all_patterns if p.get("id", 999) <= free_tier_max]
 
     def check(self, content: str) -> Optional[dict]:
         """Check content against all patterns.

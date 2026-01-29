@@ -54,8 +54,8 @@ Command Request
      │
      ▼
 ┌─────────────────────────────────┐
-│ 1. PATTERN MATCHING             │  100+ regex patterns for
-│    - Credential access          │  known attack signatures
+│ 1. PATTERN MATCHING             │  23 core patterns (FREE)
+│    - Credential access          │  116 total patterns (PRO)
 │    - Network exfiltration       │
 │    - Prompt injection           │
 └─────────────────────────────────┘
@@ -115,6 +115,7 @@ tweek vault get myapp API_KEY
 | `tweek install` | Install hooks (global by default) |
 | `tweek install --scope project` | Install for current project only |
 | `tweek uninstall` | Remove hooks |
+| `tweek update` | Update attack patterns from GitHub |
 | `tweek status` | Show protection status |
 | `tweek config list` | List security settings |
 | `tweek config preset <name>` | Apply paranoid/cautious/trusted |
@@ -122,6 +123,58 @@ tweek vault get myapp API_KEY
 | `tweek vault get` | Retrieve credential |
 | `tweek logs show` | View recent events |
 | `tweek logs stats` | Security statistics |
+| `tweek license status` | Check license tier |
+| `tweek license activate KEY` | Activate Pro license |
+
+## Pattern Updates
+
+Attack patterns are updated independently of the application:
+
+```bash
+# Update patterns (pulls from GitHub)
+tweek update
+
+# Check for updates without installing
+tweek update --check
+```
+
+Patterns are stored in `~/.tweek/patterns/` and can be updated via git pull without upgrading Tweek itself. This allows rapid response to new attack vectors.
+
+## Licensing
+
+Tweek offers two tiers:
+
+| Tier | Price | Patterns | Features |
+|------|-------|----------|----------|
+| **FREE** | $0 | 23 core patterns | Pattern matching, logging, vault, CLI |
+| **PRO** | $49 (one-time) | 116 patterns | + LLM review, session analysis, rate limiting, log export |
+
+### FREE Tier
+
+Essential protection for credential theft and common attacks:
+- 23 core patterns covering SSH keys, AWS credentials, .env files
+- Basic security logging (SQLite)
+- Credential vault (system keychain)
+- Global and per-project installation
+
+### PRO Tier
+
+Complete defense-in-depth protection:
+- 116 patterns including evasive techniques, MCP CVEs, advanced injection
+- LLM semantic review (Claude Haiku) for novel attacks
+- Cross-turn session analysis for multi-step attacks
+- Rate limiting for resource theft protection
+- Advanced logging with CSV export
+
+```bash
+# Activate Pro license
+tweek license activate YOUR_LICENSE_KEY
+
+# Check status
+tweek license status
+```
+
+Purchase at [gettweek.com/pricing](https://gettweek.com/pricing)
 
 ## Requirements
 
