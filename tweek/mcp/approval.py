@@ -224,6 +224,25 @@ class ApprovalQueue:
                         timeout,
                     ),
                 )
+
+            # Log the enqueue event
+            try:
+                from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+                get_logger().log(SecurityEvent(
+                    event_type=EventType.MCP_APPROVAL,
+                    tool_name="approval_queue",
+                    decision="allow",
+                    metadata={
+                        "upstream_server": upstream_server,
+                        "tool_name": tool_name,
+                        "screening_reason": screening_reason,
+                        "risk_level": risk_level,
+                    },
+                    source="mcp",
+                ))
+            except Exception:
+                pass
+
             return request_id
 
         return self._retry_on_lock(_do_enqueue)
@@ -301,7 +320,26 @@ class ApprovalQueue:
                     """,
                     (status.value, decided_by, notes, full_id),
                 )
-                return cursor.rowcount > 0
+                updated = cursor.rowcount > 0
+
+            if updated:
+                try:
+                    from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+                    get_logger().log(SecurityEvent(
+                        event_type=EventType.MCP_APPROVAL,
+                        tool_name="approval_queue",
+                        decision="allow" if status == ApprovalStatus.APPROVED else "block",
+                        metadata={
+                            "request_id": full_id,
+                            "status": status.value,
+                            "decided_by": decided_by,
+                        },
+                        source="mcp",
+                    ))
+                except Exception:
+                    pass
+
+            return updated
 
         return self._retry_on_lock(_do_decide)
 
@@ -335,6 +373,20 @@ class ApprovalQueue:
 
         if count > 0:
             logger.info(f"Expired {count} stale approval request(s)")
+
+            try:
+                from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+                get_logger().log(SecurityEvent(
+                    event_type=EventType.MCP_APPROVAL,
+                    tool_name="approval_queue",
+                    decision="block",
+                    metadata={
+                        "expired_count": count,
+                    },
+                    source="mcp",
+                ))
+            except Exception:
+                pass
 
         return count
 

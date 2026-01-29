@@ -19,6 +19,7 @@ import logging
 import os
 import signal
 import sys
+import uuid
 from contextlib import AsyncExitStack
 from datetime import timedelta
 from pathlib import Path
@@ -283,6 +284,9 @@ class TweekMCPProxy:
         self, name: str, arguments: dict
     ) -> list[TextContent]:
         """Screen and forward a tool call."""
+        # Generate correlation ID for this screening pass
+        correlation_id = uuid.uuid4().hex[:12]
+
         # Resolve upstream and original tool name
         try:
             upstream_name, original_name = self._resolve_tool(name)
@@ -318,7 +322,8 @@ class TweekMCPProxy:
 
         if result.get("blocked"):
             self._blocked_count += 1
-            self._log_event("blocked", original_name, upstream_name, content, result)
+            self._log_event("blocked", original_name, upstream_name, content, result,
+                            metadata={"correlation_id": correlation_id}, correlation_id=correlation_id)
             return [TextContent(
                 type="text",
                 text=json.dumps({
@@ -332,11 +337,12 @@ class TweekMCPProxy:
         if result.get("should_prompt"):
             # Queue for human approval
             return await self._handle_approval_flow(
-                upstream_name, original_name, arguments, content, result
+                upstream_name, original_name, arguments, content, result, correlation_id
             )
 
         # Allowed - forward to upstream
-        self._log_event("allowed", original_name, upstream_name, content, result)
+        self._log_event("allowed", original_name, upstream_name, content, result,
+                        correlation_id=correlation_id)
         return await self._forward_and_return(upstream, original_name, arguments)
 
     async def _handle_approval_flow(
@@ -346,6 +352,7 @@ class TweekMCPProxy:
         arguments: Dict[str, Any],
         content: str,
         screening_result: Dict[str, Any],
+        correlation_id: Optional[str] = None,
     ) -> list[TextContent]:
         """Queue a tool call for human approval and wait for decision."""
         self._approval_count += 1
@@ -355,7 +362,8 @@ class TweekMCPProxy:
 
         # Log the prompt
         self._log_event(
-            "user_prompted", tool_name, upstream_name, content, screening_result
+            "user_prompted", tool_name, upstream_name, content, screening_result,
+            correlation_id=correlation_id,
         )
 
         # Enqueue
@@ -381,6 +389,7 @@ class TweekMCPProxy:
             self._log_event(
                 "user_approved", tool_name, upstream_name, content, screening_result,
                 metadata={"request_id": request_id},
+                correlation_id=correlation_id,
             )
             upstream = self.upstreams[upstream_name]
             return await self._forward_and_return(upstream, tool_name, arguments)
@@ -389,6 +398,7 @@ class TweekMCPProxy:
             self._log_event(
                 "user_denied", tool_name, upstream_name, content, screening_result,
                 metadata={"request_id": request_id, "reason": reason},
+                correlation_id=correlation_id,
             )
             return [TextContent(
                 type="text",
@@ -513,6 +523,7 @@ class TweekMCPProxy:
         content: str,
         screening_result: Dict[str, Any],
         metadata: Optional[Dict[str, Any]] = None,
+        correlation_id: Optional[str] = None,
     ):
         """Log a screening event to the security logger."""
         try:
@@ -529,7 +540,6 @@ class TweekMCPProxy:
 
             sec_logger = get_logger()
             event_metadata = {
-                "source": "mcp_proxy",
                 "upstream_server": upstream_name,
                 "findings_count": len(screening_result.get("findings", [])),
             }
@@ -544,6 +554,8 @@ class TweekMCPProxy:
                 decision=event_type,
                 decision_reason=screening_result.get("reason"),
                 metadata=event_metadata,
+                correlation_id=correlation_id,
+                source="mcp_proxy",
             ))
         except Exception as e:
             logger.debug(f"Failed to log security event: {e}")

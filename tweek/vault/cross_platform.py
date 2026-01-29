@@ -57,6 +57,25 @@ class CrossPlatformVault:
         """Generate service name for a skill."""
         return f"{SERVICE_PREFIX}.{skill}"
 
+    def _log_vault_event(self, operation: str, skill: str, key: str, success: bool = True, error: str = None):
+        """Log vault access to security logger (never raises)."""
+        try:
+            from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+            logger = get_logger()
+            metadata = {"operation": operation, "skill": skill, "key": key, "success": success}
+            if error:
+                metadata["error"] = error
+            logger.log(SecurityEvent(
+                event_type=EventType.VAULT_ACCESS,
+                tool_name="vault",
+                decision="allow" if success else "error",
+                decision_reason=error,
+                metadata=metadata,
+                source="vault",
+            ))
+        except Exception:
+            pass
+
     def store(self, skill: str, key: str, value: str) -> bool:
         """
         Store a credential in the vault.
@@ -72,8 +91,10 @@ class CrossPlatformVault:
         try:
             service = self._service_name(skill)
             keyring.set_password(service, key, value)
+            self._log_vault_event("store", skill, key, success=True)
             return True
         except Exception as e:
+            self._log_vault_event("store", skill, key, success=False, error=str(e))
             print(f"Failed to store credential: {e}")
             return False
 
@@ -90,8 +111,11 @@ class CrossPlatformVault:
         """
         try:
             service = self._service_name(skill)
-            return keyring.get_password(service, key)
-        except Exception:
+            value = keyring.get_password(service, key)
+            self._log_vault_event("get", skill, key, success=value is not None)
+            return value
+        except Exception as e:
+            self._log_vault_event("get", skill, key, success=False, error=str(e))
             return None
 
     def delete(self, skill: str, key: str) -> bool:
@@ -108,10 +132,13 @@ class CrossPlatformVault:
         try:
             service = self._service_name(skill)
             keyring.delete_password(service, key)
+            self._log_vault_event("delete", skill, key, success=True)
             return True
         except PasswordDeleteError:
+            self._log_vault_event("delete", skill, key, success=False, error="not found")
             return False
-        except Exception:
+        except Exception as e:
+            self._log_vault_event("delete", skill, key, success=False, error=str(e))
             return False
 
     def list_keys(self, skill: str) -> list[str]:
@@ -194,6 +221,26 @@ def migrate_env_to_vault(
                 else:
                     success = vault.store(skill, key, value)
                     results.append((key, success))
+
+    # Log migration event
+    try:
+        from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+        migrated_keys = [k for k, s in results if s]
+        get_logger().log(SecurityEvent(
+            event_type=EventType.VAULT_MIGRATION,
+            tool_name="vault",
+            decision="allow",
+            metadata={
+                "source_file": str(env_path),
+                "skill": skill,
+                "dry_run": dry_run,
+                "keys_migrated": len(migrated_keys),
+                "keys_failed": len(results) - len(migrated_keys),
+            },
+            source="vault",
+        ))
+    except Exception:
+        pass
 
     return results
 

@@ -7,6 +7,7 @@ analyzing LLM API traffic for security threats.
 
 import json
 import re
+import uuid
 from dataclasses import dataclass, field
 from typing import Optional, Any
 from enum import Enum
@@ -69,6 +70,10 @@ class LLMAPIInterceptor:
         """
         self.pattern_matcher = pattern_matcher
         self.security_logger = security_logger
+
+    def _new_correlation_id(self) -> str:
+        """Generate a new correlation ID for a screening pass."""
+        return uuid.uuid4().hex[:12]
 
     def identify_provider(self, host: str) -> LLMProvider:
         """Identify the LLM provider from the request host."""
@@ -190,6 +195,8 @@ class LLMAPIInterceptor:
         Returns:
             InterceptionResult with screening decision
         """
+        correlation_id = self._new_correlation_id()
+
         try:
             response = json.loads(response_body)
         except json.JSONDecodeError:
@@ -214,6 +221,9 @@ class LLMAPIInterceptor:
             all_warnings.extend(result.warnings)
 
         if blocked_tools:
+            self._log_proxy_event(
+                "block", blocked_tools, all_patterns, provider, correlation_id
+            )
             return InterceptionResult(
                 allowed=False,
                 provider=provider,
@@ -228,6 +238,33 @@ class LLMAPIInterceptor:
             provider=provider,
             warnings=all_warnings,
         )
+
+    def _log_proxy_event(
+        self,
+        decision: str,
+        blocked_tools: list,
+        matched_patterns: list,
+        provider: LLMProvider,
+        correlation_id: str,
+    ):
+        """Log a proxy screening event to the security logger."""
+        try:
+            from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+            get_logger().log(SecurityEvent(
+                event_type=EventType.PROXY_EVENT,
+                tool_name="http_proxy",
+                decision=decision,
+                decision_reason=f"Blocked tools: {', '.join(blocked_tools)}" if blocked_tools else None,
+                metadata={
+                    "provider": provider.value,
+                    "blocked_tools": blocked_tools,
+                    "matched_patterns": matched_patterns,
+                },
+                correlation_id=correlation_id,
+                source="http_proxy",
+            ))
+        except Exception:
+            pass
 
     def screen_request(self, request_body: bytes, provider: LLMProvider) -> InterceptionResult:
         """

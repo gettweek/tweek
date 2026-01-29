@@ -1804,9 +1804,80 @@ def logs_clear(days: int, confirm: bool):
             return
 
     logger = get_logger()
+    deleted = logger.delete_events(days=days)
 
-    # Note: Would need to add a clear method to SecurityLogger
-    console.print("[yellow]Log clearing not yet implemented[/yellow]")
+    if deleted > 0:
+        if days:
+            console.print(f"[green]Cleared {deleted} event(s) older than {days} days[/green]")
+        else:
+            console.print(f"[green]Cleared {deleted} event(s)[/green]")
+    else:
+        console.print("[dim]No events to clear[/dim]")
+
+
+@logs.command("bundle",
+    epilog="""\b
+Examples:
+  tweek logs bundle                        Create diagnostic bundle
+  tweek logs bundle -o /tmp/diag.zip       Specify output path
+  tweek logs bundle --days 7               Only last 7 days of events
+  tweek logs bundle --dry-run              Show what would be collected
+"""
+)
+@click.option("--output", "-o", type=click.Path(), help="Output zip file path")
+@click.option("--days", "-d", type=int, help="Only include events from last N days")
+@click.option("--no-redact", is_flag=True, help="Skip redaction (for internal debugging)")
+@click.option("--dry-run", is_flag=True, help="Show what would be collected")
+def logs_bundle(output: str, days: int, no_redact: bool, dry_run: bool):
+    """Create a diagnostic bundle for support.
+
+    Collects security logs, configs (redacted), system info, and
+    doctor output into a zip file suitable for sending to Tweek support.
+
+    Sensitive data (API keys, passwords, tokens) is automatically
+    redacted before inclusion.
+    """
+    from tweek.logging.bundle import BundleCollector
+
+    collector = BundleCollector(redact=not no_redact, days=days)
+
+    if dry_run:
+        report = collector.get_dry_run_report()
+        console.print("[bold]Diagnostic Bundle - Dry Run[/bold]\n")
+        for item in report:
+            status = item.get("status", "unknown")
+            name = item.get("file", "?")
+            size = item.get("size")
+            size_str = f" ({size:,} bytes)" if size else ""
+            if "not found" in status:
+                console.print(f"  [dim]  SKIP  {name} ({status})[/dim]")
+            else:
+                console.print(f"  [green]  ADD   {name}{size_str}[/green]")
+        console.print()
+        console.print("[dim]No files will be collected in dry-run mode.[/dim]")
+        return
+
+    # Determine output path
+    if not output:
+        ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        output = f"tweek_diagnostic_bundle_{ts}.zip"
+
+    from pathlib import Path
+    from datetime import datetime
+    output_path = Path(output)
+
+    console.print("[bold]Creating diagnostic bundle...[/bold]")
+
+    try:
+        result = collector.create_bundle(output_path)
+        size = result.stat().st_size
+        console.print(f"\n[green]Bundle created: {result}[/green]")
+        console.print(f"[dim]Size: {size:,} bytes[/dim]")
+        if not no_redact:
+            console.print("[dim]Sensitive data has been redacted.[/dim]")
+        console.print(f"\n[bold]Send this file to Tweek support for analysis.[/bold]")
+    except Exception as e:
+        console.print(f"[red]Failed to create bundle: {e}[/red]")
 
 
 # ============================================================

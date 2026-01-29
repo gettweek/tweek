@@ -15,12 +15,16 @@ import hashlib
 import hmac
 import json
 import os
+import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Optional, List
+
+# Thread lock for singleton pattern
+_license_lock = threading.Lock()
 
 # License key secret - in production, this would be more secure
 # This is used to validate license keys were issued by Tweek
@@ -33,6 +37,7 @@ class Tier(Enum):
     """License tiers."""
     FREE = "free"
     PRO = "pro"
+    ENTERPRISE = "enterprise"
 
 
 class LicenseError(Exception):
@@ -79,6 +84,20 @@ TIER_FEATURES = {
         "custom_tiers",           # Per-tool security tiers
         "priority_support",       # Email support
     ],
+    Tier.ENTERPRISE: [
+        "compliance_gov",         # Government classification compliance
+        "compliance_hipaa",       # HIPAA/PHI compliance
+        "compliance_pci",         # PCI-DSS compliance
+        "compliance_legal",       # Legal privilege compliance
+        "compliance_soc2",        # SOC2 compliance
+        "compliance_gdpr",        # GDPR compliance
+        "custom_patterns",        # Custom regex patterns
+        "pattern_allowlisting",   # Pattern suppression
+        "sso_integration",        # Single sign-on
+        "audit_api",              # Audit log API access
+        "sla_support",            # SLA-backed support
+        "dedicated_support",      # Dedicated account manager
+    ],
 }
 
 
@@ -93,9 +112,16 @@ class License:
 
     @classmethod
     def get_instance(cls) -> "License":
-        """Get singleton license instance."""
+        """
+        Get singleton license instance.
+
+        Thread-safe using double-checked locking.
+        """
         if cls._instance is None:
-            cls._instance = cls()
+            with _license_lock:
+                # Double-check after acquiring lock
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def _load_license(self) -> None:
@@ -161,13 +187,18 @@ class License:
 
     @property
     def is_pro(self) -> bool:
-        """Check if license is Pro."""
-        return self.tier == Tier.PRO
+        """Check if license is Pro or higher."""
+        return self.tier in (Tier.PRO, Tier.ENTERPRISE)
+
+    @property
+    def is_enterprise(self) -> bool:
+        """Check if license is Enterprise."""
+        return self.tier == Tier.ENTERPRISE
 
     def has_feature(self, feature: str) -> bool:
         """Check if current license includes a feature."""
-        # Check tier features (cumulative - PRO includes FREE features)
-        tier_order = [Tier.FREE, Tier.PRO]
+        # Check tier features (cumulative - higher tiers include lower tier features)
+        tier_order = [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]
         current_idx = tier_order.index(self.tier)
 
         for i in range(current_idx + 1):
@@ -183,7 +214,7 @@ class License:
     def get_available_features(self) -> List[str]:
         """Get list of all available features for current tier."""
         features = []
-        tier_order = [Tier.FREE, Tier.PRO]
+        tier_order = [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]
         current_idx = tier_order.index(self.tier)
 
         for i in range(current_idx + 1):
@@ -193,6 +224,21 @@ class License:
             features.extend(self._info.features)
 
         return list(set(features))
+
+    def _log_license_event(self, operation: str, success: bool, tier: str = None, reason: str = None):
+        """Log license event to security logger (never raises)."""
+        try:
+            from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+            get_logger().log(SecurityEvent(
+                event_type=EventType.LICENSE_EVENT,
+                tool_name="license",
+                decision="allow" if success else "block",
+                decision_reason=reason,
+                metadata={"operation": operation, "tier": tier, "success": success},
+                source="cli",
+            ))
+        except Exception:
+            pass
 
     def activate(self, license_key: str) -> tuple[bool, str]:
         """
@@ -204,9 +250,11 @@ class License:
         info = self._validate_license_key(license_key)
 
         if info is None:
+            self._log_license_event("activate", success=False, reason="Invalid license key")
             return False, "Invalid license key"
 
         if info.is_expired:
+            self._log_license_event("activate", success=False, tier=info.tier.value, reason="Expired")
             return False, "License key has expired"
 
         # Save license
@@ -214,14 +262,17 @@ class License:
         LICENSE_FILE.write_text(license_key)
 
         self._info = info
+        self._log_license_event("activate", success=True, tier=info.tier.value)
 
         return True, f"License activated: {info.tier.value.upper()} tier"
 
     def deactivate(self) -> tuple[bool, str]:
         """Remove current license."""
+        old_tier = self.tier.value
         if LICENSE_FILE.exists():
             LICENSE_FILE.unlink()
         self._info = None
+        self._log_license_event("deactivate", success=True, tier=old_tier, reason="User deactivated")
         return True, "License deactivated, reverted to FREE tier"
 
 
@@ -243,7 +294,7 @@ def require_tier(min_tier: Tier) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
             license = get_license()
-            tier_order = [Tier.FREE, Tier.PRO]
+            tier_order = [Tier.FREE, Tier.PRO, Tier.ENTERPRISE]
 
             if tier_order.index(license.tier) < tier_order.index(min_tier):
                 raise LicenseError(
@@ -258,6 +309,11 @@ def require_tier(min_tier: Tier) -> Callable:
 def require_pro(func: Callable) -> Callable:
     """Decorator to require Pro license."""
     return require_tier(Tier.PRO)(func)
+
+
+def require_enterprise(func: Callable) -> Callable:
+    """Decorator to require Enterprise license."""
+    return require_tier(Tier.ENTERPRISE)(func)
 
 
 def require_feature(feature: str) -> Callable:

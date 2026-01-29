@@ -113,82 +113,138 @@ class SandboxExecutor:
         Returns:
             ExecutionResult with captured behavior
         """
-        # Create a restrictive preview manifest
-        # Must allow enough for basic shell operations
-        manifest = SkillManifest(
-            name=f"preview-{skill}",
-            read_paths=[
-                "./",
-                "/usr/lib",
-                "/usr/local/lib",
-                "/System",
-                "/bin",
-                "/usr/bin",
-                "/private/var/db",
-                "/dev",
-                "/Library/Preferences",
-                "/var/folders",  # Temp files
-            ],
-            write_paths=[
-                "/dev/null",
-                "/dev/stdout",
-                "/dev/stderr",
-                "/private/var/folders",  # Temp files
-            ],
-            deny_paths=[
-                "~/.ssh", "~/.aws", "~/.gnupg", "~/.netrc",
-                "~/.env", "**/.env", "~/.kube", "~/.config/gcloud",
-            ],
-            network_deny_all=True,
-            allow_subprocess=True,  # Needed for basic shell operations
-            allow_exec=["/bin/bash", "/bin/sh", "/usr/bin/env", "/bin/echo"],
-        )
-
-        # Generate and save the profile
-        profile_path = self.generator.save(manifest)
-
-        # Build the sandboxed command
-        sandboxed_cmd = f'sandbox-exec -f "{profile_path}" /bin/bash -c {self._shell_quote(command)}'
-
-        # Set up environment
-        run_env = os.environ.copy()
-        if env:
-            run_env.update(env)
-
-        # Execute with timeout
-        result = ExecutionResult(exit_code=-1, stdout="", stderr="")
+        # Log the start of preview
+        try:
+            from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+            get_logger().log(SecurityEvent(
+                event_type=EventType.SANDBOX_PREVIEW,
+                tool_name="sandbox_executor",
+                decision="allow",
+                metadata={
+                    "command": command,
+                    "skill": skill,
+                    "timeout": timeout,
+                },
+                source="sandbox",
+            ))
+        except Exception:
+            pass
 
         try:
-            proc = subprocess.run(
-                sandboxed_cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=cwd,
-                env=run_env,
+            # Create a restrictive preview manifest
+            # Must allow enough for basic shell operations
+            manifest = SkillManifest(
+                name=f"preview-{skill}",
+                read_paths=[
+                    "./",
+                    "/usr/lib",
+                    "/usr/local/lib",
+                    "/System",
+                    "/bin",
+                    "/usr/bin",
+                    "/private/var/db",
+                    "/dev",
+                    "/Library/Preferences",
+                    "/var/folders",  # Temp files
+                ],
+                write_paths=[
+                    "/dev/null",
+                    "/dev/stdout",
+                    "/dev/stderr",
+                    "/private/var/folders",  # Temp files
+                ],
+                deny_paths=[
+                    "~/.ssh", "~/.aws", "~/.gnupg", "~/.netrc",
+                    "~/.env", "**/.env", "~/.kube", "~/.config/gcloud",
+                ],
+                network_deny_all=True,
+                allow_subprocess=True,  # Needed for basic shell operations
+                allow_exec=["/bin/bash", "/bin/sh", "/usr/bin/env", "/bin/echo"],
             )
 
-            result.exit_code = proc.returncode
-            result.stdout = proc.stdout
-            result.stderr = proc.stderr
+            # Generate and save the profile
+            profile_path = self.generator.save(manifest)
 
-        except subprocess.TimeoutExpired:
-            result.timed_out = True
-            result.violations.append(f"Command timed out after {timeout}s")
-            result.suspicious = True
+            # Build the sandboxed command
+            sandboxed_cmd = f'sandbox-exec -f "{profile_path}" /bin/bash -c {self._shell_quote(command)}'
 
-        except Exception as e:
-            result.stderr = str(e)
-            result.exit_code = -1
+            # Set up environment
+            run_env = os.environ.copy()
+            if env:
+                run_env.update(env)
 
-        # Analyze the output for sandbox violations
-        self._analyze_sandbox_output(result, command)
+            # Execute with timeout
+            result = ExecutionResult(exit_code=-1, stdout="", stderr="")
 
-        # Clean up preview profile
-        self.generator.delete_profile(f"preview-{skill}")
+            try:
+                proc = subprocess.run(
+                    sandboxed_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    cwd=cwd,
+                    env=run_env,
+                )
 
-        return result
+                result.exit_code = proc.returncode
+                result.stdout = proc.stdout
+                result.stderr = proc.stderr
+
+            except subprocess.TimeoutExpired:
+                result.timed_out = True
+                result.violations.append(f"Command timed out after {timeout}s")
+                result.suspicious = True
+
+            except Exception as e:
+                result.stderr = str(e)
+                result.exit_code = -1
+
+            # Analyze the output for sandbox violations
+            self._analyze_sandbox_output(result, command)
+
+            # Log violations if detected
+            if result.suspicious:
+                try:
+                    from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+                    get_logger().log(SecurityEvent(
+                        event_type=EventType.SANDBOX_PREVIEW,
+                        tool_name="sandbox_executor",
+                        decision="block",
+                        metadata={
+                            "command": command,
+                            "skill": skill,
+                            "violations": result.violations,
+                        },
+                        source="sandbox",
+                    ))
+                except Exception:
+                    pass
+
+            # Clean up preview profile
+            self.generator.delete_profile(f"preview-{skill}")
+
+            return result
+
+        except Exception as exc:
+            # Log unexpected errors - never break the original operation
+            try:
+                from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+                get_logger().log(SecurityEvent(
+                    event_type=EventType.ERROR,
+                    tool_name="sandbox_executor",
+                    decision="error",
+                    metadata={
+                        "command": command,
+                        "skill": skill,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                    },
+                    source="sandbox",
+                ))
+            except Exception:
+                pass
+            raise
 
     def _shell_quote(self, s: str) -> str:
         """Quote a string for shell use."""

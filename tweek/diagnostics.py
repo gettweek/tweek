@@ -70,6 +70,36 @@ def run_health_checks(verbose: bool = False) -> List[HealthCheck]:
                 fix_hint="This may indicate a corrupted installation. Try: pip install --force-reinstall tweek",
             ))
 
+    # Log health check results
+    try:
+        from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+
+        checks_passed = sum(1 for c in results if c.status == CheckStatus.OK)
+        checks_failed = sum(1 for c in results if c.status == CheckStatus.ERROR)
+        checks_warning = sum(1 for c in results if c.status == CheckStatus.WARNING)
+
+        if checks_failed > 0:
+            overall_status = "error"
+        elif checks_warning > 0:
+            overall_status = "warning"
+        else:
+            overall_status = "ok"
+
+        get_logger().log(SecurityEvent(
+            event_type=EventType.HEALTH_CHECK,
+            tool_name="diagnostics",
+            decision="allow",
+            metadata={
+                "overall_status": overall_status,
+                "checks_passed": checks_passed,
+                "checks_failed": checks_failed,
+                "checks_warning": checks_warning,
+            },
+            source="diagnostics",
+        ))
+    except Exception:
+        pass
+
     return results
 
 

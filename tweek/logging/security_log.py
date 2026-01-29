@@ -234,6 +234,7 @@ def get_redactor(enabled: bool = True) -> LogRedactor:
 
 class EventType(Enum):
     """Types of security events."""
+    # Core screening events
     TOOL_INVOKED = "tool_invoked"           # Tool call received
     PATTERN_MATCH = "pattern_match"         # Regex pattern matched
     LLM_RULE_MATCH = "llm_rule_match"       # LLM rule flagged
@@ -245,6 +246,34 @@ class EventType(Enum):
     USER_DENIED = "user_denied"             # User denied after prompt
     SANDBOX_PREVIEW = "sandbox_preview"     # Sandbox preview executed
     ERROR = "error"                         # Error during processing
+
+    # Vault events
+    VAULT_ACCESS = "vault_access"           # Credential store/get/delete
+    VAULT_MIGRATION = "vault_migration"     # .env migration to vault
+
+    # Configuration events
+    CONFIG_CHANGE = "config_change"         # Tier/preset/config modification
+
+    # License events
+    LICENSE_EVENT = "license_event"         # Activation, deactivation, validation
+
+    # Advanced screening events
+    RATE_LIMIT = "rate_limit"               # Rate limit violation
+    SESSION_ANOMALY = "session_anomaly"     # Session analysis anomaly detected
+    CIRCUIT_BREAKER = "circuit_breaker"     # Circuit breaker state transition
+
+    # Plugin events
+    PLUGIN_EVENT = "plugin_event"           # Plugin load, failure, scan result
+
+    # MCP events
+    MCP_APPROVAL = "mcp_approval"           # MCP approval queue decision
+
+    # Proxy events
+    PROXY_EVENT = "proxy_event"             # HTTP proxy request screening
+
+    # System events
+    HEALTH_CHECK = "health_check"           # Diagnostic check results
+    STARTUP = "startup"                     # System initialization
 
 
 @dataclass
@@ -262,6 +291,8 @@ class SecurityEvent:
     metadata: Optional[Dict[str, Any]] = None
     session_id: Optional[str] = None
     working_directory: Optional[str] = None
+    correlation_id: Optional[str] = None    # Links related events in a screening pass
+    source: Optional[str] = None            # "hooks", "mcp", "mcp_proxy", "http_proxy"
 
 
 class SecurityLogger:
@@ -290,6 +321,7 @@ class SecurityLogger:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         with self._get_connection() as conn:
+            # Create table first (without views that reference new columns)
             conn.executescript("""
                 -- Main events table
                 CREATE TABLE IF NOT EXISTS security_events (
@@ -306,7 +338,9 @@ class SecurityLogger:
                     user_response TEXT,
                     session_id TEXT,
                     working_directory TEXT,
-                    metadata_json TEXT
+                    metadata_json TEXT,
+                    correlation_id TEXT,
+                    source TEXT
                 );
 
                 -- Index for common queries
@@ -320,32 +354,70 @@ class SecurityLogger:
                     ON security_events(decision);
                 CREATE INDEX IF NOT EXISTS idx_events_session
                     ON security_events(session_id);
+            """)
 
-                -- Summary statistics view
-                CREATE VIEW IF NOT EXISTS event_summary AS
+            # Migrate existing databases that lack new columns
+            # (must happen BEFORE creating views that reference new columns)
+            self._migrate_schema(conn)
+
+            # Now create indexes and views that reference new columns
+            conn.executescript("""
+                CREATE INDEX IF NOT EXISTS idx_events_correlation
+                    ON security_events(correlation_id);
+                CREATE INDEX IF NOT EXISTS idx_events_source
+                    ON security_events(source);
+
+                -- Summary statistics view (recreate to include new columns)
+                DROP VIEW IF EXISTS event_summary;
+                CREATE VIEW event_summary AS
                 SELECT
                     date(timestamp) as date,
                     event_type,
                     tool_name,
                     decision,
+                    source,
                     COUNT(*) as count
                 FROM security_events
-                GROUP BY date(timestamp), event_type, tool_name, decision;
+                GROUP BY date(timestamp), event_type, tool_name, decision, source;
 
-                -- Recent blocks view
-                CREATE VIEW IF NOT EXISTS recent_blocks AS
+                -- Recent blocks view (recreate to include new columns)
+                DROP VIEW IF EXISTS recent_blocks;
+                CREATE VIEW recent_blocks AS
                 SELECT
                     timestamp,
                     tool_name,
                     command,
                     pattern_name,
                     pattern_severity,
-                    decision_reason
+                    decision_reason,
+                    correlation_id,
+                    source
                 FROM security_events
                 WHERE decision IN ('block', 'ask')
                 ORDER BY timestamp DESC
                 LIMIT 100;
             """)
+
+    def _migrate_schema(self, conn):
+        """Add new columns to existing databases if missing."""
+        existing_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(security_events)").fetchall()
+        }
+        migrations = [
+            ("correlation_id", "TEXT"),
+            ("source", "TEXT"),
+        ]
+        for col_name, col_type in migrations:
+            if col_name not in existing_columns:
+                conn.execute(f"ALTER TABLE security_events ADD COLUMN {col_name} {col_type}")
+
+        # Ensure new indexes exist (safe to re-run)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_correlation ON security_events(correlation_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_source ON security_events(source)"
+        )
 
     @contextmanager
     def _get_connection(self):
@@ -378,8 +450,9 @@ class SecurityLogger:
                     event_type, tool_name, command, tier,
                     pattern_name, pattern_severity,
                     decision, decision_reason, user_response,
-                    session_id, working_directory, metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    session_id, working_directory, metadata_json,
+                    correlation_id, source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 event.event_type.value,
                 event.tool_name,
@@ -392,9 +465,34 @@ class SecurityLogger:
                 event.user_response,
                 event.session_id,
                 event.working_directory,
-                json.dumps(redacted_metadata) if redacted_metadata else None
+                json.dumps(redacted_metadata) if redacted_metadata else None,
+                event.correlation_id,
+                event.source,
             ))
-            return cursor.lastrowid
+            row_id = cursor.lastrowid
+
+        # Also write to JSON logger if available
+        self._write_json_event(event, redacted_command, redacted_reason, redacted_metadata)
+
+        return row_id
+
+    def _write_json_event(
+        self,
+        event: SecurityEvent,
+        redacted_command: Optional[str],
+        redacted_reason: Optional[str],
+        redacted_metadata: Optional[Dict[str, Any]],
+    ):
+        """Write event to NDJSON log file if JSON logging is enabled."""
+        try:
+            from tweek.logging.json_logger import get_json_logger
+            json_logger = get_json_logger()
+            if json_logger and json_logger.enabled:
+                json_logger.write_event(
+                    event, redacted_command, redacted_reason, redacted_metadata
+                )
+        except Exception:
+            pass  # JSON logging should never break primary logging
 
     def log_quick(
         self,
@@ -530,6 +628,67 @@ class SecurityLogger:
                 SELECT * FROM recent_blocks LIMIT ?
             """, (limit,)).fetchall()
             return [dict(row) for row in rows]
+
+    def get_recent(self, limit: int = 10) -> List[SecurityEvent]:
+        """Get recent events as SecurityEvent objects.
+
+        Args:
+            limit: Maximum number of events
+
+        Returns:
+            List of SecurityEvent objects (most recent first)
+        """
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM security_events ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+        events = []
+        for row in rows:
+            row_dict = dict(row)
+            try:
+                metadata = json.loads(row_dict.get("metadata_json")) if row_dict.get("metadata_json") else None
+            except (json.JSONDecodeError, TypeError):
+                metadata = None
+
+            events.append(SecurityEvent(
+                event_type=EventType(row_dict["event_type"]),
+                tool_name=row_dict["tool_name"],
+                command=row_dict.get("command"),
+                tier=row_dict.get("tier"),
+                pattern_name=row_dict.get("pattern_name"),
+                pattern_severity=row_dict.get("pattern_severity"),
+                decision=row_dict.get("decision"),
+                decision_reason=row_dict.get("decision_reason"),
+                user_response=row_dict.get("user_response"),
+                metadata=metadata,
+                session_id=row_dict.get("session_id"),
+                working_directory=row_dict.get("working_directory"),
+                correlation_id=row_dict.get("correlation_id"),
+                source=row_dict.get("source"),
+            ))
+        return events
+
+    def delete_events(self, days: Optional[int] = None) -> int:
+        """Delete events from the database.
+
+        Args:
+            days: If provided, only delete events older than this many days.
+                  If None, delete all events.
+
+        Returns:
+            Number of events deleted
+        """
+        with self._get_connection() as conn:
+            if days is not None:
+                cursor = conn.execute(
+                    "DELETE FROM security_events WHERE timestamp < datetime('now', ?)",
+                    (f'-{days} days',),
+                )
+            else:
+                cursor = conn.execute("DELETE FROM security_events")
+            return cursor.rowcount
 
     def export_csv(self, filepath: Path, days: Optional[int] = None) -> int:
         """Export events to CSV file.

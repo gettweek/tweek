@@ -30,8 +30,9 @@ import json
 import os
 import re
 import sys
+import uuid
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 
 import yaml
 
@@ -41,6 +42,157 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from tweek.logging.security_log import (
     SecurityLogger, SecurityEvent, EventType, get_logger
 )
+
+
+# =============================================================================
+# PLUGIN SYSTEM INTEGRATION
+# =============================================================================
+
+def run_compliance_scans(
+    content: str,
+    direction: str,
+    logger: SecurityLogger,
+    session_id: Optional[str] = None,
+    tool_name: str = "unknown"
+) -> Tuple[bool, Optional[str], List[Dict]]:
+    """
+    Run all enabled compliance plugins on content.
+
+    Args:
+        content: Text content to scan
+        direction: "input" or "output"
+        logger: Security logger
+        session_id: Optional session ID
+        tool_name: Tool name for logging
+
+    Returns:
+        (should_block, message, findings)
+    """
+    try:
+        from tweek.plugins import get_registry, PluginCategory
+        from tweek.plugins.base import ScanDirection, ActionType
+
+        registry = get_registry()
+        direction_enum = ScanDirection(direction)
+
+        all_findings = []
+        messages = []
+        should_block = False
+
+        # Get all enabled compliance plugins
+        for plugin in registry.get_all(PluginCategory.COMPLIANCE):
+            try:
+                result = plugin.scan(content, direction_enum)
+
+                if result.findings:
+                    all_findings.extend([f.to_dict() for f in result.findings])
+
+                    if result.message:
+                        messages.append(result.message)
+
+                    # Log findings
+                    logger.log_quick(
+                        EventType.PATTERN_MATCH,
+                        tool_name,
+                        tier="compliance",
+                        pattern_name=f"compliance_{plugin.name}",
+                        pattern_severity=result.max_severity.value if result.max_severity else "medium",
+                        decision="ask" if result.action != ActionType.BLOCK else "block",
+                        decision_reason=f"Compliance scan ({plugin.name}): {len(result.findings)} finding(s)",
+                        session_id=session_id,
+                        metadata={
+                            "plugin": plugin.name,
+                            "direction": direction,
+                            "findings": [f.pattern_name for f in result.findings],
+                            "action": result.action.value,
+                        }
+                    )
+
+                    if result.action == ActionType.BLOCK:
+                        should_block = True
+
+            except Exception as e:
+                logger.log_quick(
+                    EventType.ERROR,
+                    tool_name,
+                    decision_reason=f"Compliance plugin {plugin.name} error: {e}",
+                    session_id=session_id
+                )
+
+        combined_message = "\n\n".join(messages) if messages else None
+        return should_block, combined_message, all_findings
+
+    except ImportError:
+        # Plugin system not available
+        return False, None, []
+    except Exception as e:
+        logger.log_quick(
+            EventType.ERROR,
+            tool_name,
+            decision_reason=f"Compliance scan error: {e}",
+            session_id=session_id
+        )
+        return False, None, []
+
+
+def run_screening_plugins(
+    tool_name: str,
+    content: str,
+    context: Dict[str, Any],
+    logger: SecurityLogger
+) -> Tuple[bool, bool, Optional[str], List[Dict]]:
+    """
+    Run all enabled screening plugins.
+
+    Args:
+        tool_name: Name of the tool
+        content: Command/content to screen
+        context: Context dict (session_id, tier, etc.)
+        logger: Security logger
+
+    Returns:
+        (allowed, should_prompt, message, findings)
+    """
+    try:
+        from tweek.plugins import get_registry, PluginCategory
+
+        registry = get_registry()
+
+        allowed = True
+        should_prompt = False
+        messages = []
+        all_findings = []
+
+        for plugin in registry.get_all(PluginCategory.SCREENING):
+            try:
+                result = plugin.screen(tool_name, content, context)
+
+                if result.findings:
+                    all_findings.extend([f.to_dict() for f in result.findings])
+
+                if not result.allowed:
+                    allowed = False
+
+                if result.should_prompt:
+                    should_prompt = True
+
+                if result.reason and (not result.allowed or result.should_prompt):
+                    messages.append(f"[{plugin.name}] {result.reason}")
+
+            except Exception as e:
+                logger.log_quick(
+                    EventType.ERROR,
+                    tool_name,
+                    decision_reason=f"Screening plugin {plugin.name} error: {e}",
+                    session_id=context.get("session_id")
+                )
+
+        combined_message = "\n".join(messages) if messages else None
+        return allowed, should_prompt, combined_message, all_findings
+
+    except ImportError:
+        # Plugin system not available
+        return True, False, None, []
 
 
 class TierManager:
@@ -272,6 +424,18 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     session_id = input_data.get("session_id")
     working_dir = input_data.get("cwd")
 
+    # Generate correlation ID to link all events in this screening pass
+    correlation_id = uuid.uuid4().hex[:12]
+
+    def _log(event_type, tool, **kwargs):
+        """Log with correlation_id, source, and session_id automatically included."""
+        logger.log_quick(
+            event_type, tool,
+            correlation_id=correlation_id, source="hooks",
+            session_id=session_id,
+            **kwargs
+        )
+
     # Extract content to analyze (command for Bash, path for Read, etc.)
     if tool_name == "Bash":
         content = tool_input.get("command", "")
@@ -285,6 +449,27 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     if not content:
         return {}
 
+    # =========================================================================
+    # LAYER 0: Compliance Scanning (INPUT direction)
+    # Scan incoming content for sensitive data before processing
+    # =========================================================================
+    compliance_block, compliance_msg, compliance_findings = run_compliance_scans(
+        content=content,
+        direction="input",
+        logger=logger,
+        session_id=session_id,
+        tool_name=tool_name
+    )
+
+    if compliance_block:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": f" COMPLIANCE BLOCK\n{compliance_msg}",
+            }
+        }
+
     # Initialize managers
     tier_mgr = TierManager()
     pattern_matcher = PatternMatcher()
@@ -294,25 +479,23 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     screening_methods = tier_mgr.get_screening_methods(effective_tier)
 
     # Log tool invocation
-    logger.log_quick(
+    _log(
         EventType.TOOL_INVOKED,
         tool_name,
         command=content if tool_name == "Bash" else None,
         tier=effective_tier,
-        session_id=session_id,
         working_directory=working_dir,
         metadata={"tool_input": tool_input}
     )
 
     # Log escalation if it occurred
     if escalation:
-        logger.log_quick(
+        _log(
             EventType.ESCALATION,
             tool_name,
             command=content if tool_name == "Bash" else None,
             tier=effective_tier,
             decision_reason=escalation.get("description"),
-            session_id=session_id,
             metadata={"escalation": escalation}
         )
 
@@ -333,7 +516,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
 
         if not rate_result.allowed:
             rate_limit_msg = rate_limiter.format_violation_message(rate_result)
-            logger.log_quick(
+            _log(
                 EventType.PATTERN_MATCH,
                 tool_name,
                 command=content if tool_name == "Bash" else None,
@@ -342,7 +525,6 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                 pattern_severity="high",
                 decision="ask",
                 decision_reason=f"Rate limit violations: {rate_result.violations}",
-                session_id=session_id,
                 metadata={"rate_limit": rate_result.details}
             )
 
@@ -360,22 +542,20 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     except ImportError:
         pass  # Rate limiter not available
     except Exception as e:
-        logger.log_quick(
+        _log(
             EventType.ERROR,
             tool_name,
             decision_reason=f"Rate limiter error: {e}",
-            session_id=session_id
         )
 
     # Safe tier - no further screening
     if not screening_methods:
-        logger.log_quick(
+        _log(
             EventType.ALLOWED,
             tool_name,
             tier=effective_tier,
             decision="allow",
             decision_reason="Safe tier - no screening required",
-            session_id=session_id
         )
         return {}
 
@@ -387,14 +567,13 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         pattern_match = pattern_matcher.check(content)
 
         if pattern_match:
-            logger.log_quick(
+            _log(
                 EventType.PATTERN_MATCH,
                 tool_name,
                 command=content if tool_name == "Bash" else None,
                 tier=effective_tier,
                 pattern_name=pattern_match.get("name"),
                 pattern_severity=pattern_match.get("severity"),
-                session_id=session_id,
                 metadata={"pattern": pattern_match}
             )
 
@@ -419,7 +598,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             if llm_result.should_prompt:
                 llm_triggered = True
                 llm_msg = llm_reviewer.format_review_message(llm_result)
-                logger.log_quick(
+                _log(
                     EventType.LLM_RULE_MATCH,
                     tool_name,
                     command=content,
@@ -428,7 +607,6 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     pattern_severity=llm_result.risk_level.value,
                     decision="ask",
                     decision_reason=llm_result.reason,
-                    session_id=session_id,
                     metadata={
                         "llm_risk": llm_result.risk_level.value,
                         "llm_confidence": llm_result.confidence,
@@ -438,11 +616,10 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         except ImportError:
             pass  # LLM reviewer not available
         except Exception as e:
-            logger.log_quick(
+            _log(
                 EventType.ERROR,
                 tool_name,
                 decision_reason=f"LLM reviewer error: {e}",
-                session_id=session_id
             )
 
     # =========================================================================
@@ -460,7 +637,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             if session_result.is_suspicious:
                 session_triggered = True
                 session_msg = session_analyzer.format_analysis_message(session_result)
-                logger.log_quick(
+                _log(
                     EventType.PATTERN_MATCH,
                     tool_name,
                     command=content if tool_name == "Bash" else None,
@@ -469,7 +646,6 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     pattern_severity="high" if session_result.is_high_risk else "medium",
                     decision="ask",
                     decision_reason=f"Session anomalies: {session_result.anomalies}",
-                    session_id=session_id,
                     metadata={
                         "risk_score": session_result.risk_score,
                         "anomalies": [a.value for a in session_result.anomalies]
@@ -478,11 +654,10 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         except ImportError:
             pass  # Session analyzer not available
         except Exception as e:
-            logger.log_quick(
+            _log(
                 EventType.ERROR,
                 tool_name,
                 decision_reason=f"Session analyzer error: {e}",
-                session_id=session_id
             )
 
     # =========================================================================
@@ -499,7 +674,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
 
             if preview.suspicious:
                 sandbox_triggered = True
-                logger.log_quick(
+                _log(
                     EventType.SANDBOX_PREVIEW,
                     tool_name,
                     command=content,
@@ -508,7 +683,6 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     pattern_severity="high",
                     decision="ask",
                     decision_reason="Sandbox preview detected suspicious behavior",
-                    session_id=session_id,
                     metadata={"violations": preview.violations, "denied_ops": preview.denied_operations}
                 )
 
@@ -521,20 +695,21 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         except ImportError:
             pass  # Sandbox not available
         except Exception as e:
-            logger.log_quick(
+            _log(
                 EventType.ERROR,
                 tool_name,
                 command=content,
                 tier=effective_tier,
                 decision_reason=f"Sandbox preview error: {e}",
-                session_id=session_id
             )
 
     # =========================================================================
     # Decision: Prompt if any layer triggered
     # =========================================================================
-    if pattern_match or llm_triggered or session_triggered or sandbox_triggered:
-        logger.log_quick(
+    compliance_triggered = bool(compliance_findings)
+
+    if pattern_match or llm_triggered or session_triggered or sandbox_triggered or compliance_triggered:
+        _log(
             EventType.USER_PROMPTED,
             tool_name,
             command=content if tool_name == "Bash" else None,
@@ -543,12 +718,13 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             pattern_severity=pattern_match.get("severity") if pattern_match else "high",
             decision="ask",
             decision_reason="Security check triggered",
-            session_id=session_id,
             metadata={
                 "pattern_triggered": pattern_match is not None,
                 "llm_triggered": llm_triggered,
                 "session_triggered": session_triggered,
-                "sandbox_triggered": sandbox_triggered
+                "sandbox_triggered": sandbox_triggered,
+                "compliance_triggered": compliance_triggered,
+                "compliance_findings": len(compliance_findings) if compliance_findings else 0,
             }
         )
 
@@ -564,6 +740,10 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         if sandbox_msg:
             final_msg += f"\n\n{sandbox_msg}"
 
+        # Add compliance message if applicable
+        if compliance_msg:
+            final_msg += f"\n\n COMPLIANCE NOTICE\n{compliance_msg}"
+
         return {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -573,14 +753,13 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         }
 
     # No issues found - allow
-    logger.log_quick(
+    _log(
         EventType.ALLOWED,
         tool_name,
         command=content if tool_name == "Bash" else None,
         tier=effective_tier,
         decision="allow",
         decision_reason="Passed all screening layers",
-        session_id=session_id
     )
 
     return {}

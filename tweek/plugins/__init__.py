@@ -125,6 +125,21 @@ class PluginRegistry:
 
         return self._license_checker(required)
 
+    def _log_plugin_event(self, operation: str, **kwargs):
+        """Log plugin event to security logger (never raises)."""
+        try:
+            from tweek.logging.security_log import get_logger as get_sec_logger, SecurityEvent, EventType
+            metadata = {"operation": operation, **kwargs}
+            get_sec_logger().log(SecurityEvent(
+                event_type=EventType.PLUGIN_EVENT,
+                tool_name="plugin_registry",
+                decision="allow",
+                metadata=metadata,
+                source="plugins",
+            ))
+        except Exception:
+            pass
+
     def discover_plugins(self) -> int:
         """
         Discover plugins via Python entry_points.
@@ -147,6 +162,12 @@ class PluginRegistry:
                     logger.debug(f"Discovered plugin: {ep.name} ({category.value})")
                 except Exception as e:
                     logger.warning(f"Failed to load plugin {ep.name}: {e}")
+                    self._log_plugin_event(
+                        "discover_failed", plugin=ep.name, category=category.value, error=str(e)
+                    )
+
+        if discovered > 0:
+            self._log_plugin_event("discover_complete", discovered_count=discovered)
 
         return discovered
 
@@ -242,6 +263,9 @@ class PluginRegistry:
 
         self._plugins[category][name] = info
         logger.debug(f"Registered plugin: {name} ({category.value}, source={source.value})")
+        self._log_plugin_event(
+            "register", plugin=name, category=category.value, source=source.value
+        )
         return True
 
     def _extract_metadata(
@@ -333,6 +357,9 @@ class PluginRegistry:
             except Exception as e:
                 info.load_error = str(e)
                 logger.error(f"Failed to instantiate plugin {name}: {e}")
+                self._log_plugin_event(
+                    "instantiate_failed", plugin=name, category=category.value, error=str(e)
+                )
                 return None
 
         return info.instance
@@ -560,6 +587,19 @@ def init_plugins(config: Optional[Dict[str, Any]] = None) -> PluginRegistry:
     """
     registry = get_registry()
 
+    # Log startup
+    try:
+        from tweek.logging.security_log import get_logger as get_sec_logger, SecurityEvent, EventType
+        get_sec_logger().log(SecurityEvent(
+            event_type=EventType.STARTUP,
+            tool_name="plugin_system",
+            decision="allow",
+            metadata={"operation": "init_plugins"},
+            source="plugins",
+        ))
+    except Exception:
+        pass
+
     # Register built-in plugins
     _register_builtin_plugins(registry)
 
@@ -738,6 +778,17 @@ def _discover_git_plugins(registry: PluginRegistry) -> int:
 
     except Exception as e:
         logger.warning(f"Git plugin discovery failed: {e}")
+        try:
+            from tweek.logging.security_log import get_logger as get_sec_logger, SecurityEvent, EventType
+            get_sec_logger().log(SecurityEvent(
+                event_type=EventType.PLUGIN_EVENT,
+                tool_name="plugin_registry",
+                decision="error",
+                decision_reason=f"Git plugin discovery failed: {e}",
+                source="plugins",
+            ))
+        except Exception:
+            pass
 
     if registered > 0:
         logger.info(f"Registered {registered} git plugin(s)")

@@ -353,6 +353,22 @@ class ConfigManager:
 
     # ==================== SETTERS ====================
 
+    def _log_config_change(self, operation: str, **kwargs):
+        """Log config change to security logger (never raises)."""
+        try:
+            from tweek.logging.security_log import get_logger, SecurityEvent, EventType
+            metadata = {"operation": operation}
+            metadata.update(kwargs)
+            get_logger().log(SecurityEvent(
+                event_type=EventType.CONFIG_CHANGE,
+                tool_name="config",
+                decision="allow",
+                metadata=metadata,
+                source="cli",
+            ))
+        except Exception:
+            pass
+
     def set_tool_tier(
         self,
         tool_name: str,
@@ -367,6 +383,7 @@ class ConfigManager:
             tier: Security tier to set
             scope: "user" or "project"
         """
+        old_tier = self.get_tool_tier(tool_name).value
         if scope == "project":
             if "tools" not in self._project:
                 self._project["tools"] = {}
@@ -379,6 +396,7 @@ class ConfigManager:
             self._save_yaml(self.user_config_path, self._user)
 
         self._invalidate_cache()
+        self._log_config_change("set_tool_tier", tool=tool_name, old_tier=old_tier, new_tier=tier.value, scope=scope)
 
     def set_skill_tier(
         self,
@@ -394,6 +412,7 @@ class ConfigManager:
             tier: Security tier to set
             scope: "user" or "project"
         """
+        old_tier = self.get_skill_tier(skill_name).value
         if scope == "project":
             if "skills" not in self._project:
                 self._project["skills"] = {}
@@ -406,6 +425,7 @@ class ConfigManager:
             self._save_yaml(self.user_config_path, self._user)
 
         self._invalidate_cache()
+        self._log_config_change("set_skill_tier", skill=skill_name, old_tier=old_tier, new_tier=tier.value, scope=scope)
 
     def set_default_tier(self, tier: SecurityTier, scope: str = "user") -> None:
         """Set the default tier for unknown tools/skills."""
@@ -489,6 +509,7 @@ class ConfigManager:
                 self.user_config_path.unlink()
 
         self._invalidate_cache()
+        self._log_config_change("reset_all", scope=scope)
 
     # ==================== BULK OPERATIONS ====================
 
@@ -515,6 +536,7 @@ class ConfigManager:
             self._save_yaml(self.user_config_path, self._user)
 
         self._invalidate_cache()
+        self._log_config_change("apply_preset", preset=preset, scope=scope)
 
     def import_config(self, config_dict: Dict, scope: str = "user") -> None:
         """Import configuration from a dictionary."""
