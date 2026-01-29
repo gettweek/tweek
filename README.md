@@ -1,6 +1,6 @@
 # Tweek
 
-**Defense-in-depth security for AI coding assistants.**
+**Defense-in-depth security for AI assistants.**
 
 [![PyPI version](https://img.shields.io/pypi/v/tweek)](https://pypi.org/project/tweek/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
@@ -13,7 +13,7 @@
 
 ## The Problem
 
-AI coding assistants execute commands with **your** credentials. A single malicious instruction hidden in a README, error message, or MCP server response can trick the agent into stealing SSH keys, exfiltrating API tokens, or running reverse shells.
+AI assistants execute commands with **your** credentials. A single malicious instruction hidden in a README, error message, or MCP server response can trick the agent into stealing SSH keys, exfiltrating API tokens, or running reverse shells.
 
 There is no built-in protection. Tweek fixes that.
 
@@ -198,7 +198,7 @@ Tweek is free for individual developers. Pro adds advanced detection for power u
 | Sandbox preview | -- | Yes | Yes |
 | Compliance plugins | -- | -- | Yes |
 | Team licenses | -- | -- | Yes |
-| **Support** | GitHub Issues | Email (24h) | Custom SLA |
+| **Support** | GitHub Issues | Discord + Email (24h) | Custom SLA |
 
 ```bash
 tweek license status                     # Check current tier
@@ -233,6 +233,7 @@ Purchase at [gettweek.com/pricing](https://gettweek.com/pricing). 14-day money-b
 
 - **Bug reports**: [GitHub Issues](https://github.com/gettweek/tweek/issues)
 - **Questions**: [GitHub Discussions](https://github.com/gettweek/tweek/discussions)
+- **Discord** (Pro+): [discord.gg/tweek](https://discord.gg/tweek) -- coming soon
 - **Security issues**: security@gettweek.com
 - **Enterprise sales**: sales@gettweek.com
 
