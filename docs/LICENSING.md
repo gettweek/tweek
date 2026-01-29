@@ -7,7 +7,8 @@ Tweek uses a tiered licensing model to balance open-source availability with sus
 | Tier | Price | Best For |
 |------|-------|----------|
 | **FREE** | $0 | Individual developers, small projects |
-| **PRO** | $19/month | Professional developers, teams |
+| **PRO** | $49 one-time | Professional developers |
+| **TEAM** | $149 one-time | Small teams (up to 5) |
 | **ENTERPRISE** | Contact us | Large organizations, compliance needs |
 
 ## Feature Comparison
@@ -90,9 +91,9 @@ Visit [gettweek.com/pricing](https://gettweek.com/pricing) to purchase a license
 
 ### Payment Options
 
-- Monthly subscription (cancel anytime)
-- Annual subscription (2 months free)
-- Volume discounts for teams (5+ seats)
+- One-time purchase (lifetime license)
+- Volume discounts for teams
+- Enterprise agreements available
 
 ### Free Trial
 
