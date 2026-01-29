@@ -35,7 +35,7 @@ tweek install
 tweek doctor
 ```
 
-That's it. Tweek now screens every tool call before execution.
+That's it. Tweek now screens every tool call before execution!
 
 ```
 $ tweek doctor
