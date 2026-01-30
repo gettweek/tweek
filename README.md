@@ -17,7 +17,7 @@
 
 AI assistants execute commands with **your** credentials. Whether it's Moltbot handling inbound messages from WhatsApp and Telegram, Claude Code writing your application, or Cursor autocompleting your functions -- a single malicious instruction hidden in a message, README, or MCP server response can trick the agent into stealing SSH keys, exfiltrating API tokens, or running reverse shells.
 
-#The promise of AI won't be mainifest until it can be secured. 
+# The promise of AI won't be mainifest until it can be secured. 
 
 There is very little built-in protection. Tweek fixes that.
 
