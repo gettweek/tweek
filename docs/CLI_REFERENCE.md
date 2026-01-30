@@ -299,12 +299,12 @@ tweek vault migrate-env --skill deploy --env-file .env.production
 
 ### `tweek license status`
 
-Show current license tier (FREE or PRO) and feature availability.
+Show current license status and feature availability. All features are free.
 
 ### `tweek license activate`
 
 ```bash
-tweek license activate TWEEK-PRO-XXXX-XXXX
+tweek license activate YOUR_LICENSE_KEY    # For future Pro/Enterprise tiers
 ```
 
 ### `tweek license deactivate`

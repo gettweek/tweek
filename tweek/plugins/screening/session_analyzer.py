@@ -9,7 +9,7 @@ Cross-turn anomaly detection for conversation hijacking:
 - Instruction persistence
 - ACIP graduated escalation
 
-PRO feature - requires Pro license.
+Free and open source.
 """
 
 from typing import Optional, Dict, Any, List
@@ -29,13 +29,13 @@ class SessionAnalyzerPlugin(ScreeningPlugin):
     Analyzes session history to detect cross-turn anomalies
     that would be missed by single-command analysis.
 
-    PRO feature - requires Pro license.
+    Free and open source.
     """
 
     VERSION = "1.0.0"
     DESCRIPTION = "Cross-turn anomaly detection for session analysis"
     AUTHOR = "Tweek"
-    REQUIRES_LICENSE = "pro"
+    REQUIRES_LICENSE = "free"
     TAGS = ["screening", "session-analysis", "anomaly-detection"]
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):

@@ -18,7 +18,7 @@ are updated via `tweek update`.
 | Categories        | 6                                          |
 | Severity levels   | 4 (critical, high, medium, low)            |
 | Update source     | `github.com/gettweek/tweek-patterns`       |
-| Available in      | All tiers (FREE, PRO, ENTERPRISE)          |
+| Available in      | All users (free and open source)           |
 
 ---
 

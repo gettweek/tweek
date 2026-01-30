@@ -5,7 +5,7 @@ Webhook service for LemonSqueezy integration and license key management.
 ## How It Works
 
 ```
-Customer pays $49 on LemonSqueezy
+Customer purchases Pro/Enterprise on LemonSqueezy (coming soon)
          │
          ▼
 LemonSqueezy sends webhook to /webhooks/lemonsqueezy
@@ -53,7 +53,7 @@ vercel --prod
 ### 2. Configure LemonSqueezy
 
 1. Go to [LemonSqueezy Dashboard](https://app.lemonsqueezy.com)
-2. Create a product: "Tweek Pro - $49"
+2. Create a product: "Tweek Pro" (pricing TBD)
 3. Go to Settings → Webhooks
 4. Add webhook URL: `https://your-server.com/webhooks/lemonsqueezy`
 5. Select events: `order_created`, `order_refunded`
@@ -113,7 +113,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 Configure your order confirmation email to include:
 
 ```
-Your Tweek Pro license key:
+Your Tweek license key:
 {{ license_key }}
 
 To activate:

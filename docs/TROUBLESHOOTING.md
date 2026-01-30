@@ -177,7 +177,7 @@ tweek license activate <key>  # Activate a new license
 tweek license status          # Check current status
 ```
 
-Renew at: https://gettweek.com/pricing
+Pro and Enterprise tiers coming soon: https://gettweek.com
 
 ---
 

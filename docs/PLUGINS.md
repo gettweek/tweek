@@ -16,7 +16,7 @@ Tweek uses a modular plugin architecture organized into four categories. Plugins
 |  | gov, hipaa, pci,  |  | anthropic, openai,|  | moltbot,cursor,| |
 |  | legal, soc2, gdpr |  | azure, google,    |  | continue,      | |
 |  |                   |  | bedrock           |  | copilot,       | |
-|  | ENTERPRISE tier   |  | FREE tier         |  | windsurf       | |
+|  | Coming soon       |  | FREE (all users)  |  | windsurf       | |
 |  +-------------------+  +-------------------+  | FREE tier      | |
 |                                                 +----------------+ |
 |  +-------------------+                                             |
@@ -25,7 +25,7 @@ Tweek uses a modular plugin architecture organized into four categories. Plugins
 |  | pattern_matcher,  |  2. Git-installed (~/.tweek/plugins/)       |
 |  | llm_reviewer,     |  3. Entry points (installed packages)       |
 |  | session_analyzer  |                                             |
-|  | FREE/PRO tier     |  Git plugins override builtins of the       |
+|  | FREE (all users)  |  Git plugins override builtins of the       |
 |  +-------------------+  same name.                                 |
 +------------------------------------------------------------------+
 ```

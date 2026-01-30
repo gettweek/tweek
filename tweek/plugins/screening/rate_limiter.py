@@ -30,13 +30,13 @@ class RateLimiterPlugin(ScreeningPlugin):
     - Unusual velocity changes
     - Dangerous tier spikes
 
-    PRO feature - requires Pro license.
+    Free and open source.
     """
 
     VERSION = "1.0.0"
     DESCRIPTION = "Detect resource theft and abuse patterns via rate limiting"
     AUTHOR = "Tweek"
-    REQUIRES_LICENSE = "pro"
+    REQUIRES_LICENSE = "free"
     TAGS = ["screening", "rate-limiting", "abuse-detection"]
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):

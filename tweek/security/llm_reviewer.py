@@ -182,7 +182,7 @@ Respond with ONLY the JSON object."""
         """
         Review a command for security risks using LLM.
 
-        This is a PRO feature. Without a Pro license, returns safe.
+        LLM review is free and open source. Requires ANTHROPIC_API_KEY (BYOK).
 
         Args:
             command: The command to review
@@ -194,17 +194,6 @@ Respond with ONLY the JSON object."""
         Returns:
             LLMReviewResult with risk assessment
         """
-        # Check license - LLM review is a Pro feature
-        from tweek.licensing import get_license
-        if not get_license().has_feature("llm_review"):
-            return LLMReviewResult(
-                risk_level=RiskLevel.SAFE,
-                reason="LLM review requires Pro license",
-                confidence=0.0,
-                details={"license_required": "pro"},
-                should_prompt=False
-            )
-
         # If disabled, return safe by default
         if not self.enabled:
             return LLMReviewResult(

@@ -768,14 +768,8 @@ def update(check: bool):
             console.print(f"[cyan]Pattern version:[/cyan] {version}")
             console.print(f"[cyan]Total patterns:[/cyan] {count} (all included free)")
 
-            # Check license for Pro features
-            from tweek.licensing import get_license
-            lic = get_license()
-            if lic.is_pro:
-                console.print(f"[cyan]Pro features:[/cyan] LLM review, session analysis, rate limiting")
-            else:
-                console.print()
-                console.print(f"[dim]Upgrade to Pro for LLM review & session analysis: gettweek.com/pricing[/dim]")
+            console.print(f"[cyan]All features:[/cyan] LLM review, session analysis, rate limiting, sandbox (open source)")
+            console.print(f"[dim]Pro (teams) and Enterprise (compliance) coming soon: gettweek.com[/dim]")
 
         except Exception:
             pass
@@ -1543,14 +1537,14 @@ def license_status():
 
     if lic.tier == Tier.FREE:
         console.print()
-        console.print("[yellow]Upgrade to Pro for advanced features:[/yellow]")
-        console.print("[dim]https://gettweek.com/pricing[/dim]")
+        console.print("[green]All security features are included free and open source.[/green]")
+        console.print("[dim]Pro (teams) and Enterprise (compliance) coming soon: gettweek.com[/dim]")
 
 
 @license.command("activate",
     epilog="""\b
 Examples:
-  tweek license activate TWEEK-PRO-XXXX-XXXX   Activate a Pro license key
+  tweek license activate YOUR_KEY               Activate a license key (Pro/Enterprise coming soon)
 """
 )
 @click.argument("license_key")

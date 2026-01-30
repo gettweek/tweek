@@ -2,9 +2,12 @@
 Tweek Licensing - Feature gating and license validation.
 
 License tiers:
-    - FREE: Basic pattern matching and logging
-    - PRO: LLM review, session analysis, rate limiting
-    - ENTERPRISE: Custom patterns, SSO, audit API, SLA
+    - FREE: Full security features (patterns, LLM review, sandbox, session analysis)
+    - PRO: Team management features (coming soon)
+    - ENTERPRISE: Compliance plugins + team features (coming soon)
+
+All individual security features are free and open source.
+Only compliance and team management features require a license.
 
 License keys are stored in ~/.tweek/license.key
 """
@@ -66,6 +69,8 @@ class LicenseInfo:
 
 
 # Feature definitions by tier
+# All individual security features are FREE (open source).
+# Only compliance and team management features require a license.
 TIER_FEATURES = {
     Tier.FREE: [
         "pattern_matching",       # All 116 patterns included free
@@ -74,27 +79,34 @@ TIER_FEATURES = {
         "cli_commands",
         "global_install",
         "project_install",
-    ],
-    Tier.PRO: [
-        "llm_review",             # Claude Haiku semantic analysis
+        "llm_review",             # Claude Haiku semantic analysis (BYOK)
         "session_analysis",       # Cross-turn attack detection
         "rate_limiting",          # Resource theft protection
         "advanced_logging",       # Detailed event metadata
         "log_export",             # CSV export
         "custom_tiers",           # Per-tool security tiers
-        "priority_support",       # Email support
+        "custom_patterns",        # Custom regex patterns
+        "pattern_allowlisting",   # Pattern suppression
+        "sandbox_preview",        # Speculative execution
+    ],
+    Tier.PRO: [
+        # Coming soon - team management features
+        "team_config",            # Centralized team configuration
+        "team_licenses",          # Team license management
+        "audit_api",              # Audit log API access
+        "priority_updates",       # Priority pattern update feed
+        "priority_support",       # Email support (48h SLA)
     ],
     Tier.ENTERPRISE: [
+        # Coming soon - compliance + enterprise features
         "compliance_gov",         # Government classification compliance
         "compliance_hipaa",       # HIPAA/PHI compliance
         "compliance_pci",         # PCI-DSS compliance
         "compliance_legal",       # Legal privilege compliance
         "compliance_soc2",        # SOC2 compliance
         "compliance_gdpr",        # GDPR compliance
-        "custom_patterns",        # Custom regex patterns
-        "pattern_allowlisting",   # Pattern suppression
+        "bidirectional_scanning", # Bidirectional compliance scanning
         "sso_integration",        # Single sign-on
-        "audit_api",              # Audit log API access
         "sla_support",            # SLA-backed support
         "dedicated_support",      # Dedicated account manager
     ],
@@ -299,7 +311,7 @@ def require_tier(min_tier: Tier) -> Callable:
             if tier_order.index(license.tier) < tier_order.index(min_tier):
                 raise LicenseError(
                     f"This feature requires Tweek {min_tier.value.upper()}. "
-                    f"Visit https://gettweek.com/pricing to upgrade."
+                    f"Pro and Enterprise tiers coming soon: gettweek.com"
                 )
             return func(*args, **kwargs)
         return wrapper
@@ -332,7 +344,7 @@ def require_feature(feature: str) -> Callable:
             if not license.has_feature(feature):
                 raise LicenseError(
                     f"This feature ({feature}) requires a higher license tier. "
-                    f"Visit https://gettweek.com/pricing to upgrade."
+                    f"Pro and Enterprise tiers coming soon: gettweek.com"
                 )
             return func(*args, **kwargs)
         return wrapper

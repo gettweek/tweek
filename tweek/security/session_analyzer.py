@@ -410,7 +410,7 @@ class SessionAnalyzer:
         """
         Analyze a session for cross-turn anomalies.
 
-        This is a PRO feature. Without a Pro license, returns empty analysis.
+        Session analysis is free and open source.
 
         Args:
             session_id: Session to analyze
@@ -418,15 +418,6 @@ class SessionAnalyzer:
         Returns:
             SessionAnalysis with risk score and detected anomalies
         """
-        # Check license - session analysis is a Pro feature
-        from tweek.licensing import get_license
-        if not get_license().has_feature("session_analysis"):
-            return SessionAnalysis(
-                session_id=session_id or "unknown",
-                risk_score=0.0,
-                details={"license_required": "pro"}
-            )
-
         if not session_id:
             return SessionAnalysis(
                 session_id="unknown",

@@ -507,4 +507,4 @@ count = logger.export_csv(Path("audit.csv"), days=7)
 - [SANDBOX.md](./SANDBOX.md) -- Sandbox events and preview logging
 - [ATTACK_PATTERNS.md](./ATTACK_PATTERNS.md) -- Patterns that generate PATTERN_MATCH events
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) -- Diagnosing logging issues
-- [LICENSING.md](./LICENSING.md) -- `advanced_logging` and `log_export` are PRO features
+- [LICENSING.md](./LICENSING.md) -- All logging features are free and open source

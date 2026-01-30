@@ -302,8 +302,8 @@ class PatternMatcher:
     def _load_patterns(self, path: Path) -> List[dict]:
         """Load patterns from YAML config.
 
-        All patterns are available to all users (FREE and PRO).
-        PRO tier unlocks advanced features like LLM review and session analysis.
+        All patterns and security features are available to all users (open source).
+        Pro (teams) and Enterprise (compliance) tiers coming soon.
         """
         if not path.exists():
             return []

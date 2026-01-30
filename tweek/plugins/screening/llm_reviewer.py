@@ -9,7 +9,7 @@ Semantic analysis using LLM for risky/dangerous operations:
 - Prompt injection indicators
 - Privilege escalation attempts
 
-PRO feature - requires Pro license.
+Free and open source. Requires ANTHROPIC_API_KEY (BYOK).
 """
 
 from typing import Optional, Dict, Any, List
@@ -29,13 +29,13 @@ class LLMReviewerPlugin(ScreeningPlugin):
     Uses a fast, cheap LLM (Claude Haiku) to analyze commands
     that pass regex screening but may still be malicious.
 
-    PRO feature - requires Pro license.
+    Free and open source. Requires ANTHROPIC_API_KEY (BYOK).
     """
 
     VERSION = "1.0.0"
     DESCRIPTION = "Semantic security analysis using LLM"
     AUTHOR = "Tweek"
-    REQUIRES_LICENSE = "pro"
+    REQUIRES_LICENSE = "free"
     TAGS = ["screening", "llm", "semantic-analysis"]
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):

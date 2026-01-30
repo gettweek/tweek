@@ -436,7 +436,7 @@ def _check_license_status(verbose: bool = False) -> HealthCheck:
                 name="license_status",
                 label="License",
                 status=CheckStatus.OK,
-                message="Free tier active",
+                message="Open source (all features included)",
             )
         elif lic.info and lic.info.is_expired:
             return HealthCheck(
@@ -444,7 +444,7 @@ def _check_license_status(verbose: bool = False) -> HealthCheck:
                 label="License",
                 status=CheckStatus.WARNING,
                 message=f"{lic.tier.value.upper()} license expired",
-                fix_hint="Renew at: gettweek.com/pricing",
+                fix_hint="Pro and Enterprise tiers coming soon: gettweek.com",
             )
         else:
             email = lic.info.email if lic.info else "unknown"
