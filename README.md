@@ -60,19 +60,21 @@ Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh
 
 ## Quick Start
 
+**One line. That's it.**
+
 ```bash
-# Install
-pipx install tweek        # recommended
-# or: pip install tweek
-
-# Activate protection
-tweek install
-
-# Verify everything works
-tweek doctor
+curl -sSL https://raw.githubusercontent.com/gettweek/tweek/main/scripts/install.sh | bash
 ```
 
-That's it. Tweek now screens every tool call before execution!
+Or install manually:
+
+```bash
+pipx install tweek    # or: pip install tweek
+tweek install         # activate hooks
+tweek doctor          # verify protection
+```
+
+Tweek now screens every tool call before execution.
 
 ```
 $ tweek doctor
