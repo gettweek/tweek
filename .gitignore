@@ -68,3 +68,6 @@ logs/
 # Local development
 test-environment/
 test-mcp-sandbox/
+
+# Tweek local data (user-specific security events, config)
+.tweek/
