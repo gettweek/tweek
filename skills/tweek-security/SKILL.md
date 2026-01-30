@@ -3,7 +3,7 @@ name: tweek-security
 description: Defense-in-depth security screening for all Moltbot tool calls. Screens every command through 5 layers — pattern matching, rate limiting, LLM review, session analysis, and sandbox preview. Blocks credential theft, prompt injection, data exfiltration, and multi-step attacks. 116 attack patterns. 100% local. Apache 2.0.
 homepage: https://github.com/gettweek/tweek
 user-invocable: true
-metadata: {"moltbot": {"config": {"requiredEnv": [], "stateDirs": [".tweek"], "example": "pipx install tweek && tweek protect moltbot"}}}
+metadata: {"moltbot": {"requires": {"bins": ["tweek"]}, "install": [{"id": "uv", "kind": "uv", "package": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Python)"}, {"id": "brew", "kind": "brew", "formula": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Homebrew)", "os": ["darwin"]}], "config": {"stateDirs": [".tweek"], "example": "pip install tweek && tweek protect moltbot"}}}
 ---
 
 # Tweek Security — GAH! Don't get Pawnd.
@@ -15,7 +15,7 @@ Defense-in-depth security for Moltbot. Screens every tool call through 5 layers 
 ## Quick Setup
 
 ```bash
-pipx install tweek
+pip install tweek        # or: pipx install tweek
 tweek protect moltbot
 ```
 
