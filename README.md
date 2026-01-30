@@ -62,8 +62,38 @@ Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh
 
 ## Quick Start
 
+### Install
+
+**Recommended: Install with pipx** — pipx installs CLI tools in isolated environments, preventing dependency conflicts with your other Python projects. Each app gets its own virtual environment while the command stays on your PATH.
+
+If you don't have pipx installed:
+
 ```bash
-pipx install tweek        # or: pip install tweek
+# macOS (with Homebrew)
+brew install pipx
+
+# macOS/Linux/Windows (without Homebrew)
+pip install --user pipx
+
+# Linux (Debian/Ubuntu)
+sudo apt install pipx
+
+# Then add pipx to your PATH (restart terminal after)
+pipx ensurepath
+```
+
+> See [pipx installation docs](https://pipx.pypa.io/stable/installation/) for additional options.
+
+Then install Tweek:
+
+```bash
+pipx install tweek
+```
+
+**Alternative: Install with pip** — if you prefer a standard pip install or need tweek as a dependency in an existing environment:
+
+```bash
+pip install tweek
 ```
 
 ### Protect Moltbot
