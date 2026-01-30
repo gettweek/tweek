@@ -15,7 +15,7 @@
 
 ## The Problem
 
-AI assistants execute commands with **your** credentials. A single malicious instruction hidden in a README, error message, or MCP server response can trick the agent into stealing SSH keys, exfiltrating API tokens, or running reverse shells.
+AI assistants execute commands with **your** credentials. Whether it's Moltbot handling inbound messages from WhatsApp and Telegram, Claude Code writing your application, or Cursor autocompleting your functions -- a single malicious instruction hidden in a message, README, or MCP server response can trick the agent into stealing SSH keys, exfiltrating API tokens, or running reverse shells.
 
 There is very little built-in protection. Tweek fixes that.
 
@@ -60,18 +60,26 @@ Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh
 
 ## Quick Start
 
-**One line. That's it.**
-
 ```bash
-curl -sSL https://raw.githubusercontent.com/gettweek/tweek/main/scripts/install.sh | bash
+pipx install tweek        # or: pip install tweek
 ```
 
-Or install manually:
+### Protect Moltbot
 
 ```bash
-pipx install tweek    # or: pip install tweek
-tweek install         # activate hooks
-tweek doctor          # verify protection
+tweek protect moltbot     # auto-detects, wraps gateway, starts screening
+```
+
+### Protect Claude Code
+
+```bash
+tweek install             # installs PreToolUse/PostToolUse hooks
+```
+
+### Verify
+
+```bash
+tweek doctor              # health check
 ```
 
 Tweek now screens every tool call before execution.
@@ -103,6 +111,7 @@ Tweek provides **three interception layers** feeding into a **multi-stage screen
 
 | Layer | Protects | Method |
 |-------|----------|--------|
+| **Proxy Wrapping** | Moltbot | HTTP/HTTPS interception of gateway traffic |
 | **CLI Hooks** | Claude Code | Native `PreToolUse`/`PostToolUse` hooks |
 | **MCP Proxy** | Claude Desktop, ChatGPT Desktop, Gemini | Transparent MCP proxy with human-in-the-loop approval |
 | **HTTP Proxy** | Cursor, Windsurf, Continue.dev | HTTPS interception via mitmproxy |
@@ -196,6 +205,7 @@ Full pattern library: [Attack Patterns Reference](docs/ATTACK_PATTERNS.md)
 
 | Client | Integration | Setup |
 |--------|------------|-------|
+| **Moltbot** | Proxy wrapping | `tweek protect moltbot` |
 | **Claude Code** | CLI hooks (native) | `tweek install` |
 | **Claude Desktop** | MCP proxy | `tweek mcp install claude-desktop` |
 | **ChatGPT Desktop** | MCP proxy | `tweek mcp install chatgpt-desktop` |

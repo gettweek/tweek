@@ -953,6 +953,179 @@ def _quickstart_install_hooks(scope: str) -> None:
         json.dump(settings, f, indent=2)
 
 
+# =============================================================================
+# PROTECT COMMANDS - One-command setup for supported AI agents
+# =============================================================================
+
+@main.group(
+    epilog="""\b
+Examples:
+  tweek protect moltbot                One-command Moltbot protection
+  tweek protect moltbot --paranoid     Use paranoid security preset
+  tweek protect moltbot --port 9999    Override gateway port
+  tweek protect claude                 Install Claude Code hooks (alias for tweek install)
+"""
+)
+def protect():
+    """Set up Tweek protection for a specific AI agent.
+
+    One-command setup that auto-detects, configures, and starts
+    screening all tool calls for your AI assistant.
+    """
+    pass
+
+
+@protect.command(
+    "moltbot",
+    epilog="""\b
+Examples:
+  tweek protect moltbot                Auto-detect and protect Moltbot
+  tweek protect moltbot --paranoid     Maximum security preset
+  tweek protect moltbot --port 9999    Custom gateway port
+"""
+)
+@click.option("--port", default=None, type=int,
+              help="Moltbot gateway port (default: auto-detect)")
+@click.option("--paranoid", is_flag=True,
+              help="Use paranoid security preset (default: cautious)")
+@click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
+              default=None, help="Security preset to apply")
+def protect_moltbot(port, paranoid, preset):
+    """One-command Moltbot protection setup.
+
+    Auto-detects Moltbot, configures proxy wrapping,
+    and starts screening all tool calls through Tweek's
+    five-layer defense pipeline.
+    """
+    from tweek.integrations.moltbot import (
+        detect_moltbot_installation,
+        setup_moltbot_protection,
+    )
+
+    console.print(TWEEK_BANNER, style="cyan")
+
+    # Resolve preset
+    if paranoid:
+        effective_preset = "paranoid"
+    elif preset:
+        effective_preset = preset
+    else:
+        effective_preset = "cautious"
+
+    # Step 1: Detect Moltbot
+    console.print("[cyan]Detecting Moltbot...[/cyan]")
+    moltbot = detect_moltbot_installation()
+
+    if not moltbot["installed"]:
+        console.print()
+        console.print("[red]Moltbot not detected on this system.[/red]")
+        console.print()
+        console.print("[dim]Install Moltbot first:[/dim]")
+        console.print("  npm install -g moltbot")
+        console.print()
+        console.print("[dim]Or if Moltbot is installed in a non-standard location,[/dim]")
+        console.print("[dim]specify the gateway port manually:[/dim]")
+        console.print("  tweek protect moltbot --port 18789")
+        return
+
+    # Show detection results
+    console.print()
+    console.print("  [green]Moltbot detected[/green]")
+
+    if moltbot["version"]:
+        console.print(f"  Version:    {moltbot['version']}")
+
+    console.print(f"  Gateway:    port {moltbot['gateway_port']}", end="")
+    if moltbot["gateway_active"]:
+        console.print(" [green](running)[/green]")
+    elif moltbot["process_running"]:
+        console.print(" [yellow](process running, gateway inactive)[/yellow]")
+    else:
+        console.print(" [dim](not running)[/dim]")
+
+    if moltbot["config_path"]:
+        console.print(f"  Config:     {moltbot['config_path']}")
+
+    console.print()
+
+    # Step 2: Configure protection
+    console.print("[cyan]Configuring Tweek protection...[/cyan]")
+    result = setup_moltbot_protection(port=port, preset=effective_preset)
+
+    if not result.success:
+        console.print(f"\n[red]Setup failed: {result.error}[/red]")
+        return
+
+    # Show configuration
+    console.print(f"  Proxy:      port {result.proxy_port} -> wrapping Moltbot gateway")
+    console.print(f"  Preset:     {result.preset} (116 patterns + rate limiting)")
+
+    # Check for API key
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        console.print("  LLM Review: [green]active[/green] (ANTHROPIC_API_KEY found)")
+    else:
+        console.print("  LLM Review: [dim]available (set ANTHROPIC_API_KEY for semantic analysis)[/dim]")
+
+    # Show warnings
+    for warning in result.warnings:
+        console.print(f"\n  [yellow]Warning: {warning}[/yellow]")
+
+    console.print()
+
+    if not moltbot["gateway_active"]:
+        console.print("[yellow]Note: Moltbot gateway is not currently running.[/yellow]")
+        console.print("[dim]Protection will activate when Moltbot starts.[/dim]")
+        console.print()
+
+    console.print("[green]Protection configured.[/green] Screening all Moltbot tool calls.")
+    console.print()
+    console.print("[dim]Verify:     tweek doctor[/dim]")
+    console.print("[dim]Logs:       tweek logs show[/dim]")
+    console.print("[dim]Stop:       tweek proxy stop[/dim]")
+
+
+@protect.command(
+    "claude",
+    epilog="""\b
+Examples:
+  tweek protect claude                 Install Claude Code hooks (global)
+  tweek protect claude --scope project Install for current project only
+"""
+)
+@click.option("--scope", type=click.Choice(["global", "project"]), default="global",
+              help="Installation scope: global (~/.claude) or project (./.claude)")
+@click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
+              default=None, help="Security preset to apply")
+@click.pass_context
+def protect_claude(ctx, scope, preset):
+    """Install Tweek hooks for Claude Code.
+
+    This is equivalent to 'tweek install' -- installs PreToolUse
+    and PostToolUse hooks to screen all Claude Code tool calls.
+    """
+    # Delegate to the main install command
+    # (use main.commands lookup to avoid name shadowing by mcp install)
+    install_cmd = main.commands['install']
+    ctx.invoke(
+        install_cmd,
+        scope=scope,
+        dev_test=False,
+        backup=True,
+        skip_env_scan=False,
+        interactive=False,
+        preset=preset,
+        ai_defaults=False,
+        with_sandbox=False,
+        force_proxy=False,
+        skip_proxy_check=False,
+    )
+
+
+# =============================================================================
+# CONFIG COMMANDS
+# =============================================================================
+
 @main.group()
 def config():
     """Configure Tweek security policies."""
