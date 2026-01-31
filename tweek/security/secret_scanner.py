@@ -150,6 +150,47 @@ class SecretScanner:
         # Slack tokens
         (r'xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*', SecretType.TOKEN, "critical"),
 
+        # Stripe keys (live and test)
+        (r'sk_live_[A-Za-z0-9]{24,}', SecretType.API_KEY, "critical"),
+        (r'pk_live_[A-Za-z0-9]{24,}', SecretType.API_KEY, "high"),
+        (r'rk_live_[A-Za-z0-9]{24,}', SecretType.API_KEY, "critical"),
+
+        # SendGrid API key
+        (r'SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}', SecretType.API_KEY, "critical"),
+
+        # Anthropic API key
+        (r'sk-ant-[A-Za-z0-9_-]{36,}', SecretType.API_KEY, "critical"),
+
+        # OpenAI API key
+        (r'sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}', SecretType.API_KEY, "critical"),
+
+        # npm token
+        (r'npm_[A-Za-z0-9]{36,}', SecretType.TOKEN, "critical"),
+
+        # PyPI token
+        (r'pypi-[A-Za-z0-9_-]{50,}', SecretType.TOKEN, "critical"),
+
+        # Azure subscription key / connection string
+        (r'(?i)DefaultEndpointProtocol=https;AccountName=[^;]+;AccountKey=[A-Za-z0-9+/=]{60,}', SecretType.CONNECTION_STRING, "critical"),
+
+        # Google API key
+        (r'AIza[A-Za-z0-9_-]{35}', SecretType.API_KEY, "high"),
+
+        # Google OAuth client secret
+        (r'GOCSPX-[A-Za-z0-9_-]{28}', SecretType.OAUTH_SECRET, "critical"),
+
+        # Twilio API key
+        (r'SK[a-f0-9]{32}', SecretType.API_KEY, "high"),
+
+        # Mailchimp API key
+        (r'[a-f0-9]{32}-us[0-9]{1,2}', SecretType.API_KEY, "high"),
+
+        # Discord bot token
+        (r'[MN][A-Za-z0-9]{23,}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}', SecretType.TOKEN, "critical"),
+
+        # Heroku API key
+        (r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', SecretType.API_KEY, "medium"),
+
         # Generic high-entropy strings that look like secrets
         (r'[\'"][A-Za-z0-9+/]{40,}={0,2}[\'"]', SecretType.API_KEY, "medium"),
     ]
@@ -347,15 +388,19 @@ class SecretScanner:
         return False
 
     def _redact_value(self, value: Any) -> str:
-        """Redact a secret value for safe display."""
+        """Redact a secret value for safe display.
+
+        Only shows first 4 characters (provider prefix) — never reveals suffix
+        to minimize information leakage.
+        """
         if not isinstance(value, str):
             return "<redacted>"
 
         if len(value) <= 8:
             return "*" * len(value)
 
-        # Show first 4 and last 4 chars
-        return f"{value[:4]}{'*' * (len(value) - 8)}{value[-4:]}"
+        # Show first 4 chars only (identifies provider without revealing key material)
+        return f"{value[:4]}{'*' * (len(value) - 4)}"
 
     def _redact_line(self, line: str) -> str:
         """Redact sensitive parts of a line."""

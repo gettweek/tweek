@@ -122,13 +122,13 @@ def run_mcp_screening(context: ScreeningContext) -> Dict[str, Any]:
         }
 
     except ImportError as e:
-        logger.warning(f"Screening modules not available: {e}")
-        # Fail open with warning if screening not available
+        logger.error(f"Screening modules not available: {e}")
+        # Fail closed: missing security modules should block, not bypass
         return {
-            "allowed": True,
-            "blocked": False,
+            "allowed": False,
+            "blocked": True,
             "should_prompt": False,
-            "reason": f"Warning: screening unavailable ({e})",
+            "reason": f"Screening unavailable (missing modules: {e}). Blocking for safety.",
             "findings": [],
         }
     except Exception as e:

@@ -21,7 +21,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -1157,12 +1157,21 @@ def _quickstart_install_hooks(scope: str) -> None:
     if "hooks" not in settings:
         settings["hooks"] = {}
 
-    hook_entry = {
+    pre_hook_entry = {
         "type": "command",
         "command": "tweek hook pre-tool-use $TOOL_NAME",
     }
+    post_hook_entry = {
+        "type": "command",
+        "command": "tweek hook post-tool-use $TOOL_NAME",
+    }
 
-    for hook_type in ["PreToolUse"]:
+    hook_entries = {
+        "PreToolUse": pre_hook_entry,
+        "PostToolUse": post_hook_entry,
+    }
+
+    for hook_type in ["PreToolUse", "PostToolUse"]:
         if hook_type not in settings["hooks"]:
             settings["hooks"][hook_type] = []
 
@@ -1177,7 +1186,7 @@ def _quickstart_install_hooks(scope: str) -> None:
         if not already_installed:
             settings["hooks"][hook_type].append({
                 "matcher": "",
-                "hooks": [hook_entry],
+                "hooks": [hook_entries[hook_type]],
             })
 
     with open(settings_path, "w") as f:
@@ -1738,14 +1747,14 @@ def vault():
 @vault.command("store",
     epilog="""\b
 Examples:
-  tweek vault store myskill API_KEY sk-abc123      Store an API key
-  tweek vault store deploy AWS_SECRET s3cr3t       Store a deployment secret
+  tweek vault store myskill API_KEY                Prompt for value securely
+  tweek vault store myskill API_KEY sk-abc123      Store an API key (visible in history!)
 """
 )
 @click.argument("skill")
 @click.argument("key")
-@click.argument("value")
-def vault_store(skill: str, key: str, value: str):
+@click.argument("value", required=False, default=None)
+def vault_store(skill: str, key: str, value: Optional[str]):
     """Store a credential securely for a skill."""
     from tweek.vault import get_vault, VAULT_AVAILABLE
     from tweek.platform import get_capabilities
@@ -1757,6 +1766,13 @@ def vault_store(skill: str, key: str, value: str):
         return
 
     caps = get_capabilities()
+
+    # If value not provided as argument, prompt securely (avoids shell history exposure)
+    if value is None:
+        value = click.prompt(f"Enter value for {key}", hide_input=True)
+        if not value:
+            console.print("[red]No value provided.[/red]")
+            return
 
     try:
         vault_instance = get_vault()
@@ -1794,6 +1810,9 @@ def vault_get(skill: str, key: str):
 
     if value is not None:
         console.print(f"[yellow]GAH![/yellow] Credential access logged")
+        import sys as _sys
+        if not _sys.stdout.isatty():
+            console.print("[yellow]WARNING: stdout is piped — credential may be logged.[/yellow]", err=True)
         console.print(value)
     else:
         console.print(f"[red]\u2717[/red] Credential not found: {key} for skill '{skill}'")

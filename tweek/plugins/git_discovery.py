@@ -266,13 +266,21 @@ def _import_plugin_class(
         module = importlib.util.module_from_spec(spec)
 
         # Add plugin directory to the module's path for relative imports
-        if plugin_dir not in sys.path:
+        # Use try/finally to ensure sys.path is always cleaned up
+        path_added = False
+        if str(plugin_dir) not in sys.path:
             sys.path.insert(0, str(plugin_dir))
+            path_added = True
 
         # Register the module in sys.modules before executing
         sys.modules[full_module_name] = module
 
-        spec.loader.exec_module(module)
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            # Always remove plugin dir from sys.path to prevent pollution
+            if path_added and str(plugin_dir) in sys.path:
+                sys.path.remove(str(plugin_dir))
 
         # Get the class
         if not hasattr(module, class_name):

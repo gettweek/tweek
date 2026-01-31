@@ -233,7 +233,9 @@ class TweekMCPServer:
             })
 
         except Exception as e:
-            return json.dumps({"error": str(e)})
+            # Don't leak internal details across trust boundary
+            logger.error(f"Vault operation failed: {e}")
+            return json.dumps({"error": "Vault operation failed"})
 
     async def _handle_status(self, arguments: Dict[str, Any]) -> str:
         """Handle tweek_status tool call."""

@@ -459,8 +459,9 @@ class RateLimiter:
             RateLimitResult with allowed status and any violations
         """
         if not session_id:
-            # No session tracking - allow but log
-            return RateLimitResult(allowed=True, message="No session ID for rate limiting")
+            # No session ID - generate deterministic one from context for safety
+            import os as _os
+            session_id = hashlib.sha256(f"tweek-{_os.getpid()}-{_os.getcwd()}".encode()).hexdigest()[:16]
 
         # Check circuit breaker first
         circuit_key = f"session:{session_id}"
@@ -531,10 +532,11 @@ class RateLimiter:
                         details["velocity_ratio"] = round(current / baseline, 2)
 
         except Exception as e:
-            # Database error - fail open but log
+            # Database error - fail closed for safety
             return RateLimitResult(
-                allowed=True,
-                message=f"Rate limit check failed: {e}",
+                allowed=False,
+                violations=[RateLimitViolation.BURST],
+                message=f"Rate limit check failed (blocking for safety): {e}",
                 details={"error": str(e)}
             )
 

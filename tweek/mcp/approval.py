@@ -73,7 +73,7 @@ class ApprovalRequest:
             return False
         try:
             ts = datetime.fromisoformat(self.timestamp)
-            elapsed = (datetime.utcnow() - ts).total_seconds()
+            elapsed = (datetime.now(tz=None) - ts).total_seconds()
             return elapsed >= self.timeout_seconds
         except (ValueError, TypeError):
             return False
@@ -83,7 +83,7 @@ class ApprovalRequest:
         """Seconds remaining before timeout. Returns 0 if expired."""
         try:
             ts = datetime.fromisoformat(self.timestamp)
-            elapsed = (datetime.utcnow() - ts).total_seconds()
+            elapsed = (datetime.now(tz=None) - ts).total_seconds()
             remaining = self.timeout_seconds - elapsed
             return max(0.0, remaining)
         except (ValueError, TypeError):
@@ -261,7 +261,11 @@ class ApprovalQueue:
         return [self._row_to_request(row) for row in rows]
 
     def get_request(self, request_id: str) -> Optional[ApprovalRequest]:
-        """Get a specific approval request by ID (supports short IDs)."""
+        """Get a specific approval request by ID (supports short IDs).
+
+        Raises:
+            ValueError: If short ID matches multiple requests (ambiguous).
+        """
         with self._get_connection() as conn:
             # Try exact match first
             row = conn.execute(
@@ -271,10 +275,18 @@ class ApprovalQueue:
 
             # If not found, try prefix match (short ID)
             if row is None and len(request_id) < 36:
-                row = conn.execute(
+                rows = conn.execute(
                     "SELECT * FROM approval_requests WHERE id LIKE ?",
                     (f"{request_id}%",),
-                ).fetchone()
+                ).fetchall()
+                if len(rows) == 1:
+                    row = rows[0]
+                elif len(rows) > 1:
+                    ids = [r["id"][:12] for r in rows]
+                    raise ValueError(
+                        f"Ambiguous short ID '{request_id}' matches {len(rows)} requests: "
+                        f"{', '.join(ids)}. Use a longer prefix."
+                    )
 
         return self._row_to_request(row) if row else None
 
@@ -452,5 +464,23 @@ class ApprovalQueue:
             redactor = LogRedactor(enabled=True)
             return redactor.redact_dict(arguments)
         except ImportError:
-            # If logging module unavailable, store as-is
-            return arguments
+            # If logging module unavailable, do basic redaction to avoid storing raw secrets
+            return self._basic_redact(arguments)
+
+    @staticmethod
+    def _basic_redact(arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Fallback redaction when LogRedactor is unavailable."""
+        import re
+        sensitive_keys = re.compile(
+            r'(?i)(password|secret|token|key|credential|auth|bearer|api.?key)', re.IGNORECASE
+        )
+        redacted = {}
+        for k, v in arguments.items():
+            if sensitive_keys.search(k):
+                redacted[k] = "***REDACTED***"
+            elif isinstance(v, str) and len(v) > 50:
+                # Long string values may contain secrets — truncate
+                redacted[k] = v[:8] + "***"
+            else:
+                redacted[k] = v
+        return redacted

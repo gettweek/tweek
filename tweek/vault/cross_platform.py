@@ -53,8 +53,19 @@ class CrossPlatformVault:
             )
         self.backend_name = get_vault_backend()
 
+    @staticmethod
+    def _validate_name(name: str, field: str = "name") -> None:
+        """Validate skill/key names to prevent injection and collisions."""
+        import re
+        if not name or not re.match(r'^[a-zA-Z0-9_-]{1,64}$', name):
+            raise ValueError(
+                f"Invalid vault {field}: '{name}'. "
+                f"Must be 1-64 characters, alphanumeric, hyphens, or underscores only."
+            )
+
     def _service_name(self, skill: str) -> str:
         """Generate service name for a skill."""
+        self._validate_name(skill, "skill")
         return f"{SERVICE_PREFIX}.{skill}"
 
     def _log_vault_event(self, operation: str, skill: str, key: str, success: bool = True, error: str = None):

@@ -291,10 +291,10 @@ class TestTierFeatures:
         assert free_license.has_feature("cli_commands")
 
     def test_free_tier_missing_pro_features(self, free_license):
-        """Test free tier doesn't have pro features."""
-        assert not free_license.has_feature("llm_review")
-        assert not free_license.has_feature("session_analysis")
-        assert not free_license.has_feature("rate_limiting")
+        """Test free tier doesn't have pro/enterprise features."""
+        assert not free_license.has_feature("team_config")
+        assert not free_license.has_feature("team_licenses")
+        assert not free_license.has_feature("compliance_gov")
 
     def test_pro_tier_has_all_features(self, pro_license):
         """Test pro tier has all features."""
@@ -368,15 +368,15 @@ class TestFeatureGatingDecorators:
         with patch('tweek.licensing.LICENSE_FILE', tmp_path / "license.key"):
             License._instance = None
 
-            @require_feature("llm_review")
-            def llm_function():
-                return "llm works"
+            @require_feature("team_config")
+            def team_function():
+                return "team works"
 
-            # Free tier doesn't have llm_review
+            # Free tier doesn't have team_config (it's a PRO feature)
             with pytest.raises(LicenseError) as exc_info:
-                llm_function()
+                team_function()
 
-            assert "llm_review" in str(exc_info.value)
+            assert "team_config" in str(exc_info.value)
             License._instance = None
 
 

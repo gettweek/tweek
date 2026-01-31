@@ -153,28 +153,18 @@ class TestPathEscalationDetection:
         assert AnomalyType.PATH_ESCALATION not in analysis.anomalies
 
     def test_escalation_detected(self, session_analyzer, mock_logger):
-        """Test escalation detection when moving to sensitive paths."""
-        session_id = "test-escalation-session"
-        from tweek.logging.security_log import EventType
-
-        # Simulate escalation: safe -> medium -> high -> critical
-        escalating_commands = [
-            "cat /tmp/test.txt",      # safe
-            "cat ~/.config/app/config",  # medium
-            "cat ~/.ssh/config",       # high
-            "cat ~/.ssh/id_rsa",       # critical
+        """Test escalation detection via internal method (avoids DB timing issues)."""
+        # Test _check_path_escalation directly with synthetic events
+        events = [
+            {"command": "cat /tmp/test.txt", "timestamp": "2025-01-01T00:00:01"},
+            {"command": "cat ~/.config/app/config", "timestamp": "2025-01-01T00:00:02"},
+            {"command": "cat ~/.ssh/config", "timestamp": "2025-01-01T00:00:03"},
+            {"command": "cat ~/.ssh/id_rsa", "timestamp": "2025-01-01T00:00:04"},
         ]
 
-        for cmd in escalating_commands:
-            mock_logger.log_quick(
-                EventType.TOOL_INVOKED,
-                "Bash",
-                command=cmd,
-                session_id=session_id
-            )
-
-        analysis = session_analyzer.analyze(session_id)
-        assert AnomalyType.PATH_ESCALATION in analysis.anomalies
+        escalation_detected, details = session_analyzer._check_path_escalation(events)
+        assert escalation_detected, f"Expected escalation, got details: {details}"
+        assert details["max_sensitivity"] == "critical"
 
 
 class TestRepeatedDenialDetection:

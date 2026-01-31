@@ -170,7 +170,7 @@ class BundleCollector:
     def collect_system_info(self) -> Dict[str, Any]:
         """Collect platform and version information."""
         info = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(tz=None).isoformat() + "Z",
             "platform": {
                 "system": platform.system(),
                 "release": platform.release(),
@@ -284,7 +284,7 @@ class BundleCollector:
             # Manifest
             manifest = {
                 "bundle_version": "1.0",
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": datetime.now(tz=None).isoformat() + "Z",
                 "redacted": self.redact,
                 "days_filter": self.days,
                 "files": self._collected,

@@ -131,11 +131,15 @@ class TestPatternMatcher:
         match = matcher.check("python3 script.py")
         assert match is None
 
-    def test_returns_none_for_missing_file(self, tmp_path):
-        """Should return None for empty patterns."""
+    def test_returns_none_for_missing_user_file(self, tmp_path):
+        """Should still match bundled patterns even with missing user file."""
         matcher = PatternMatcher(tmp_path / "nonexistent.yaml")
+        # Bundled patterns are always loaded, so known attacks still match
         match = matcher.check("cat .env")
-        assert match is None
+        assert match is not None
+        # But benign commands should still pass
+        safe_match = matcher.check("echo hello")
+        assert safe_match is None
 
 
 class TestTierManager:
@@ -151,10 +155,10 @@ class TestTierManager:
         tier = tier_mgr.get_base_tier("Bash")
         assert tier == "dangerous"
 
-    def test_read_is_safe(self, tier_mgr):
-        """Read should be classified as safe."""
+    def test_read_is_default(self, tier_mgr):
+        """Read should be classified as default (screens for credential paths)."""
         tier = tier_mgr.get_base_tier("Read")
-        assert tier == "safe"
+        assert tier == "default"
 
     def test_webfetch_is_risky(self, tier_mgr):
         """WebFetch should be classified as risky."""

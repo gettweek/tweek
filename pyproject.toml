@@ -107,4 +107,31 @@ target-version = ["py311"]
 
 [tool.ruff]
 line-length = 100
-select = ["E", "F", "I", "N", "W"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "W",    # pycodestyle warnings
+    "S",    # flake8-bandit (security)
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins (shadowing built-ins)
+    "C4",   # flake8-comprehensions
+    "T20",  # flake8-print (no print in library code)
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+]
+ignore = [
+    "S101",   # assert is fine in tests
+    "S603",   # subprocess calls are intentional (sandbox executor)
+    "S607",   # partial executable path (sandbox uses /usr/bin/sandbox-exec)
+    "T201",   # print is used in hook scripts (stdout is the protocol)
+    "E501",   # line length handled by formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S106", "T201"]
+"tweek/hooks/**" = ["T201"]  # Hooks communicate via stdout

@@ -195,6 +195,27 @@ def run_screening_plugins(
         return True, False, None, []
 
 
+# Module-level caches for hot-path performance (avoid YAML re-parsing per invocation)
+_cached_tier_mgr: Optional["TierManager"] = None
+_cached_pattern_matcher: Optional["PatternMatcher"] = None
+
+
+def _get_tier_manager() -> "TierManager":
+    """Get or create cached TierManager singleton."""
+    global _cached_tier_mgr
+    if _cached_tier_mgr is None:
+        _cached_tier_mgr = TierManager()
+    return _cached_tier_mgr
+
+
+def _get_pattern_matcher() -> "PatternMatcher":
+    """Get or create cached PatternMatcher singleton."""
+    global _cached_pattern_matcher
+    if _cached_pattern_matcher is None:
+        _cached_pattern_matcher = PatternMatcher()
+    return _cached_pattern_matcher
+
+
 class TierManager:
     """Manages security tier classification and escalation."""
 
@@ -288,16 +309,34 @@ class PatternMatcher:
     """Matches commands against hostile patterns."""
 
     def __init__(self, patterns_path: Optional[Path] = None):
-        # Try user patterns first (~/.tweek/patterns/), fall back to bundled
+        # Always load bundled patterns first, then merge user patterns on top
         user_patterns = Path.home() / ".tweek" / "patterns" / "patterns.yaml"
         bundled_patterns = Path(__file__).parent.parent / "config" / "patterns.yaml"
 
         if patterns_path is not None:
-            self.patterns = self._load_patterns(patterns_path)
-        elif user_patterns.exists():
-            self.patterns = self._load_patterns(user_patterns)
-        else:
+            # Explicit path: load bundled + explicit (for testing)
             self.patterns = self._load_patterns(bundled_patterns)
+            extra = self._load_patterns(patterns_path)
+            self._merge_patterns(extra)
+        else:
+            # Always start with bundled patterns
+            self.patterns = self._load_patterns(bundled_patterns)
+            # Merge user patterns on top (additive, not replacement)
+            if user_patterns.exists():
+                extra = self._load_patterns(user_patterns)
+                self._merge_patterns(extra)
+
+    def _merge_patterns(self, extra_patterns: List[dict]):
+        """Merge additional patterns into existing set (additive).
+
+        User patterns supplement bundled patterns — they cannot replace or
+        remove bundled patterns. Duplicate names are skipped.
+        """
+        existing_names = {p.get("name") for p in self.patterns}
+        for pattern in extra_patterns:
+            if pattern.get("name") not in existing_names:
+                self.patterns.append(pattern)
+                existing_names.add(pattern.get("name"))
 
     def _load_patterns(self, path: Path) -> List[dict]:
         """Load patterns from YAML config.
@@ -320,7 +359,7 @@ class PatternMatcher:
         """
         for pattern in self.patterns:
             try:
-                if re.search(pattern.get("regex", ""), content, re.IGNORECASE):
+                if re.search(pattern.get("regex", ""), content, re.IGNORECASE | re.DOTALL):
                     return pattern
             except re.error:
                 continue
@@ -331,7 +370,7 @@ class PatternMatcher:
         matches = []
         for pattern in self.patterns:
             try:
-                if re.search(pattern.get("regex", ""), content, re.IGNORECASE):
+                if re.search(pattern.get("regex", ""), content, re.IGNORECASE | re.DOTALL):
                     matches.append(pattern)
             except re.error:
                 continue
@@ -436,11 +475,21 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             **kwargs
         )
 
-    # Extract content to analyze (command for Bash, path for Read, etc.)
+    # Extract content to analyze (command for Bash, path + payload for Write/Edit, etc.)
     if tool_name == "Bash":
         content = tool_input.get("command", "")
-    elif tool_name in ("Read", "Write", "Edit"):
+    elif tool_name == "Read":
         content = tool_input.get("file_path", "")
+    elif tool_name == "Write":
+        # Screen both path and content payload
+        file_path = tool_input.get("file_path", "")
+        file_content = tool_input.get("content", "")
+        content = f"{file_path}\n{file_content}" if file_content else file_path
+    elif tool_name == "Edit":
+        # Screen both path and new content
+        file_path = tool_input.get("file_path", "")
+        new_string = tool_input.get("new_string", "")
+        content = f"{file_path}\n{new_string}" if new_string else file_path
     elif tool_name == "WebFetch":
         content = tool_input.get("url", "")
     else:
@@ -470,9 +519,9 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             }
         }
 
-    # Initialize managers
-    tier_mgr = TierManager()
-    pattern_matcher = PatternMatcher()
+    # Use cached managers (avoids YAML re-parsing on every invocation)
+    tier_mgr = _get_tier_manager()
+    pattern_matcher = _get_pattern_matcher()
 
     # Determine effective tier
     effective_tier, escalation = tier_mgr.get_effective_tier(tool_name, content)
@@ -614,8 +663,14 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     # LAYER 2: Pattern Matching
     # =========================================================================
     pattern_match = None
+    all_pattern_matches = []
     if "regex" in screening_methods:
-        pattern_match = pattern_matcher.check(content)
+        all_pattern_matches = pattern_matcher.check_all(content)
+        # Use highest-severity match as primary (critical > high > medium > low)
+        if all_pattern_matches:
+            severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+            all_pattern_matches.sort(key=lambda p: severity_order.get(p.get("severity", "medium"), 4))
+            pattern_match = all_pattern_matches[0]
 
         if pattern_match:
             _log(
@@ -633,7 +688,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     # =========================================================================
     llm_msg = None
     llm_triggered = False
-    if "llm" in screening_methods and tool_name == "Bash":
+    if "llm" in screening_methods:
         try:
             from tweek.security.llm_reviewer import get_llm_reviewer
 
@@ -882,14 +937,20 @@ def main():
         print(json.dumps(result))
 
     except json.JSONDecodeError as e:
-        # Invalid JSON - fail open (allow) but log
+        # Invalid JSON - fail closed (deny) for safety
         logger.log_quick(
             EventType.ERROR,
             "unknown",
-            decision="allow",
+            decision="deny",
             decision_reason=f"JSON decode error: {e}"
         )
-        print("{}")
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": f" TWEEK ERROR: Invalid hook input.\nBlocking for safety.",
+            }
+        }))
 
     except Exception as e:
         # Any error - fail closed (block for safety)

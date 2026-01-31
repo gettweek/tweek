@@ -319,6 +319,12 @@ class SecurityLogger:
     def _ensure_db_exists(self):
         """Create database and tables if they don't exist."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Harden directory permissions - security logs should be private
+        try:
+            import os
+            os.chmod(self.db_path.parent, 0o700)
+        except OSError:
+            pass
 
         with self._get_connection() as conn:
             # Create table first (without views that reference new columns)
@@ -421,14 +427,21 @@ class SecurityLogger:
 
     @contextmanager
     def _get_connection(self):
-        """Get a database connection with proper cleanup."""
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
+        """Get a database connection, reusing persistent connection when possible."""
+        if not hasattr(self, '_conn') or self._conn is None:
+            self._conn = sqlite3.connect(str(self.db_path))
+            self._conn.row_factory = sqlite3.Row
         try:
-            yield conn
-            conn.commit()
-        finally:
-            conn.close()
+            yield self._conn
+            self._conn.commit()
+        except Exception:
+            # On error, close and reset so next call gets a fresh connection
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+            raise
 
     def log(self, event: SecurityEvent) -> int:
         """Log a security event with automatic redaction of sensitive data.

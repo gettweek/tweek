@@ -523,10 +523,12 @@ class SessionAnalyzer:
                 )
 
         except Exception as e:
+            # Fail closed: analysis failure is itself suspicious
             return SessionAnalysis(
                 session_id=session_id,
-                risk_score=0.0,
-                details={"error": str(e)}
+                risk_score=0.5,
+                anomalies=[AnomalyType.SUSPICIOUS_PATTERN],
+                details={"error": str(e), "fail_closed": True}
             )
 
     def _update_session_profile(

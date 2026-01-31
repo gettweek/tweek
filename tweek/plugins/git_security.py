@@ -25,13 +25,10 @@ from typing import Dict, List, Optional, Tuple, Type
 logger = logging.getLogger(__name__)
 
 # Signing key for plugin verification.
-# In production, this would use asymmetric keys (Ed25519).
-# The HMAC approach is simpler and sufficient for the curated model
-# where Tweek controls both signing and verification.
-TWEEK_SIGNING_KEY = os.environ.get(
-    "TWEEK_PLUGIN_SIGNING_KEY",
-    "tweek-plugin-signing-key-v1"
-)
+# SECURITY: No hardcoded fallback. Set TWEEK_PLUGIN_SIGNING_KEY env var
+# for plugin signature verification. Without it, signature checks will
+# fail (which is the correct behavior — fail closed).
+TWEEK_SIGNING_KEY = os.environ.get("TWEEK_PLUGIN_SIGNING_KEY", "")
 
 # Modules/functions that are forbidden in plugin code
 FORBIDDEN_IMPORTS = frozenset({

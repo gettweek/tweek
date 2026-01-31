@@ -95,7 +95,6 @@ class TweekProxyAddon:
             result = self.interceptor.screen_request(flow.request.content, provider)
 
             if result.warnings:
-                # Log warnings but don't block requests
                 logger.warning(
                     f"Prompt injection warning: {result.warnings} "
                     f"(provider={provider.value}, path={flow.request.path})"
@@ -103,6 +102,21 @@ class TweekProxyAddon:
 
                 # Add header to track warning
                 flow.request.headers["X-Tweek-Warning"] = "prompt-injection-suspected"
+
+                # Block request if screening says it's not allowed
+                if not result.allowed and self.block_mode and not self.log_only:
+                    self.stats["requests_blocked"] += 1
+                    flow.response = http.Response.make(
+                        403,
+                        json.dumps({
+                            "error": {
+                                "type": "security_blocked",
+                                "message": f"Tweek Security: Request blocked — {result.reason}",
+                                "patterns": result.matched_patterns,
+                            }
+                        }),
+                        {"Content-Type": "application/json"},
+                    )
 
     @concurrent
     def response(self, flow: http.HTTPFlow):
@@ -112,10 +126,15 @@ class TweekProxyAddon:
         if not self.interceptor.should_intercept(host):
             return
 
-        # Skip streaming responses - we can't buffer them without breaking UX
+        # Log streaming responses - we can't fully buffer SSE without breaking UX
+        # but we flag them as unscreened for visibility
         content_type = flow.response.headers.get("content-type", "")
         if "text/event-stream" in content_type:
-            logger.debug(f"Skipping streaming response from {host}")
+            logger.warning(
+                f"Streaming response from {host} cannot be fully screened. "
+                "Tool calls in streaming responses bypass proxy screening."
+            )
+            self.stats["streaming_unscreened"] = self.stats.get("streaming_unscreened", 0) + 1
             return
 
         self.stats["responses_screened"] += 1

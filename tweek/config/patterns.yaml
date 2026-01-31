@@ -19,7 +19,7 @@
 # PRO tier adds: LLM review, session analysis, rate limiting
 
 version: 3
-pattern_count: 116
+pattern_count: 126
 
 patterns:
   # ============================================================================
@@ -209,7 +209,7 @@ patterns:
   - id: 29
     name: env_command
     description: "Dumping all environment variables"
-    regex: '\benv\b|\bprintenv\b|\bexport\s*$'
+    regex: '^\s*env\s*$|^\s*env\s+-|\bprintenv\b|\bexport\s*$'
     severity: medium
 
   - id: 30
@@ -749,3 +749,64 @@ patterns:
     description: "Setting SUID/SGID bits for privilege escalation"
     regex: 'chmod\s+[u+]?s|chmod\s+[46][0-7]{3}'
     severity: critical
+
+  # Evasion technique patterns (117-126)
+  - id: 117
+    name: python_file_read
+    description: "Python one-liner reading sensitive files"
+    regex: 'python[23]?\s+-c\s+.*open\s*\(.*\.(ssh|env|aws|kube|gnupg|pem|key)'
+    severity: high
+
+  - id: 118
+    name: curl_write_sensitive
+    description: "Curl writing to sensitive paths"
+    regex: 'curl\s+.*-o\s+.*(\.(bashrc|zshrc|profile|bash_profile)|\.ssh/|\.aws/)'
+    severity: critical
+
+  - id: 119
+    name: tar_sensitive_dirs
+    description: "Archiving sensitive directories for exfiltration"
+    regex: 'tar\s+.*\.(ssh|aws|gnupg|kube)|zip\s+.*\.(ssh|aws|gnupg|kube)'
+    severity: critical
+
+  - id: 120
+    name: cp_credentials_to_temp
+    description: "Copying credentials to world-readable locations"
+    regex: 'cp\s+.*\.(ssh|aws|gnupg)/.*\s+/tmp|cp\s+.*\.env\s+/tmp'
+    severity: high
+
+  - id: 121
+    name: symlink_credential_access
+    description: "Symbolic link to sensitive files"
+    regex: 'ln\s+-s\s+.*\.(ssh|aws|gnupg|env)/|ln\s+-sf?\s+.*id_rsa'
+    severity: high
+
+  - id: 122
+    name: find_exec_credentials
+    description: "find -exec used to read credential files"
+    regex: 'find\s+.*-exec\s+(cat|head|tail|less|more)\s+.*\{\}'
+    severity: high
+
+  - id: 123
+    name: perl_ruby_file_read
+    description: "Perl/Ruby one-liners reading sensitive files"
+    regex: '(perl|ruby)\s+-e\s+.*\.(ssh|env|aws|kube|pem|key)'
+    severity: high
+
+  - id: 124
+    name: tee_exfil
+    description: "Using tee for simultaneous data exfiltration"
+    regex: 'tee\s+.*\>\(.*curl|tee\s+.*\>\(.*wget|tee\s+.*\>\(.*nc\b'
+    severity: critical
+
+  - id: 125
+    name: importlib_evasion
+    description: "Python importlib used to bypass import restrictions"
+    regex: 'importlib\.import_module\s*\(\s*[''"]?(subprocess|os|shutil|socket)'
+    severity: high
+
+  - id: 126
+    name: variable_indirection
+    description: "Variable-based command construction to evade detection"
+    regex: '\$\{?[a-zA-Z_]+\}?\s+.*\.(ssh|env|aws)/|\$\([^)]*\)\s+.*\.(ssh|env|aws)/'
+    severity: medium

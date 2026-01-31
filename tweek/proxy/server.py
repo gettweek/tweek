@@ -267,8 +267,10 @@ def get_proxy_env_vars(port: int = DEFAULT_PORT) -> dict[str, str]:
         "HTTPS_PROXY": proxy_url,
         "http_proxy": proxy_url,
         "https_proxy": proxy_url,
-        # For Node.js apps that don't respect standard env vars
-        "NODE_TLS_REJECT_UNAUTHORIZED": "0",  # Required for self-signed CA
+        # For Node.js: use CA cert bundle instead of disabling TLS validation
+        # NODE_TLS_REJECT_UNAUTHORIZED=0 would disable ALL TLS checks (insecure)
+        # NODE_EXTRA_CA_CERTS adds our CA to the trust store without disabling validation
+        "NODE_EXTRA_CA_CERTS": str(Path.home() / ".tweek" / "proxy" / "tweek-ca.pem"),
     }
 
 

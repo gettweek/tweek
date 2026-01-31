@@ -135,14 +135,14 @@ class TestRateLimiterBasic:
     """Basic rate limiter tests."""
 
     def test_no_session_id(self, rate_limiter):
-        """Test behavior with no session ID."""
+        """Test behavior with no session ID — generates deterministic ID."""
         result = rate_limiter.check(
             tool_name="Bash",
             command="ls -la",
             session_id=None
         )
+        # Should still proceed (generates a deterministic session ID)
         assert result.allowed
-        assert "No session ID" in result.message
 
     def test_first_command(self, rate_limiter):
         """Test first command is allowed."""

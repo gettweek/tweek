@@ -21,8 +21,6 @@ llm_review:
   enabled: true
   model: claude-3-5-haiku-latest
   timeout_seconds: 5.0
-  # Only review if command length exceeds this
-  min_command_length: 20
 
 # Rate Limiting Configuration
 rate_limiting:
@@ -64,8 +62,8 @@ tiers:
 
 # Tool classifications
 tools:
-  # Safe - read-only, no external effects
-  Read: safe
+  # Default - read-only but needs path-based screening
+  Read: default
   Glob: safe
   Grep: safe
 
@@ -134,6 +132,31 @@ escalations:
 
   - pattern: 'sudo\s+'
     description: "Elevated privileges"
+    escalate_to: dangerous
+
+  # Path-only patterns for Read/Write/Edit (no command prefix required)
+  - pattern: '\.ssh/(id_rsa|id_ed25519|id_ecdsa|authorized_keys|known_hosts|config)'
+    description: "SSH credential file access"
+    escalate_to: dangerous
+
+  - pattern: '\.aws/(credentials|config)'
+    description: "AWS credential file access"
+    escalate_to: dangerous
+
+  - pattern: '\.env(\.|$)'
+    description: "Environment file with potential secrets"
+    escalate_to: risky
+
+  - pattern: '\.kube/config'
+    description: "Kubernetes config access"
+    escalate_to: dangerous
+
+  - pattern: '\.gnupg/(private-keys|secring|trustdb)'
+    description: "GPG private key access"
+    escalate_to: dangerous
+
+  - pattern: '\.netrc'
+    description: "Network credentials file"
     escalate_to: dangerous
 
 # Default tier for unclassified tools/skills

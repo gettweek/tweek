@@ -44,10 +44,17 @@ class KeychainVault:
         self._ensure_registry_exists()
 
     def _ensure_registry_exists(self):
-        """Create registry file if it doesn't exist."""
+        """Create registry file if it doesn't exist, with secure permissions."""
         self.REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
         if not self.REGISTRY_PATH.exists():
             self.REGISTRY_PATH.write_text("{}")
+        # Harden permissions - registry reveals which skills store credentials
+        try:
+            import os
+            os.chmod(self.REGISTRY_PATH.parent, 0o700)
+            os.chmod(self.REGISTRY_PATH, 0o600)
+        except OSError:
+            pass
 
     def _service_name(self, skill: str) -> str:
         """Generate Keychain service name for a skill."""

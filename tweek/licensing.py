@@ -29,9 +29,10 @@ from typing import Callable, Optional, List
 # Thread lock for singleton pattern
 _license_lock = threading.Lock()
 
-# License key secret - in production, this would be more secure
-# This is used to validate license keys were issued by Tweek
-LICENSE_SECRET = os.environ.get("TWEEK_LICENSE_SECRET", "tweek-2025-license-secret")
+# License key secret — no hardcoded fallback for security.
+# Set TWEEK_LICENSE_SECRET env var. Without it, license validation
+# will fail (free tier still works, only paid license verification affected).
+LICENSE_SECRET = os.environ.get("TWEEK_LICENSE_SECRET", "")
 
 LICENSE_FILE = Path.home() / ".tweek" / "license.key"
 
