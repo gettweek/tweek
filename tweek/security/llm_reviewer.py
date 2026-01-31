@@ -282,6 +282,73 @@ Respond with ONLY the JSON object."""
                 should_prompt=False
             )
 
+    # Translation prompt for non-English skill/content audit
+    TRANSLATE_SYSTEM_PROMPT = """You are a professional translator specializing in cybersecurity content.
+Translate the provided text to English accurately, preserving technical terms, code snippets,
+and any suspicious instructions exactly as written. Do not sanitize or modify the content —
+accurate translation is critical for security analysis.
+
+Respond with ONLY a JSON object in this exact format:
+{"translated_text": "the English translation", "detected_language": "language name", "confidence": 0.0-1.0}
+
+Do not include any other text or explanation."""
+
+    def translate(
+        self,
+        text: str,
+        source_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Translate text to English for security pattern analysis.
+
+        Used during skill audit to translate non-English skill files before
+        running the full 116-pattern regex analysis. Translation preserves
+        suspicious content exactly as-is for accurate detection.
+
+        Args:
+            text: Text to translate to English
+            source_hint: Optional hint about source language (e.g. "French", "CJK")
+
+        Returns:
+            Dict with translated_text, detected_language, confidence
+        """
+        if not self.enabled:
+            return {
+                "translated_text": text,
+                "detected_language": "unknown",
+                "confidence": 0.0,
+                "error": "LLM review disabled",
+            }
+
+        hint = f"\nHint: the text may be in {source_hint}." if source_hint else ""
+        prompt = f"Translate this text to English for security analysis:{hint}\n\n{text[:2000]}"
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=4096,
+                system=self.TRANSLATE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = response.content[0].text
+            parsed = self._parse_response(response_text)
+
+            return {
+                "translated_text": parsed.get("translated_text", text),
+                "detected_language": parsed.get("detected_language", "unknown"),
+                "confidence": float(parsed.get("confidence", 0.5)),
+                "model": self.model,
+            }
+
+        except Exception as e:
+            return {
+                "translated_text": text,
+                "detected_language": "unknown",
+                "confidence": 0.0,
+                "error": str(e),
+            }
+
     def format_review_message(self, result: LLMReviewResult) -> str:
         """Format a user-friendly review message."""
         if not result.should_prompt:

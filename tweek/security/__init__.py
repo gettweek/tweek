@@ -5,11 +5,17 @@ Advanced security components for detecting and preventing attacks:
 - Rate limiting for resource theft protection
 - Session analysis for cross-turn anomaly detection
 - LLM-based secondary review for risky operations
+- Language detection for non-English prompt injection
 """
 
 from tweek.security.rate_limiter import RateLimiter, RateLimitResult, RateLimitConfig
 from tweek.security.session_analyzer import SessionAnalyzer, SessionAnalysis
 from tweek.security.llm_reviewer import LLMReviewer, LLMReviewResult
+from tweek.security.language import (
+    detect_non_english,
+    LanguageDetectionResult,
+    NonEnglishHandling,
+)
 
 __all__ = [
     "RateLimiter",
@@ -19,4 +25,7 @@ __all__ = [
     "SessionAnalysis",
     "LLMReviewer",
     "LLMReviewResult",
+    "detect_non_english",
+    "LanguageDetectionResult",
+    "NonEnglishHandling",
 ]

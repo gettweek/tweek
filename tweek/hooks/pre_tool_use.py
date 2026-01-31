@@ -478,6 +478,57 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     effective_tier, escalation = tier_mgr.get_effective_tier(tool_name, content)
     screening_methods = tier_mgr.get_screening_methods(effective_tier)
 
+    # =========================================================================
+    # Non-English Language Detection
+    # Escalate tier when non-English content detected so LLM review can catch
+    # prompt injection in other languages that bypass English-only regex patterns
+    # =========================================================================
+    try:
+        from tweek.security.language import detect_non_english, NonEnglishHandling
+
+        # Load handling mode from config (default: escalate)
+        ne_handling_str = tier_mgr.config.get("non_english_handling", "escalate")
+        try:
+            ne_handling = NonEnglishHandling(ne_handling_str)
+        except ValueError:
+            ne_handling = NonEnglishHandling.ESCALATE
+
+        if ne_handling != NonEnglishHandling.NONE:
+            lang_result = detect_non_english(content)
+
+            if lang_result.has_non_english and lang_result.confidence >= 0.3:
+                _log(
+                    EventType.ESCALATION,
+                    tool_name,
+                    command=content if tool_name == "Bash" else None,
+                    tier=effective_tier,
+                    decision_reason=f"Non-English content detected ({', '.join(lang_result.detected_scripts)}, confidence: {lang_result.confidence:.0%})",
+                    metadata={
+                        "language_detection": {
+                            "scripts": lang_result.detected_scripts,
+                            "confidence": lang_result.confidence,
+                            "ratio": lang_result.non_english_ratio,
+                            "sample": lang_result.sample,
+                            "handling": ne_handling.value,
+                        }
+                    }
+                )
+
+                if ne_handling in (NonEnglishHandling.ESCALATE, NonEnglishHandling.BOTH):
+                    # Escalate to at least risky tier to trigger LLM review
+                    tier_priority = {"safe": 0, "default": 1, "risky": 2, "dangerous": 3}
+                    if tier_priority.get(effective_tier, 1) < tier_priority["risky"]:
+                        effective_tier = "risky"
+                        screening_methods = tier_mgr.get_screening_methods(effective_tier)
+    except ImportError:
+        pass  # Language detection module not available
+    except Exception as e:
+        _log(
+            EventType.ERROR,
+            tool_name,
+            decision_reason=f"Language detection error: {e}",
+        )
+
     # Log tool invocation
     _log(
         EventType.TOOL_INVOKED,

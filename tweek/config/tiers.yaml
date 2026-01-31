@@ -98,6 +98,17 @@ skills:
   # Dangerous skills (system-level)
   deploy: dangerous
 
+# Non-English Language Detection
+# English-only regex patterns (~40 of 116) cannot match prompt injection in
+# other languages. This setting controls how non-English content is handled.
+#
+# Options:
+#   escalate  - Auto-escalate to LLM review tier (default, recommended)
+#   translate - Translate to English before pattern matching (requires API key)
+#   both      - Escalate AND translate (maximum coverage)
+#   none      - No special handling (English-only patterns may miss attacks)
+non_english_handling: escalate
+
 # Content-based escalations
 # These patterns can escalate a tool's tier based on content
 escalations:

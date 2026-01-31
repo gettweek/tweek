@@ -161,6 +161,16 @@ setup_hooks() {
         return
     fi
 
+    # Check if Claude Code is installed
+    if ! command -v claude &>/dev/null; then
+        echo ""
+        warn "Claude Code not detected on this system"
+        echo -e "  ${DIM}Install Claude Code first, then run 'tweek install' to add hooks${NC}"
+        echo -e "  ${DIM}https://docs.anthropic.com/en/docs/claude-code${NC}"
+        return
+    fi
+
+    info "Claude Code detected"
     echo ""
 
     if [ "$INTERACTIVE" = true ]; then
@@ -183,6 +193,53 @@ setup_hooks() {
         $TWEEK_CMD install --preset "$TWEEK_PRESET" --non-interactive 2>/dev/null || $TWEEK_CMD install 2>/dev/null || true
     else
         $TWEEK_CMD install --non-interactive 2>/dev/null || $TWEEK_CMD install 2>/dev/null || true
+    fi
+}
+
+# ── Detect Moltbot and offer protection ─────────────────────────
+setup_moltbot() {
+    if ! command -v moltbot &>/dev/null; then
+        return
+    fi
+
+    echo ""
+    info "Moltbot detected on this system"
+    echo ""
+
+    if [ "$INTERACTIVE" = true ]; then
+        echo -e "${CYAN}Tweek can protect Moltbot tool calls. Choose a method:${NC}"
+        echo ""
+        echo -e "  ${CYAN}1.${NC} Protect via ${BOLD}tweek-security${NC} MoltHub skill"
+        echo -e "     ${DIM}Screens tool calls through Tweek as a MoltHub skill${NC}"
+        echo -e "  ${CYAN}2.${NC} Protect via ${BOLD}tweek protect moltbot${NC}"
+        echo -e "     ${DIM}Wraps the Moltbot gateway with Tweek's proxy${NC}"
+        echo -e "  ${CYAN}3.${NC} Skip for now"
+        echo -e "     ${DIM}You can set up Moltbot protection later${NC}"
+        echo ""
+        echo -ne "${CYAN}→${NC} Select ${DIM}[1/2/3]${NC} (default: 3): "
+        read -r choice </dev/tty
+
+        case "${choice:-3}" in
+            1)
+                echo ""
+                echo -e "  ${GREEN}✓${NC} To add Moltbot protection via the skill, run:"
+                echo -e "    ${BOLD}moltbot protect tweek-security${NC}"
+                ;;
+            2)
+                echo ""
+                step "Configuring Moltbot proxy protection..."
+                $TWEEK_CMD protect moltbot 2>/dev/null || true
+                ;;
+            *)
+                echo ""
+                echo -e "  ${DIM}Skipped. Run 'tweek protect moltbot' or add the${NC}"
+                echo -e "  ${DIM}tweek-security skill later to protect Moltbot.${NC}"
+                ;;
+        esac
+    else
+        # Non-interactive: inform and skip
+        echo -e "  ${DIM}Run 'tweek protect moltbot' or add the tweek-security${NC}"
+        echo -e "  ${DIM}skill to protect Moltbot tool calls.${NC}"
     fi
 }
 
@@ -214,6 +271,7 @@ main() {
     install_tweek
     verify_install
     setup_hooks
+    setup_moltbot
     run_doctor
     finish
 }

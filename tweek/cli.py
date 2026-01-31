@@ -185,7 +185,25 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
     console.print(TWEEK_BANNER, style="cyan")
 
     # ─────────────────────────────────────────────────────────────
-    # Check for existing proxy configurations (moltbot, etc.)
+    # Detect Claude Code CLI
+    # ─────────────────────────────────────────────────────────────
+    claude_path = shutil.which("claude")
+    if claude_path:
+        console.print(f"[green]✓[/green] Claude Code detected ({claude_path})")
+    else:
+        console.print()
+        console.print("[yellow]⚠ Claude Code not detected on this system[/yellow]")
+        console.print("  [dim]Tweek hooks require Claude Code to function.[/dim]")
+        console.print("  [dim]https://docs.anthropic.com/en/docs/claude-code[/dim]")
+        console.print()
+        if not click.confirm("Continue installing hooks anyway?", default=False):
+            console.print()
+            console.print("[dim]Run 'tweek install' later after installing Claude Code.[/dim]")
+            return
+        console.print()
+
+    # ─────────────────────────────────────────────────────────────
+    # Detect Moltbot and offer protection options
     # ─────────────────────────────────────────────────────────────
     proxy_override_enabled = force_proxy
     if not skip_proxy_check:
@@ -201,12 +219,12 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
 
             if moltbot_status["installed"]:
                 console.print()
-                console.print("[yellow]⚠ Moltbot detected on this system[/yellow]")
+                console.print("[green]✓[/green] Moltbot detected on this system")
 
                 if moltbot_status["gateway_active"]:
-                    console.print(f"  [red]Gateway is running on port {moltbot_status['port']}[/red]")
+                    console.print(f"  Gateway running on port {moltbot_status['port']}")
                 elif moltbot_status["running"]:
-                    console.print(f"  [dim]Process is running (gateway may start on port {moltbot_status['port']})[/dim]")
+                    console.print(f"  [dim]Process running (gateway may start on port {moltbot_status['port']})[/dim]")
                 else:
                     console.print(f"  [dim]Installed but not currently running[/dim]")
 
@@ -215,25 +233,43 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
 
                 console.print()
 
-                if not force_proxy:
-                    console.print("[cyan]Tweek can work alongside moltbot, or you can configure[/cyan]")
-                    console.print("[cyan]Tweek's proxy to intercept API calls instead.[/cyan]")
+                if force_proxy:
+                    proxy_override_enabled = True
+                    console.print("[green]✓[/green] Force proxy enabled - Tweek will override moltbot")
+                    console.print()
+                else:
+                    console.print("[cyan]Tweek can protect Moltbot tool calls. Choose a method:[/cyan]")
+                    console.print()
+                    console.print("  [cyan]1.[/cyan] Protect via [bold]tweek-security[/bold] MoltHub skill")
+                    console.print("     [dim]Screens tool calls through Tweek as a MoltHub skill[/dim]")
+                    console.print("  [cyan]2.[/cyan] Protect via [bold]tweek protect moltbot[/bold]")
+                    console.print("     [dim]Wraps the Moltbot gateway with Tweek's proxy[/dim]")
+                    console.print("  [cyan]3.[/cyan] Skip for now")
+                    console.print("     [dim]You can set up Moltbot protection later[/dim]")
                     console.print()
 
-                    if click.confirm(
-                        "[yellow]Enable Tweek proxy to override moltbot's gateway?[/yellow]",
-                        default=False
-                    ):
-                        proxy_override_enabled = True
-                        console.print("[green]✓[/green] Tweek proxy will be configured to intercept API calls")
-                        console.print(f"  [dim]Run 'tweek proxy start' after installation[/dim]")
-                    else:
-                        console.print("[dim]Tweek will work without proxy interception[/dim]")
-                        console.print("[dim]You can enable it later with 'tweek proxy enable'[/dim]")
-                else:
-                    console.print("[green]✓[/green] Force proxy enabled - Tweek will override moltbot")
+                    choice = click.prompt(
+                        "Select",
+                        type=click.IntRange(1, 3),
+                        default=3,
+                    )
 
-                console.print()
+                    if choice == 1:
+                        console.print()
+                        console.print("[green]✓[/green] To add Moltbot protection via the skill, run:")
+                        console.print("  [bold]moltbot protect tweek-security[/bold]")
+                        console.print()
+                    elif choice == 2:
+                        proxy_override_enabled = True
+                        console.print()
+                        console.print("[green]✓[/green] Moltbot proxy protection will be configured")
+                        console.print(f"  [dim]Run 'tweek protect moltbot' after installation to complete setup[/dim]")
+                        console.print()
+                    else:
+                        console.print()
+                        console.print("[dim]Skipped. Run 'tweek protect moltbot' or add the[/dim]")
+                        console.print("[dim]tweek-security skill later to protect Moltbot.[/dim]")
+                        console.print()
 
             # Check for other proxy conflicts
             conflicts = detect_proxy_conflicts()
@@ -263,6 +299,7 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
         console.print(f"[cyan]Scope: project[/cyan] - Hooks will protect this project only")
 
     hook_script = Path(__file__).parent / "hooks" / "pre_tool_use.py"
+    post_hook_script = Path(__file__).parent / "hooks" / "post_tool_use.py"
 
     # Backup existing hooks if requested
     if backup and target.exists():
@@ -287,6 +324,8 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
 
     # Add Tweek hooks
     settings["hooks"] = settings.get("hooks", {})
+
+    # PreToolUse: screen tool requests before execution
     settings["hooks"]["PreToolUse"] = [
         {
             "matcher": "Bash",
@@ -299,10 +338,24 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
         }
     ]
 
+    # PostToolUse: screen content returned by Read/WebFetch/Bash for injection
+    settings["hooks"]["PostToolUse"] = [
+        {
+            "matcher": "Read|WebFetch|Bash",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": f"/usr/bin/env python3 {post_hook_script.resolve()}"
+                }
+            ]
+        }
+    ]
+
     with open(settings_file, "w") as f:
         json.dump(settings, f, indent=2)
 
-    console.print(f"\n[green]✓[/green] Hooks installed to: {target}")
+    console.print(f"\n[green]✓[/green] PreToolUse hooks installed to: {target}")
+    console.print(f"[green]✓[/green] PostToolUse content screening installed to: {target}")
 
     # Create Tweek data directory
     tweek_dir = Path("~/.tweek").expanduser()
@@ -609,28 +662,29 @@ def uninstall(scope: str, confirm: bool):
         with open(settings_file) as f:
             settings = json.load(f)
 
-        # Remove Tweek PreToolUse hooks
-        if "hooks" in settings and "PreToolUse" in settings["hooks"]:
-            # Filter out Tweek hooks
-            pre_tool_hooks = settings["hooks"]["PreToolUse"]
-            filtered_hooks = []
-            for hook_config in pre_tool_hooks:
-                filtered_inner = []
-                for hook in hook_config.get("hooks", []):
-                    if "tweek" not in hook.get("command", "").lower():
-                        filtered_inner.append(hook)
-                if filtered_inner:
-                    hook_config["hooks"] = filtered_inner
-                    filtered_hooks.append(hook_config)
+        # Remove Tweek PreToolUse and PostToolUse hooks
+        for hook_type in ("PreToolUse", "PostToolUse"):
+            if "hooks" in settings and hook_type in settings["hooks"]:
+                # Filter out Tweek hooks
+                tool_hooks = settings["hooks"][hook_type]
+                filtered_hooks = []
+                for hook_config in tool_hooks:
+                    filtered_inner = []
+                    for hook in hook_config.get("hooks", []):
+                        if "tweek" not in hook.get("command", "").lower():
+                            filtered_inner.append(hook)
+                    if filtered_inner:
+                        hook_config["hooks"] = filtered_inner
+                        filtered_hooks.append(hook_config)
 
-            if filtered_hooks:
-                settings["hooks"]["PreToolUse"] = filtered_hooks
-            else:
-                del settings["hooks"]["PreToolUse"]
+                if filtered_hooks:
+                    settings["hooks"][hook_type] = filtered_hooks
+                else:
+                    del settings["hooks"][hook_type]
 
-            # Clean up empty hooks dict
-            if not settings["hooks"]:
-                del settings["hooks"]
+        # Clean up empty hooks dict
+        if "hooks" in settings and not settings["hooks"]:
+            del settings["hooks"]
 
         with open(settings_file, "w") as f:
             json.dump(settings, f, indent=2)
@@ -800,6 +854,183 @@ def doctor(verbose: bool, json_out: bool):
         print_doctor_json(checks)
     else:
         print_doctor_results(checks)
+
+
+@main.command(
+    epilog="""\b
+Examples:
+  tweek audit                            Scan all installed skills
+  tweek audit ./skills/my-skill/SKILL.md Audit a specific file
+  tweek audit --no-translate             Skip translation of non-English content
+  tweek audit --json                     Machine-readable JSON output
+"""
+)
+@click.argument("path", required=False, default=None, type=click.Path())
+@click.option("--translate/--no-translate", default=True,
+              help="Translate non-English content before pattern analysis (default: auto)")
+@click.option("--llm-review/--no-llm-review", default=True,
+              help="Run LLM semantic review (requires ANTHROPIC_API_KEY)")
+@click.option("--json-output", "--json", "json_out", is_flag=True,
+              help="Output results as JSON")
+def audit(path, translate, llm_review, json_out):
+    """Audit skills and tool files for security risks.
+
+    Scans skill files (SKILL.md, tool descriptions) for prompt injection,
+    credential theft, data exfiltration, and other attack patterns.
+
+    Non-English content is detected and translated to English before
+    running all 116 regex patterns. LLM semantic review provides
+    additional analysis for obfuscated attacks.
+
+    \b
+    Without arguments, scans all installed skills in:
+      ~/.claude/skills/
+      ~/.moltbot/skills/
+      ./.claude/skills/
+    """
+    from tweek.audit import scan_installed_skills, audit_skill, audit_content
+
+    if path:
+        # Audit a specific file
+        target = Path(path)
+        if not target.exists():
+            console.print(f"[red]File not found: {target}[/red]")
+            return
+
+        console.print(f"[cyan]Auditing {target}...[/cyan]")
+        console.print()
+
+        result = audit_skill(target, translate=translate, llm_review=llm_review)
+
+        if json_out:
+            _print_audit_json([result])
+        else:
+            _print_audit_result(result)
+    else:
+        # Scan all installed skills
+        console.print("[cyan]Scanning for installed skills...[/cyan]")
+        skills = scan_installed_skills()
+
+        if not skills:
+            console.print("[dim]No installed skills found.[/dim]")
+            console.print("[dim]Specify a file path to audit: tweek audit <path>[/dim]")
+            return
+
+        console.print(f"Found {len(skills)} skill(s)")
+        console.print()
+
+        results = []
+        for skill_info in skills:
+            if skill_info.get("error") or skill_info.get("content") is None:
+                console.print(f"[yellow]Skipping {skill_info['name']}: {skill_info.get('error', 'no content')}[/yellow]")
+                continue
+
+            console.print(f"[cyan]Auditing {skill_info['name']}...[/cyan]")
+            result = audit_content(
+                content=skill_info["content"],
+                name=skill_info["name"],
+                path=skill_info["path"],
+                translate=translate,
+                llm_review=llm_review,
+            )
+            results.append(result)
+
+        if json_out:
+            _print_audit_json(results)
+        else:
+            for result in results:
+                _print_audit_result(result)
+                console.print()
+
+            # Summary
+            total = len(results)
+            dangerous = sum(1 for r in results if r.risk_level == "dangerous")
+            suspicious = sum(1 for r in results if r.risk_level == "suspicious")
+            safe = sum(1 for r in results if r.risk_level == "safe")
+
+            console.print("[bold]Summary[/bold]")
+            console.print(f"  Skills scanned: {total}")
+            if dangerous:
+                console.print(f"  [red]Dangerous: {dangerous}[/red]")
+            if suspicious:
+                console.print(f"  [yellow]Suspicious: {suspicious}[/yellow]")
+            console.print(f"  [green]Safe: {safe}[/green]")
+
+
+def _print_audit_result(result):
+    """Print a formatted audit result."""
+    risk_icons = {"safe": "[green]SAFE[/green]", "suspicious": "[yellow]SUSPICIOUS[/yellow]", "dangerous": "[red]DANGEROUS[/red]"}
+
+    console.print(f"  [bold]{result.skill_name}[/bold] — {risk_icons.get(result.risk_level, result.risk_level)}")
+    console.print(f"  [dim]{result.skill_path}[/dim]")
+
+    if result.error:
+        console.print(f"  [red]Error: {result.error}[/red]")
+        return
+
+    if result.non_english_detected:
+        lang = result.detected_language or "unknown"
+        if result.translated:
+            console.print(f"  [cyan]Non-English detected ({lang}) — translated for analysis[/cyan]")
+        else:
+            console.print(f"  [yellow]Non-English detected ({lang}) — translation skipped[/yellow]")
+
+    if result.findings:
+        table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
+        table.add_column("Severity", style="dim")
+        table.add_column("Pattern")
+        table.add_column("Description")
+        table.add_column("Match", style="dim")
+
+        severity_styles = {"critical": "red bold", "high": "red", "medium": "yellow", "low": "dim"}
+
+        for finding in result.findings:
+            table.add_row(
+                f"[{severity_styles.get(finding.severity, '')}]{finding.severity.upper()}[/]",
+                finding.pattern_name,
+                finding.description,
+                finding.matched_text[:40] if finding.matched_text else "",
+            )
+
+        console.print(table)
+    else:
+        console.print("  [green]No patterns matched[/green]")
+
+    if result.llm_review:
+        review = result.llm_review
+        console.print(f"  LLM Review: {review.get('risk_level', 'N/A')} ({review.get('confidence', 0):.0%}) — {review.get('reason', '')}")
+
+
+def _print_audit_json(results):
+    """Print audit results as JSON."""
+    import json
+    output = []
+    for r in results:
+        output.append({
+            "skill_name": r.skill_name,
+            "skill_path": str(r.skill_path),
+            "risk_level": r.risk_level,
+            "content_length": r.content_length,
+            "non_english_detected": r.non_english_detected,
+            "detected_language": r.detected_language,
+            "translated": r.translated,
+            "finding_count": r.finding_count,
+            "critical_count": r.critical_count,
+            "high_count": r.high_count,
+            "findings": [
+                {
+                    "pattern_id": f.pattern_id,
+                    "pattern_name": f.pattern_name,
+                    "severity": f.severity,
+                    "description": f.description,
+                    "matched_text": f.matched_text,
+                }
+                for f in r.findings
+            ],
+            "llm_review": r.llm_review,
+            "error": r.error,
+        })
+    console.print_json(json.dumps(output, indent=2))
 
 
 @main.command(
