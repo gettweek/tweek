@@ -1,15 +1,27 @@
-# Tweek — GAH!
+<p align="center">
+  <img src="assets/logo.png" alt="Tweek Logo" width="200">
+</p>
 
-> *"Just because you're paranoid doesn't mean your AI agent isn't exfiltrating your SSH keys."*
+<h1 align="center">Tweek — GAH!</h1>
 
-**Defense-in-depth security for AI assistants.**
+<p align="center">
+  <em>"Just because you're paranoid doesn't mean your AI agent isn't exfiltrating your SSH keys."</em>
+</p>
 
-[![PyPI version](https://img.shields.io/pypi/v/tweek)](https://pypi.org/project/tweek/)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
-[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-885%20passing-brightgreen)]()
+<p align="center">
+  <strong>Defense-in-depth security for AI assistants.</strong>
+</p>
 
-[Documentation](docs/) | [Quick Start](#quick-start) | [Website](https://gettweek.com)
+<p align="center">
+  <a href="https://pypi.org/project/tweek/"><img src="https://img.shields.io/pypi/v/tweek" alt="PyPI version"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License: Apache 2.0"></a>
+  <img src="https://img.shields.io/badge/tests-885%20passing-brightgreen" alt="Tests">
+</p>
+
+<p align="center">
+  <a href="docs/">Documentation</a> | <a href="#quick-start">Quick Start</a> | <a href="https://gettweek.com">Website</a>
+</p>
 
 ---
 

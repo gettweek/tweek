@@ -6,6 +6,10 @@ user-invocable: true
 metadata: {"moltbot": {"requires": {"bins": ["tweek"]}, "install": [{"id": "uv", "kind": "uv", "package": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Python)"}, {"id": "brew", "kind": "brew", "formula": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Homebrew)", "os": ["darwin"]}], "config": {"stateDirs": [".tweek"], "example": "pip install tweek && tweek protect moltbot"}}}
 ---
 
+<p align="center">
+  <img src="../../assets/logo.png" alt="Tweek Logo" width="150">
+</p>
+
 # Tweek Security — GAH! Don't get Pawnd.
 
 > *"Just because you're paranoid doesn't mean your AI agent isn't exfiltrating your SSH keys."*
