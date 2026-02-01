@@ -19,6 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from tweek.hooks import break_glass
 from tweek.hooks.break_glass import (
     create_override,

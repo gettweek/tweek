@@ -18,6 +18,8 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+
+pytestmark = pytest.mark.logging
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))

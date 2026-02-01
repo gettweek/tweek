@@ -3,6 +3,8 @@
 import pytest
 from tweek.plugins.base import ScanDirection, ActionType, Severity
 
+pytestmark = pytest.mark.plugins
+
 
 class TestGovCompliancePlugin:
     """Tests for government classification compliance plugin."""

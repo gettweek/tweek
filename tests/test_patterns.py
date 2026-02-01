@@ -20,6 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tweek.hooks.pre_tool_use import PatternMatcher
 
+pytestmark = pytest.mark.patterns
+
 
 @pytest.fixture
 def matcher():

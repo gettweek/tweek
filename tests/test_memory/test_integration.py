@@ -6,6 +6,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+pytestmark = pytest.mark.memory
+
 from tweek.memory.schemas import PatternDecisionEntry
 from tweek.memory.store import MemoryStore, reset_memory_store
 

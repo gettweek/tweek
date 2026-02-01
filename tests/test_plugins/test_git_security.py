@@ -10,6 +10,10 @@ Tests the 5-layer security validation pipeline:
 5. Base class enforcement
 """
 
+import pytest
+
+pytestmark = pytest.mark.plugins
+
 import hashlib
 import hmac
 import json

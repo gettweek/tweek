@@ -12,6 +12,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
+pytestmark = pytest.mark.sandbox
+
 from tweek.sandbox.layers import IsolationLayer
 from tweek.sandbox.project import (
     MergedOverrides,

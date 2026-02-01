@@ -18,6 +18,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
+pytestmark = pytest.mark.core
+
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

@@ -23,6 +23,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.skills
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tweek.skills.config import IsolationConfig

@@ -15,6 +15,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+pytestmark = pytest.mark.security
+
 from tweek.hooks.overrides import (
     EnforcementPolicy,
     DECISION_RANK,

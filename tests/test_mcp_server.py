@@ -5,6 +5,8 @@ import json
 import pytest
 from unittest.mock import patch
 
+pytestmark = pytest.mark.mcp
+
 # Check if MCP is available
 try:
     from mcp.server import Server

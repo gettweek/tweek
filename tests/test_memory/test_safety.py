@@ -4,6 +4,8 @@ Tests for tweek.memory.safety — CRITICAL immunity, max relaxation, validation.
 
 import pytest
 
+pytestmark = pytest.mark.memory
+
 from tweek.memory.safety import (
     DECISION_RANK,
     MAX_RELAXATION,

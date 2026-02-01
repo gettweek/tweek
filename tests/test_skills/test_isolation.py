@@ -12,6 +12,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.skills
+
 from tweek.skills.config import IsolationConfig
 from tweek.skills.isolation import SkillIsolationChamber
 from tweek.skills.scanner import SkillScanReport

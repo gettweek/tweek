@@ -18,6 +18,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
+
+pytestmark = pytest.mark.logging
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))

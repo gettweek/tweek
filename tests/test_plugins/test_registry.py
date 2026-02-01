@@ -1,6 +1,9 @@
 """Tests for the plugin registry."""
 
 import pytest
+
+pytestmark = pytest.mark.plugins
+
 from tweek.plugins import (
     PluginRegistry,
     PluginCategory,

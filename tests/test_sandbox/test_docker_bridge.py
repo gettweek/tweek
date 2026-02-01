@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tweek.sandbox.docker_bridge import DockerBridge, TWEEK_HOME
 
+pytestmark = pytest.mark.sandbox
+
 
 class TestIsDockerAvailable:
     """Tests for DockerBridge.is_docker_available()."""

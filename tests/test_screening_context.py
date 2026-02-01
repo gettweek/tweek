@@ -4,6 +4,8 @@
 import pytest
 from tweek.screening.context import ScreeningContext
 
+pytestmark = pytest.mark.core
+
 
 class TestScreeningContext:
     """Tests for ScreeningContext creation and serialization."""

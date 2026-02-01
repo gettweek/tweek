@@ -14,6 +14,8 @@ from tweek.hooks.pre_tool_use import (
     TierManager,
 )
 
+pytestmark = pytest.mark.hooks
+
 
 # =============================================================================
 # Test: extract_target_paths

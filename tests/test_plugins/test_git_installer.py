@@ -10,6 +10,10 @@ Tests git-based plugin installation:
 - Verify integrity
 """
 
+import pytest
+
+pytestmark = pytest.mark.plugins
+
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch

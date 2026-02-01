@@ -17,6 +17,8 @@ import yaml
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+pytestmark = pytest.mark.security
+
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

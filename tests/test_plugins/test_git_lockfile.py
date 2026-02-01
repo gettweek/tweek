@@ -9,6 +9,10 @@ Tests version pinning lockfile management:
 - User vs project lockfile precedence
 """
 
+import pytest
+
+pytestmark = pytest.mark.plugins
+
 import json
 from pathlib import Path
 from unittest.mock import patch

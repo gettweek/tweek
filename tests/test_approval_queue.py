@@ -18,6 +18,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.core
+
 from tweek.mcp.approval import (
     ApprovalQueue,
     ApprovalRequest,

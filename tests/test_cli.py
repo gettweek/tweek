@@ -24,6 +24,8 @@ from tweek.cli import main, install, uninstall, update
 from tweek.licensing import License, Tier
 from tweek._keygen import generate_license_key
 
+pytestmark = pytest.mark.cli
+
 
 @pytest.fixture
 def runner():

@@ -10,6 +10,10 @@ Tests the plugin registry client:
 - Version comparison
 """
 
+import pytest
+
+pytestmark = pytest.mark.plugins
+
 import json
 import time
 from pathlib import Path

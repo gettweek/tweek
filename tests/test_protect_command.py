@@ -19,6 +19,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+pytestmark = pytest.mark.cli
+
 from tweek.cli import main
 from tweek.integrations.moltbot import (
     detect_moltbot_installation,

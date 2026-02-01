@@ -17,6 +17,8 @@ import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
 
+pytestmark = pytest.mark.core
+
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

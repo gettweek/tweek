@@ -10,6 +10,10 @@ Tests cover all six public functions:
 - get_skill_download_prompt
 """
 
+import pytest
+
+pytestmark = pytest.mark.skills
+
 import os
 from pathlib import Path
 

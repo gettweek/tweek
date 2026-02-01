@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+pytestmark = pytest.mark.mcp
+
 
 class TestClaudeDesktopClient:
     """Test Claude Desktop client configuration."""

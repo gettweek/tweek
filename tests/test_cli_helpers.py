@@ -16,6 +16,8 @@ from unittest.mock import patch
 import pytest
 from rich.console import Console
 
+pytestmark = pytest.mark.cli
+
 from tweek.cli_helpers import (
     print_success,
     print_warning,

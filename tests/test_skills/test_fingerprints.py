@@ -12,6 +12,10 @@ Tests cover:
 - get_fingerprints (module-level singleton)
 """
 
+import pytest
+
+pytestmark = pytest.mark.skills
+
 import hashlib
 import json
 from pathlib import Path

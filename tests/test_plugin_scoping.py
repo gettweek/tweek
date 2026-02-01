@@ -2,6 +2,9 @@
 """Tests for the PluginScope system."""
 
 import pytest
+
+pytestmark = pytest.mark.plugins
+
 from tweek.plugins.scope import PluginScope
 from tweek.screening.context import ScreeningContext
 

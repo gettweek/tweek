@@ -10,6 +10,10 @@ Tests plugin discovery from git-installed directories:
 - Version compatibility
 """
 
+import pytest
+
+pytestmark = pytest.mark.plugins
+
 import json
 import textwrap
 from pathlib import Path

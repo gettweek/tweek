@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from tweek.hooks.pre_tool_use import PatternMatcher, TierManager, process_hook
 from tweek.logging.security_log import SecurityLogger, EventType
 
+pytestmark = pytest.mark.hooks
+
 
 class TestPatternMatcher:
     """Tests for pattern matching."""

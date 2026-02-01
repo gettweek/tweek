@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 from tweek.hooks.post_tool_use import screen_content
 
+pytestmark = pytest.mark.security
+
 
 # ---------------------------------------------------------------------------
 # Helpers

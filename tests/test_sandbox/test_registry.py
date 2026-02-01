@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.sandbox
+
 from tweek.sandbox.layers import IsolationLayer
 from tweek.sandbox.registry import (
     ProjectRegistry,

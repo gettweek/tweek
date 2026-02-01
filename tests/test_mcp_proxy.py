@@ -26,9 +26,10 @@ except ImportError:
 from tweek.mcp.approval import ApprovalQueue, ApprovalStatus
 
 
-pytestmark = pytest.mark.skipif(
-    not MCP_AVAILABLE, reason="MCP SDK not installed"
-)
+pytestmark = [
+    pytest.mark.mcp,
+    pytest.mark.skipif(not MCP_AVAILABLE, reason="MCP SDK not installed"),
+]
 
 
 @pytest.fixture

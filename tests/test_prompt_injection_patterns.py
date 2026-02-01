@@ -22,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tweek.hooks.pre_tool_use import PatternMatcher
 
+pytestmark = pytest.mark.patterns
+
 # Path to probe corpus
 PROBES_PATH = Path(__file__).parent.parent / "redteam" / "probe_corpus" / "probes.json"
 

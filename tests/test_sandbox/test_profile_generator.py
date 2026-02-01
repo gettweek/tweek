@@ -8,6 +8,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tweek.sandbox.profile_generator import ProfileGenerator, SkillManifest
 
+pytestmark = pytest.mark.sandbox
+
 
 class TestSkillManifest:
     """Tests for SkillManifest."""

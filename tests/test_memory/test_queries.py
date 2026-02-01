@@ -6,6 +6,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
+pytestmark = pytest.mark.memory
+
 from tweek.memory.queries import (
     memory_get_workflow_baseline,
     memory_read_for_pattern,

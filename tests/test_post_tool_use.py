@@ -15,6 +15,8 @@ from tweek.hooks.post_tool_use import (
     process_hook,
 )
 
+pytestmark = pytest.mark.hooks
+
 
 class TestExtractResponseContent:
     """Test content extraction from different tool response formats."""

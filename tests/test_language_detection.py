@@ -7,6 +7,9 @@ commands (shell syntax, file paths, tool flags).
 """
 
 import pytest
+
+pytestmark = pytest.mark.core
+
 from tweek.security.language import (
     detect_non_english,
     LanguageDetectionResult,

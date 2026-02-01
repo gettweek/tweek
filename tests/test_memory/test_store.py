@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.memory
+
 from tweek.memory.schemas import PatternDecisionEntry, SourceTrustEntry
 from tweek.memory.store import (
     DECAY_HALF_LIFE_DAYS,
