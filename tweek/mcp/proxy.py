@@ -470,6 +470,23 @@ class TweekMCPProxy:
                 text=json.dumps({"result": "empty response from upstream"}),
             )]
 
+        # Screen output for leaked credentials or sensitive data
+        try:
+            from tweek.mcp.screening import run_output_scan
+            combined_text = "\n".join(tc.text for tc in text_contents)
+            scan_result = run_output_scan(combined_text)
+            if scan_result.get("blocked"):
+                reason = scan_result.get("reason", "Output blocked by security screening")
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "error": "Output blocked by Tweek security screening",
+                        "reason": reason,
+                    }),
+                )]
+        except Exception:
+            pass  # Output scanning errors should not block the response
+
         return text_contents
 
     def _build_context(

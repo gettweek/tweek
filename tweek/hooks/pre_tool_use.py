@@ -42,6 +42,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from tweek.logging.security_log import (
     SecurityLogger, SecurityEvent, EventType, get_logger
 )
+from tweek.hooks.overrides import (
+    get_overrides, get_trust_mode, is_protected_config_file,
+    bash_targets_protected_config, filter_by_severity, SEVERITY_RANK,
+)
 
 
 # =============================================================================
@@ -260,7 +264,7 @@ class TierManager:
         for escalation in self.escalations:
             pattern = escalation.get("pattern", "")
             try:
-                if re.search(pattern, content, re.IGNORECASE):
+                if re.search(pattern, content, re.IGNORECASE | re.DOTALL):
                     target_tier = escalation.get("escalate_to", "default")
                     priority = tier_priority.get(target_tier, 1)
                     if priority > highest_priority:
@@ -352,11 +356,18 @@ class PatternMatcher:
 
         return config.get("patterns", [])
 
+    @staticmethod
+    def _normalize(content: str) -> str:
+        """Normalize Unicode to defeat homoglyph evasion (e.g., Cyrillic 'а' → Latin 'a')."""
+        import unicodedata
+        return unicodedata.normalize("NFKC", content)
+
     def check(self, content: str) -> Optional[dict]:
         """Check content against all patterns.
 
         Returns the first matching pattern, or None.
         """
+        content = self._normalize(content)
         for pattern in self.patterns:
             try:
                 if re.search(pattern.get("regex", ""), content, re.IGNORECASE | re.DOTALL):
@@ -367,6 +378,7 @@ class PatternMatcher:
 
     def check_all(self, content: str) -> List[dict]:
         """Check content against all patterns, returning all matches."""
+        content = self._normalize(content)
         matches = []
         for pattern in self.patterns:
             try:
@@ -464,7 +476,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     working_dir = input_data.get("cwd")
 
     # Generate correlation ID to link all events in this screening pass
-    correlation_id = uuid.uuid4().hex[:12]
+    correlation_id = uuid.uuid4().hex[:16]
 
     def _log(event_type, tool, **kwargs):
         """Log with correlation_id, source, and session_id automatically included."""
@@ -474,6 +486,54 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             session_id=session_id,
             **kwargs
         )
+
+    # =========================================================================
+    # SELF-PROTECTION: Block AI from modifying security override config
+    # This file can only be edited by a human directly.
+    # =========================================================================
+    if tool_name in ("Write", "Edit"):
+        target_path = tool_input.get("file_path", "")
+        if is_protected_config_file(target_path):
+            _log(
+                EventType.BLOCKED,
+                tool_name,
+                tier="self_protection",
+                decision="deny",
+                decision_reason=f"BLOCKED: AI cannot modify security override config: {target_path}",
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        "TWEEK SELF-PROTECTION: This file can only be edited by a human.\n"
+                        f"File: {target_path}\n"
+                        "Security overrides (whitelist, pattern toggles, trust levels) are human-only.\n"
+                        "Edit this file directly in your text editor."
+                    ),
+                }
+            }
+
+    if tool_name == "Bash":
+        command = tool_input.get("command", "")
+        if bash_targets_protected_config(command):
+            _log(
+                EventType.BLOCKED,
+                tool_name,
+                tier="self_protection",
+                decision="deny",
+                decision_reason="BLOCKED: Bash command targets protected config file",
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        "TWEEK SELF-PROTECTION: Cannot modify security override config via shell.\n"
+                        "Security overrides can only be edited by a human directly."
+                    ),
+                }
+            }
 
     # Extract content to analyze (command for Bash, path + payload for Write/Edit, etc.)
     if tool_name == "Bash":
@@ -486,17 +546,47 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         file_content = tool_input.get("content", "")
         content = f"{file_path}\n{file_content}" if file_content else file_path
     elif tool_name == "Edit":
-        # Screen both path and new content
+        # Screen path, old content (may carry injection context), and new content
         file_path = tool_input.get("file_path", "")
+        old_string = tool_input.get("old_string", "")
         new_string = tool_input.get("new_string", "")
-        content = f"{file_path}\n{new_string}" if new_string else file_path
+        content = "\n".join(filter(None, [file_path, old_string, new_string]))
+    elif tool_name == "NotebookEdit":
+        # Screen notebook path and cell source content
+        notebook_path = tool_input.get("notebook_path", "")
+        new_source = tool_input.get("new_source", "")
+        content = f"{notebook_path}\n{new_source}" if new_source else notebook_path
     elif tool_name == "WebFetch":
-        content = tool_input.get("url", "")
+        # Screen both URL and prompt (prompt could carry injection)
+        url = tool_input.get("url", "")
+        prompt = tool_input.get("prompt", "")
+        content = f"{url}\n{prompt}" if prompt else url
+    elif tool_name == "WebSearch":
+        content = tool_input.get("query", "")
     else:
         content = json.dumps(tool_input)
 
     if not content:
         return {}
+
+    # =========================================================================
+    # WHITELIST CHECK: Skip screening for whitelisted tool+path combinations
+    # Loaded from ~/.tweek/overrides.yaml (human-only config)
+    # =========================================================================
+    overrides = get_overrides()
+    if overrides:
+        whitelist_match = overrides.check_whitelist(tool_name, tool_input, content)
+        if whitelist_match:
+            _log(
+                EventType.ALLOWED,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier="whitelisted",
+                decision="allow",
+                decision_reason=f"Whitelisted: {whitelist_match.get('reason', 'matched whitelist rule')}",
+                metadata={"whitelist_rule": whitelist_match}
+            )
+            return {}
 
     # =========================================================================
     # LAYER 0: Compliance Scanning (INPUT direction)
@@ -666,6 +756,19 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     all_pattern_matches = []
     if "regex" in screening_methods:
         all_pattern_matches = pattern_matcher.check_all(content)
+
+        # Apply pattern toggles from overrides (disabled/scoped_disabled patterns)
+        if overrides and all_pattern_matches:
+            working_path = (
+                tool_input.get("file_path", "")
+                or tool_input.get("url", "")
+                or working_dir
+                or ""
+            )
+            all_pattern_matches = overrides.filter_patterns(
+                all_pattern_matches, working_path
+            )
+
         # Use highest-severity match as primary (critical > high > medium > low)
         if all_pattern_matches:
             severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -808,6 +911,45 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                 tier=effective_tier,
                 decision_reason=f"Sandbox preview error: {e}",
             )
+
+    # =========================================================================
+    # TRUST LEVEL: Filter pattern matches by severity threshold
+    # Interactive (human at CLI) → only prompt on high/critical
+    # Automated (launchd/cron) → prompt on everything
+    # =========================================================================
+    trust_mode = get_trust_mode(overrides)
+    if overrides and pattern_match:
+        min_severity = overrides.get_min_severity(trust_mode)
+        kept, suppressed = filter_by_severity(
+            all_pattern_matches if all_pattern_matches else [pattern_match],
+            min_severity,
+        )
+        if suppressed:
+            _log(
+                EventType.ALLOWED,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier=effective_tier,
+                decision="allow",
+                decision_reason=(
+                    f"Trust level '{trust_mode}': {len(suppressed)} pattern(s) "
+                    f"below {min_severity} severity threshold"
+                ),
+                metadata={
+                    "trust_mode": trust_mode,
+                    "min_severity": min_severity,
+                    "suppressed_patterns": [
+                        p.get("name") for p in suppressed
+                    ],
+                },
+            )
+        if kept:
+            all_pattern_matches = kept
+            kept.sort(key=lambda p: SEVERITY_RANK.get(p.get("severity", "medium"), 4))
+            pattern_match = kept[0]
+        else:
+            all_pattern_matches = []
+            pattern_match = None
 
     # =========================================================================
     # Decision: Prompt if any layer triggered

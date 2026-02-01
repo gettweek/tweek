@@ -192,7 +192,7 @@ def detect_non_english(content: str, min_confidence: float = 0.3) -> LanguageDet
     non_english_ratio = non_latin_count / max(total_alpha, 1)
 
     # If we found non-Latin scripts, that's a strong signal
-    if non_latin_count >= 3 and non_english_ratio >= 0.05:
+    if non_latin_count >= 5 and non_english_ratio >= 0.05:
         confidence = min(1.0, non_english_ratio * 2 + 0.3)
         sample = "".join(sample_chars) if sample_chars else None
 

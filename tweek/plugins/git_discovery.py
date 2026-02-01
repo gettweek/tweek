@@ -242,8 +242,12 @@ def _import_plugin_class(
 
     module_name, class_name = entry_point.split(":", 1)
 
-    # Construct file path
-    module_file = plugin_dir / f"{module_name}.py"
+    # Construct file path and validate against path traversal
+    module_file = (plugin_dir / f"{module_name}.py").resolve()
+    if not module_file.is_relative_to(plugin_dir.resolve()):
+        raise PluginDiscoveryError(
+            f"Entry point module '{module_name}' escapes plugin directory (path traversal blocked)"
+        )
     if not module_file.exists():
         raise PluginDiscoveryError(
             f"Entry point module '{module_name}.py' not found in {plugin_dir}"

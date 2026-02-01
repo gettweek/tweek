@@ -163,12 +163,18 @@ class License:
 
             payload_b64, signature = key.rsplit(".", 1)
 
-            # Verify signature
-            expected_sig = hmac.new(
+            # Fail closed: reject all license validation when secret is not configured
+            if not LICENSE_SECRET:
+                logger.debug("LICENSE_SECRET not configured — cannot validate licenses")
+                return None
+
+            # Verify signature (accept both full and legacy truncated signatures)
+            full_sig = hmac.new(
                 LICENSE_SECRET.encode(),
                 payload_b64.encode(),
                 hashlib.sha256
-            ).hexdigest()[:32]
+            ).hexdigest()
+            expected_sig = full_sig if len(signature) > 32 else full_sig[:32]
 
             if not hmac.compare_digest(signature, expected_sig):
                 return None
@@ -350,50 +356,3 @@ def require_feature(feature: str) -> Callable:
             return func(*args, **kwargs)
         return wrapper
     return decorator
-
-
-# ============================================================
-# License Key Generation (for internal/admin use)
-# ============================================================
-
-def generate_license_key(
-    tier: Tier,
-    email: str,
-    expires_at: Optional[int] = None,
-    features: Optional[List[str]] = None,
-) -> str:
-    """
-    Generate a license key.
-
-    This is an admin function - in production, this would be
-    on a separate license server, not in the client code.
-
-    Args:
-        tier: License tier
-        email: Customer email
-        expires_at: Expiration timestamp (None = never)
-        features: Additional feature flags
-
-    Returns:
-        License key string
-    """
-    import base64
-
-    payload = {
-        "tier": tier.value,
-        "email": email,
-        "issued_at": int(time.time()),
-        "expires_at": expires_at,
-        "features": features or [],
-    }
-
-    payload_json = json.dumps(payload, separators=(",", ":"))
-    payload_b64 = base64.b64encode(payload_json.encode()).decode()
-
-    signature = hmac.new(
-        LICENSE_SECRET.encode(),
-        payload_b64.encode(),
-        hashlib.sha256
-    ).hexdigest()[:32]
-
-    return f"{payload_b64}.{signature}"

@@ -103,8 +103,8 @@ class ConfigManager:
     # Well-known tools with sensible defaults
     KNOWN_TOOLS = {
         "Read": ("safe", "Read files - no side effects"),
-        "Glob": ("safe", "Find files by pattern"),
-        "Grep": ("safe", "Search file contents"),
+        "Glob": ("default", "Find files by pattern"),
+        "Grep": ("default", "Search file contents"),
         "Edit": ("default", "Modify existing files"),
         "Write": ("default", "Create/overwrite files"),
         "NotebookEdit": ("default", "Edit Jupyter notebooks"),

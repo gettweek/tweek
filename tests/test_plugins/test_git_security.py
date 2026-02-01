@@ -259,19 +259,21 @@ class TestChecksumVerification:
 class TestSignatureVerification:
     """Tests for verify_checksum_signature() and sign_checksums()."""
 
+    TEST_SIGNING_KEY = "test-signing-key-for-pytest"
+
     def test_sign_and_verify(self):
         content = b"test checksum content"
-        signature = sign_checksums(content)
-        assert verify_checksum_signature(content, signature) is True
+        signature = sign_checksums(content, signing_key=self.TEST_SIGNING_KEY)
+        assert verify_checksum_signature(content, signature, signing_key=self.TEST_SIGNING_KEY) is True
 
     def test_invalid_signature(self):
         content = b"test checksum content"
-        assert verify_checksum_signature(content, "invalid_signature") is False
+        assert verify_checksum_signature(content, "invalid_signature", signing_key=self.TEST_SIGNING_KEY) is False
 
     def test_tampered_content(self):
         content = b"original content"
-        signature = sign_checksums(content)
-        assert verify_checksum_signature(b"tampered content", signature) is False
+        signature = sign_checksums(content, signing_key=self.TEST_SIGNING_KEY)
+        assert verify_checksum_signature(b"tampered content", signature, signing_key=self.TEST_SIGNING_KEY) is False
 
     def test_custom_signing_key(self):
         content = b"test content"
@@ -458,18 +460,22 @@ class TestFullValidation:
         checksums_file = tmp_plugin_dir / "CHECKSUMS.sha256"
         checksums_file.write_bytes(checksums_content)
 
-        # Sign it
-        signature = sign_checksums(checksums_content)
+        # Sign it with a test key
+        test_key = "test-signing-key-for-pytest"
+        signature = sign_checksums(checksums_content, signing_key=test_key)
         manifest["checksum_signature"] = signature
 
         # Re-write manifest
         valid_manifest.write_text(json.dumps(manifest))
 
-        is_safe, issues = validate_plugin_full(
-            tmp_plugin_dir,
-            manifest,
-            registry_checksums=checksums,
-            skip_signature=False,
-        )
+        # Patch the signing key so validate_plugin_full can verify
+        from unittest.mock import patch
+        with patch("tweek.plugins.git_security.TWEEK_SIGNING_KEY", test_key):
+            is_safe, issues = validate_plugin_full(
+                tmp_plugin_dir,
+                manifest,
+                registry_checksums=checksums,
+                skip_signature=False,
+            )
         assert is_safe is True
         assert len(issues) == 0

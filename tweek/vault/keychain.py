@@ -13,8 +13,11 @@ Usage:
     creds = vault.list("my-skill")
 """
 
+import fcntl
 import json
+import os
 import subprocess
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -60,6 +63,19 @@ class KeychainVault:
         """Generate Keychain service name for a skill."""
         return f"{self.SERVICE_PREFIX}.{skill}"
 
+    @contextmanager
+    def _registry_lock(self):
+        """Acquire exclusive file lock for registry read-modify-write operations."""
+        lock_path = self.REGISTRY_PATH.parent / ".credential_registry.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = open(lock_path, "w")
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+
     def _load_registry(self) -> Dict[str, List[str]]:
         """Load the credential registry (tracks which keys exist per skill)."""
         try:
@@ -68,26 +84,58 @@ class KeychainVault:
             return {}
 
     def _save_registry(self, registry: Dict[str, List[str]]):
-        """Save the credential registry."""
-        self.REGISTRY_PATH.write_text(json.dumps(registry, indent=2))
+        """Save the credential registry atomically via temp file + rename."""
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.REGISTRY_PATH.parent),
+            prefix=".registry_tmp_",
+            suffix=".json",
+        )
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(registry, f, indent=2)
+            os.replace(tmp_path, str(self.REGISTRY_PATH))
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
 
     def _add_to_registry(self, skill: str, key: str):
-        """Add a key to the registry."""
-        registry = self._load_registry()
-        if skill not in registry:
-            registry[skill] = []
-        if key not in registry[skill]:
-            registry[skill].append(key)
-        self._save_registry(registry)
+        """Add a key to the registry (file-locked for concurrent access)."""
+        with self._registry_lock():
+            registry = self._load_registry()
+            if skill not in registry:
+                registry[skill] = []
+            if key not in registry[skill]:
+                registry[skill].append(key)
+            self._save_registry(registry)
 
     def _remove_from_registry(self, skill: str, key: str):
-        """Remove a key from the registry."""
-        registry = self._load_registry()
-        if skill in registry and key in registry[skill]:
-            registry[skill].remove(key)
-            if not registry[skill]:
-                del registry[skill]
-        self._save_registry(registry)
+        """Remove a key from the registry (file-locked for concurrent access)."""
+        with self._registry_lock():
+            registry = self._load_registry()
+            if skill in registry and key in registry[skill]:
+                registry[skill].remove(key)
+                if not registry[skill]:
+                    del registry[skill]
+            self._save_registry(registry)
+
+    def _audit_log(self, operation: str, skill: str, key: str, success: bool):
+        """Log vault operations to security audit trail."""
+        try:
+            from tweek.logging.security_log import get_logger, EventType
+            get_logger().log_quick(
+                EventType.TOOL_INVOKED,
+                "vault",
+                decision="allow" if success else "block",
+                decision_reason=f"Vault {operation}: skill={skill}, key={key}",
+                source="vault",
+                metadata={"operation": operation, "skill": skill, "key": key, "success": success},
+            )
+        except Exception:
+            pass
 
     def store(self, skill: str, key: str, value: str) -> bool:
         """
@@ -113,6 +161,8 @@ class KeychainVault:
         )
 
         # Add the new password
+        # Note: macOS security CLI requires -w <password> as argument.
+        # Using subprocess.run with list (not shell=True) avoids shell expansion.
         result = subprocess.run(
             ["security", "add-generic-password",
              "-s", service,
@@ -124,9 +174,11 @@ class KeychainVault:
         )
 
         if result.returncode != 0:
+            self._audit_log("store", skill, key, success=False)
             raise VaultError(f"Failed to store credential: {result.stderr.strip()}")
 
         self._add_to_registry(skill, key)
+        self._audit_log("store", skill, key, success=True)
         return True
 
     def get(self, skill: str, key: str) -> Optional[str]:
@@ -152,8 +204,10 @@ class KeychainVault:
         )
 
         if result.returncode != 0:
+            self._audit_log("get", skill, key, success=False)
             return None
 
+        self._audit_log("get", skill, key, success=True)
         return result.stdout.strip()
 
     def delete(self, skill: str, key: str) -> bool:
@@ -179,8 +233,10 @@ class KeychainVault:
 
         if result.returncode == 0:
             self._remove_from_registry(skill, key)
+            self._audit_log("delete", skill, key, success=True)
             return True
 
+        self._audit_log("delete", skill, key, success=False)
         return False
 
     def list_keys(self, skill: str) -> List[str]:
@@ -273,23 +329,18 @@ class KeychainVault:
 
         return migrated
 
-    def export_for_process(self, skill: str) -> str:
+    def export_for_process(self, skill: str) -> Dict[str, str]:
         """
-        Generate environment variable export string for a skill.
+        Get credentials for a skill as a dict suitable for subprocess env.
 
-        Returns a string like: KEY1="value1" KEY2="value2"
-        Suitable for: env -i $EXPORTS python3 script.py
+        Returns a dict that can be passed directly to subprocess.run(env=...).
+        This avoids shell escaping issues entirely by never constructing a
+        shell string from credential values.
 
         Args:
             skill: Skill name
 
         Returns:
-            Space-separated KEY="value" pairs
+            Dict of KEY -> value for environment injection
         """
-        creds = self.get_all(skill)
-        exports = []
-        for key, value in creds.items():
-            # Escape special characters in value
-            escaped = value.replace('"', '\\"').replace('$', '\\$')
-            exports.append(f'{key}="{escaped}"')
-        return " ".join(exports)
+        return self.get_all(skill)

@@ -365,8 +365,11 @@ class PluginRegistryClient:
         """Verify the HMAC signature of the registry."""
         signature = registry.get("registry_signature", "")
         if not signature:
-            logger.warning("Registry has no signature - skipping verification")
-            return True  # Allow unsigned registries in development
+            if not self._signing_key:
+                logger.warning("Registry has no signature and no signing key configured — allowing in dev mode")
+                return True
+            logger.warning("Registry has no signature but signing key is configured — rejecting")
+            return False
 
         # Sign the plugins array (the payload)
         plugins_json = json.dumps(
@@ -375,6 +378,9 @@ class PluginRegistryClient:
             separators=(",", ":"),
         ).encode()
 
+        if not self._signing_key:
+            logger.warning("Registry has signature but no signing key configured — cannot verify, rejecting")
+            return False
         key = self._signing_key.encode()
         expected_sig = hmac.new(key, plugins_json, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected_sig, signature)

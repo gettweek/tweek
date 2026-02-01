@@ -30,6 +30,10 @@ from typing import Optional, Dict, Any, List
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from tweek.hooks.overrides import (
+    get_overrides, get_trust_mode, filter_by_severity, SEVERITY_RANK,
+)
+
 
 def extract_response_content(tool_name: str, tool_response: Any) -> str:
     """
@@ -96,7 +100,7 @@ def screen_content(
 
     Returns a PostToolUse decision dict. Empty dict means proceed normally.
     """
-    if not content or len(content.strip()) < 10:
+    if not content or len(content.strip()) < 3:
         return {}
 
     findings = []
@@ -116,11 +120,23 @@ def screen_content(
     except ImportError:
         pass
 
-    # Step 2: Pattern matching (all 116 patterns)
+    # Step 2: Pattern matching (all 126 patterns)
     try:
         from tweek.hooks.pre_tool_use import PatternMatcher
         matcher = PatternMatcher()
         matches = matcher.check_all(content)
+
+        # Apply pattern toggles from overrides
+        overrides = get_overrides()
+        if overrides and matches:
+            source_path = tool_input.get("file_path", "") or tool_input.get("url", "") or ""
+            matches = overrides.filter_patterns(matches, source_path)
+
+        # Apply trust level severity filtering
+        trust_mode = get_trust_mode(overrides)
+        if overrides and matches:
+            min_severity = overrides.get_min_severity(trust_mode)
+            matches, _suppressed = filter_by_severity(matches, min_severity)
 
         for match in matches:
             findings.append({
@@ -149,10 +165,14 @@ def screen_content(
             if ne_handling in ("escalate", "both"):
                 reviewer = get_llm_reviewer()
                 if reviewer.enabled:
-                    # Sample representative content: first 300 + last 200 chars
-                    sample = content[:300]
-                    if len(content) > 500:
-                        sample += "\n...\n" + content[-200:]
+                    # Sample representative content: first 1000 + middle 500 + last 500 chars
+                    sample = content[:1000]
+                    if len(content) > 2000:
+                        mid_start = len(content) // 2 - 250
+                        sample += "\n...\n" + content[mid_start:mid_start + 500]
+                        sample += "\n...\n" + content[-500:]
+                    elif len(content) > 1000:
+                        sample += "\n...\n" + content[-500:]
                     review = reviewer.review(
                         command=sample,
                         tool=tool_name,
@@ -174,7 +194,7 @@ def screen_content(
         from tweek.logging.security_log import get_logger, EventType
 
         logger = get_logger()
-        correlation_id = str(uuid.uuid4())[:8]
+        correlation_id = uuid.uuid4().hex[:16]
 
         # Determine the source path/URL for logging
         source = tool_input.get("file_path") or tool_input.get("url") or "unknown"
@@ -268,9 +288,16 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     session_id = input_data.get("session_id")
 
     # Only screen tools that return content worth analyzing
-    screened_tools = {"Read", "WebFetch", "Bash", "Grep"}
+    screened_tools = {"Read", "WebFetch", "Bash", "Grep", "WebSearch"}
     if tool_name not in screened_tools:
         return {}
+
+    # WHITELIST CHECK: Skip post-screening for whitelisted sources
+    overrides = get_overrides()
+    if overrides:
+        whitelist_match = overrides.check_whitelist(tool_name, tool_input, "")
+        if whitelist_match:
+            return {}
 
     # Extract text content from the response
     content = extract_response_content(tool_name, tool_response)
@@ -278,14 +305,24 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     if not content:
         return {}
 
-    # For large content, screen head + tail to catch injection at any position
-    # (full content could be megabytes for large files)
-    max_screen_length = 50000
+    # For large content, use multi-chunk screening to avoid unscreened gaps.
+    # Previous head+tail approach left the middle completely unscreened.
+    # Now we sample head + middle + tail to cover all positions.
+    max_screen_length = 60000
     if len(content) > max_screen_length:
-        # Screen first 40K + last 10K to catch tail-placed injection
-        head = content[:40000]
-        tail = content[-10000:]
-        content = head + "\n...[TRUNCATED]...\n" + tail
+        chunk_size = 20000
+        head = content[:chunk_size]
+        # Sample from the middle to close the truncation gap
+        mid_start = len(content) // 2 - chunk_size // 2
+        middle = content[mid_start:mid_start + chunk_size]
+        tail = content[-chunk_size:]
+        content = (
+            head
+            + "\n...[TRUNCATED:MID]...\n"
+            + middle
+            + "\n...[TRUNCATED:TAIL]...\n"
+            + tail
+        )
 
     return screen_content(
         content=content,

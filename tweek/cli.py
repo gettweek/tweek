@@ -326,9 +326,11 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
     settings["hooks"] = settings.get("hooks", {})
 
     # PreToolUse: screen tool requests before execution
+    # Match ALL security-relevant tools, not just Bash — Write/Edit/Read/WebFetch
+    # all have screening logic in pre_tool_use.py that must be reachable
     settings["hooks"]["PreToolUse"] = [
         {
-            "matcher": "Bash",
+            "matcher": "Bash|Write|Edit|Read|WebFetch|NotebookEdit|WebSearch",
             "hooks": [
                 {
                     "type": "command",
@@ -338,10 +340,11 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
         }
     ]
 
-    # PostToolUse: screen content returned by Read/WebFetch/Bash for injection
+    # PostToolUse: screen content returned by tools for injection
+    # Include WebSearch and Grep for content injection detection
     settings["hooks"]["PostToolUse"] = [
         {
-            "matcher": "Read|WebFetch|Bash",
+            "matcher": "Read|WebFetch|Bash|Grep|WebSearch",
             "hooks": [
                 {
                     "type": "command",

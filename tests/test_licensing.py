@@ -24,8 +24,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from tweek.licensing import (
     License, LicenseInfo, Tier, LicenseError,
     get_license, require_tier, require_pro, require_feature,
-    generate_license_key, TIER_FEATURES, LICENSE_SECRET
+    TIER_FEATURES, LICENSE_SECRET
 )
+from tweek._keygen import generate_license_key
 
 
 class TestTier:
@@ -137,12 +138,13 @@ class TestLicenseKeyGeneration:
 
         payload_b64, signature = key.rsplit(".", 1)
 
-        # Verify signature matches
+        # Verify the generated key validates correctly
+        import tweek.licensing
         expected_sig = hmac.new(
-            LICENSE_SECRET.encode(),
+            tweek.licensing.LICENSE_SECRET.encode(),
             payload_b64.encode(),
             hashlib.sha256
-        ).hexdigest()[:32]
+        ).hexdigest()
 
         assert signature == expected_sig
 

@@ -21,7 +21,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tweek.cli import main, install, uninstall, update
-from tweek.licensing import License, Tier, generate_license_key
+from tweek.licensing import License, Tier
+from tweek._keygen import generate_license_key
 
 
 @pytest.fixture

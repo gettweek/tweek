@@ -14,6 +14,7 @@ Usage:
 """
 
 import os
+import shlex
 import subprocess
 import tempfile
 import json
@@ -166,7 +167,7 @@ class SandboxExecutor:
             profile_path = self.generator.save(manifest)
 
             # Build the sandboxed command
-            sandboxed_cmd = f'sandbox-exec -f "{profile_path}" /bin/bash -c {self._shell_quote(command)}'
+            sandboxed_cmd = f'sandbox-exec -f {shlex.quote(str(profile_path))} /bin/bash -c {self._shell_quote(command)}'
 
             # Set up minimal environment (don't inherit all parent secrets)
             safe_env_keys = {"PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL", "TMPDIR"}
@@ -328,10 +329,11 @@ class SandboxExecutor:
                 profile_path = self.generator.save(manifest)
 
         # Build sandboxed command
-        sandboxed_cmd = f'sandbox-exec -f "{profile_path}" /bin/bash -c {self._shell_quote(command)}'
+        sandboxed_cmd = f'sandbox-exec -f {shlex.quote(str(profile_path))} /bin/bash -c {self._shell_quote(command)}'
 
-        # Set up environment
-        run_env = os.environ.copy()
+        # Set up minimal environment (don't inherit all parent secrets)
+        safe_env_keys = {"PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL", "TMPDIR"}
+        run_env = {k: v for k, v in os.environ.items() if k in safe_env_keys}
         if env:
             run_env.update(env)
 

@@ -312,17 +312,28 @@ class ApprovalQueue:
         if status not in (ApprovalStatus.APPROVED, ApprovalStatus.DENIED, ApprovalStatus.EXPIRED):
             raise ValueError(f"Invalid decision status: {status}")
 
-        # Resolve short IDs
-        request = self.get_request(request_id)
-        if request is None:
-            return False
-        if request.status != ApprovalStatus.PENDING:
-            return False
-
-        full_id = request.id
-
         def _do_decide():
             with self._get_connection() as conn:
+                # Atomic check-and-update: resolve short IDs and update in a
+                # single connection to eliminate the TOCTOU race condition.
+                # For short IDs, do the LIKE lookup inside the same transaction.
+                if len(request_id) < 36:
+                    rows = conn.execute(
+                        "SELECT id FROM approval_requests WHERE id LIKE ? AND status = 'pending'",
+                        (f"{request_id}%",),
+                    ).fetchall()
+                    if len(rows) == 0:
+                        return False
+                    if len(rows) > 1:
+                        ids = [r["id"][:12] for r in rows]
+                        raise ValueError(
+                            f"Ambiguous short ID '{request_id}' matches {len(rows)} requests: "
+                            f"{', '.join(ids)}. Use a longer prefix."
+                        )
+                    full_id = rows[0]["id"]
+                else:
+                    full_id = request_id
+
                 cursor = conn.execute(
                     """
                     UPDATE approval_requests

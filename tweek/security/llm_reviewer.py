@@ -216,7 +216,7 @@ Respond with ONLY the JSON object."""
         # Build the analysis prompt
         context = self._build_context(tool_input, session_context)
         prompt = self.ANALYSIS_PROMPT.format(
-            command=command[:500],  # Limit command length
+            command=command[:2000],  # Limit command length (increased from 500)
             tool=tool,
             tier=tier,
             context=context
@@ -262,13 +262,13 @@ Respond with ONLY the JSON object."""
             )
 
         except anthropic.APITimeoutError:
-            # Timeout - fail open but flag as suspicious
+            # Timeout - fail closed: prompt user since timeout may indicate evasion
             return LLMReviewResult(
                 risk_level=RiskLevel.SUSPICIOUS,
-                reason="LLM review timed out",
+                reason="LLM review timed out — prompting user as precaution",
                 confidence=0.3,
                 details={"error": "timeout"},
-                should_prompt=False
+                should_prompt=True
             )
 
         except anthropic.APIError as e:

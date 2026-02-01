@@ -43,7 +43,8 @@ def temp_db():
 @pytest.fixture
 def mock_pro_license(tmp_path):
     """Mock Pro license for rate limiter testing."""
-    from tweek.licensing import License, Tier, generate_license_key
+    from tweek.licensing import License, Tier
+    from tweek._keygen import generate_license_key
     license_file = tmp_path / ".tweek" / "license.key"
     with patch('tweek.licensing.LICENSE_FILE', license_file):
         License._instance = None

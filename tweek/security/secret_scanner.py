@@ -191,6 +191,27 @@ class SecretScanner:
         # Heroku API key
         (r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', SecretType.API_KEY, "medium"),
 
+        # Vercel token
+        (r'vercel_[A-Za-z0-9_-]{24,}', SecretType.TOKEN, "critical"),
+
+        # Supabase key
+        (r'sbp_[A-Za-z0-9]{40,}', SecretType.API_KEY, "critical"),
+
+        # Databricks token
+        (r'dapi[a-f0-9]{32}', SecretType.TOKEN, "critical"),
+
+        # Hashicorp Vault token
+        (r'hvs\.[A-Za-z0-9_-]{24,}', SecretType.TOKEN, "critical"),
+
+        # GitLab tokens (personal, pipeline, runner)
+        (r'glpat-[A-Za-z0-9_-]{20,}', SecretType.TOKEN, "critical"),
+
+        # Figma token
+        (r'figd_[A-Za-z0-9_-]{40,}', SecretType.TOKEN, "high"),
+
+        # Linear API key
+        (r'lin_api_[A-Za-z0-9]{40,}', SecretType.API_KEY, "high"),
+
         # Generic high-entropy strings that look like secrets
         (r'[\'"][A-Za-z0-9+/]{40,}={0,2}[\'"]', SecretType.API_KEY, "medium"),
     ]

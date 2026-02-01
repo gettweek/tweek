@@ -54,6 +54,8 @@ FORBIDDEN_IMPORTS = frozenset({
     "os.spawnvpe",
     "ctypes",
     "multiprocessing",
+    "importlib",
+    "importlib.util",
 })
 
 FORBIDDEN_CALLS = frozenset({
@@ -69,6 +71,9 @@ FORBIDDEN_CALLS = frozenset({
     "os.removedirs",
     "shutil.rmtree",
     "shutil.move",
+    "importlib.import_module",
+    "importlib.util.spec_from_file_location",
+    "getattr",
 })
 
 # Modules that indicate network access
@@ -212,7 +217,11 @@ def verify_checksum_signature(
     Returns:
         True if signature is valid
     """
-    key = (signing_key or TWEEK_SIGNING_KEY).encode()
+    key_str = signing_key or TWEEK_SIGNING_KEY
+    if not key_str:
+        logger.warning("TWEEK_PLUGIN_SIGNING_KEY not configured — rejecting signature (fail closed)")
+        return False
+    key = key_str.encode()
     expected_sig = hmac.new(key, checksums_content, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected_sig, signature)
 
@@ -474,6 +483,12 @@ def sign_checksums(checksums_content: bytes, signing_key: str = None) -> str:
 
     Returns:
         Hex-encoded HMAC signature
+
+    Raises:
+        ValueError: If signing key is empty/not configured
     """
-    key = (signing_key or TWEEK_SIGNING_KEY).encode()
+    key_str = signing_key or TWEEK_SIGNING_KEY
+    if not key_str:
+        raise ValueError("Cannot sign checksums: TWEEK_PLUGIN_SIGNING_KEY not configured")
+    key = key_str.encode()
     return hmac.new(key, checksums_content, hashlib.sha256).hexdigest()

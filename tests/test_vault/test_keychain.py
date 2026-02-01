@@ -96,13 +96,14 @@ class TestKeychainVault:
         assert value == special_value
 
     def test_export_for_process(self, vault, test_skill):
-        """Should generate export string for process injection."""
+        """Should return dict of credentials for subprocess env injection."""
         vault.store(test_skill, "API_KEY", "sk-123")
         vault.store(test_skill, "SECRET", "abc")
 
-        export_str = vault.export_for_process(test_skill)
-        assert 'API_KEY="sk-123"' in export_str
-        assert 'SECRET="abc"' in export_str
+        env_dict = vault.export_for_process(test_skill)
+        assert isinstance(env_dict, dict)
+        assert env_dict["API_KEY"] == "sk-123"
+        assert env_dict["SECRET"] == "abc"
 
     def test_service_name_format(self, vault):
         """Should use correct service name format."""

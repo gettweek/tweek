@@ -459,9 +459,12 @@ class RateLimiter:
             RateLimitResult with allowed status and any violations
         """
         if not session_id:
-            # No session ID - generate deterministic one from context for safety
+            # No session ID - generate unique one per process invocation
             import os as _os
-            session_id = hashlib.sha256(f"tweek-{_os.getpid()}-{_os.getcwd()}".encode()).hexdigest()[:16]
+            import uuid as _uuid
+            session_id = hashlib.sha256(
+                f"tweek-{_os.getpid()}-{_os.getcwd()}-{_uuid.getnode()}".encode()
+            ).hexdigest()[:16]
 
         # Check circuit breaker first
         circuit_key = f"session:{session_id}"

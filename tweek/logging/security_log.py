@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -164,8 +165,8 @@ class LogRedactor:
                 for sensitive in self.SENSITIVE_KEYS
             )
 
-            if is_sensitive and isinstance(value, str):
-                # Redact the entire value
+            if is_sensitive:
+                # Redact entire value for sensitive keys, regardless of type
                 result[key] = "***REDACTED***"
             elif isinstance(value, str):
                 # Apply pattern-based redaction
@@ -222,13 +223,16 @@ class LogRedactor:
 
 # Singleton redactor instance
 _redactor: Optional[LogRedactor] = None
+_redactor_lock = threading.Lock()
 
 
 def get_redactor(enabled: bool = True) -> LogRedactor:
     """Get the singleton log redactor instance."""
     global _redactor
     if _redactor is None:
-        _redactor = LogRedactor(enabled=enabled)
+        with _redactor_lock:
+            if _redactor is None:
+                _redactor = LogRedactor(enabled=enabled)
     return _redactor
 
 
@@ -429,8 +433,13 @@ class SecurityLogger:
     def _get_connection(self):
         """Get a database connection, reusing persistent connection when possible."""
         if not hasattr(self, '_conn') or self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path))
+            self._conn = sqlite3.connect(
+                str(self.db_path),
+                timeout=5,  # Wait up to 5s for locks (matches approval.py)
+            )
             self._conn.row_factory = sqlite3.Row
+            # Enable WAL mode for concurrent access from multiple hook processes
+            self._conn.execute("PRAGMA journal_mode=WAL")
         try:
             yield self._conn
             self._conn.commit()
@@ -741,6 +750,7 @@ class SecurityLogger:
 
 # Singleton instance for easy access
 _logger: Optional[SecurityLogger] = None
+_logger_lock = threading.Lock()
 
 
 def get_logger(redact_logs: bool = True) -> SecurityLogger:
@@ -754,5 +764,7 @@ def get_logger(redact_logs: bool = True) -> SecurityLogger:
     """
     global _logger
     if _logger is None:
-        _logger = SecurityLogger(redact_logs=redact_logs)
+        with _logger_lock:
+            if _logger is None:
+                _logger = SecurityLogger(redact_logs=redact_logs)
     return _logger

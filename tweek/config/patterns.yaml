@@ -148,7 +148,7 @@ patterns:
   - id: 20
     name: recursive_delete_root
     description: "Recursive deletion from root or home"
-    regex: 'rm\s+.*-[rf]*\s+(/|~|\$HOME)\s*$'
+    regex: '(?:^|[;&|]\s*)rm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+\s*(\/(?:\s|;|&|\||$)|~(?:\s|\/|;|&|\||$)|\$HOME(?:\s|\/|;|&|\||$)|\/(?:etc|var|usr|bin|sbin|root|home|boot|lib|opt|srv)(?:\s|\/|;|&|\||$))'
     severity: critical
 
   - id: 21
@@ -661,6 +661,18 @@ patterns:
     name: eval_command
     description: "Eval executing dynamic content"
     regex: '\beval\s+.*\$|\beval\s*\('
+    severity: high
+
+  - id: 130
+    name: exec_dynamic
+    description: "Exec executing dynamic or user-controlled code"
+    regex: '\bexec\s*\([^)]*(?:input|request|user|arg|param|response|output|result)'
+    severity: high
+
+  - id: 131
+    name: compile_dynamic
+    description: "Compile with dynamic code strings"
+    regex: '\bcompile\s*\([^)]*(?:input|request|user|arg|param|response|output|result)[^)]*,\s*[''"]<'
     severity: high
 
   - id: 103
