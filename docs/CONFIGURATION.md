@@ -8,6 +8,7 @@
 - [Presets](#presets)
 - [Known Tools and Skills](#known-tools-and-skills)
 - [Content-Based Escalations](#content-based-escalations)
+- [LLM Review Provider](#llm-review-provider)
 - [Plugin Configuration](#plugin-configuration)
 - [Directory Activation](#directory-activation)
 - [Annotated Config Examples](#annotated-config-examples)
@@ -316,6 +317,100 @@ if escalated_priority > base_priority:
     return escalated_tier, escalation  # "risky"
 return base_tier, None                 # stays "default"
 ```
+
+---
+
+## LLM Review Provider
+
+**Source**: `tweek/config/tiers.yaml` -> `llm_review`, `tweek/security/llm_reviewer.py`
+
+The LLM reviewer (Layer 3) supports multiple LLM providers. Configure which provider,
+model, and endpoint to use for semantic security analysis.
+
+### Configuration Options
+
+```yaml
+# ~/.tweek/config.yaml or .tweek/config.yaml
+llm_review:
+  enabled: true           # Enable/disable LLM review entirely
+  provider: auto          # auto | anthropic | openai | google
+  model: auto             # auto = provider default, or explicit model name
+  base_url: null          # For OpenAI-compatible endpoints
+  api_key_env: null       # Override which env var to read for the API key
+  timeout_seconds: 5.0    # Timeout for API calls
+```
+
+### Provider Auto-Detection
+
+When `provider: auto` (the default), Tweek checks for API keys in order:
+
+1. `ANTHROPIC_API_KEY` present -> Anthropic, model `claude-3-5-haiku-latest`
+2. `OPENAI_API_KEY` present -> OpenAI, model `gpt-4o-mini`
+3. `GOOGLE_API_KEY` or `GEMINI_API_KEY` present -> Google, model `gemini-2.0-flash`
+4. None found -> LLM reviewer disabled (graceful degradation)
+
+### Provider Examples
+
+**Ollama (local)**
+```yaml
+llm_review:
+  provider: openai
+  model: llama3.2
+  base_url: http://localhost:11434/v1
+```
+
+**LM Studio (local)**
+```yaml
+llm_review:
+  provider: openai
+  model: local-model
+  base_url: http://localhost:1234/v1
+```
+
+**Together AI**
+```yaml
+llm_review:
+  provider: openai
+  model: meta-llama/Llama-3.1-8B-Instruct-Turbo
+  api_key_env: TOGETHER_API_KEY
+  base_url: https://api.together.xyz/v1
+```
+
+**Groq**
+```yaml
+llm_review:
+  provider: openai
+  model: llama-3.1-8b-instant
+  api_key_env: GROQ_API_KEY
+  base_url: https://api.groq.com/openai/v1
+```
+
+**Google Gemini**
+```yaml
+llm_review:
+  provider: google
+  model: gemini-2.0-flash
+```
+
+**Explicit Anthropic (same as default)**
+```yaml
+llm_review:
+  provider: anthropic
+  model: claude-3-5-haiku-latest
+```
+
+### How `base_url` and `api_key_env` Work
+
+The `base_url` parameter redirects the OpenAI SDK to any OpenAI-compatible endpoint.
+This covers Ollama, LM Studio, vLLM, Together, Groq, Mistral, DeepSeek, and dozens
+of other providers that implement the OpenAI chat completions API.
+
+The `api_key_env` parameter tells Tweek which environment variable to read for the
+API key. This is useful when a provider uses a non-standard env var name (e.g.,
+`TOGETHER_API_KEY`, `GROQ_API_KEY`).
+
+For local endpoints that don't require authentication (like Ollama), the API key
+defaults to a placeholder value -- no env var is needed.
 
 ---
 

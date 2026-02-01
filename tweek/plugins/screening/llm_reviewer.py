@@ -9,7 +9,9 @@ Semantic analysis using LLM for risky/dangerous operations:
 - Prompt injection indicators
 - Privilege escalation attempts
 
-Free and open source. Requires ANTHROPIC_API_KEY (BYOK).
+Supports multiple providers: Anthropic, OpenAI, Google, and any
+OpenAI-compatible endpoint. Free and open source. Requires an API key
+for any supported provider (BYOK).
 """
 
 from typing import Optional, Dict, Any, List
@@ -26,10 +28,12 @@ class LLMReviewerPlugin(ScreeningPlugin):
     """
     LLM-based security reviewer plugin.
 
-    Uses a fast, cheap LLM (Claude Haiku) to analyze commands
-    that pass regex screening but may still be malicious.
+    Uses a fast, cheap LLM to analyze commands that pass regex screening
+    but may still be malicious. Supports multiple providers: Anthropic
+    (Claude), OpenAI (GPT), Google (Gemini), and any OpenAI-compatible
+    endpoint (Ollama, LM Studio, Together, Groq, etc.).
 
-    Free and open source. Requires ANTHROPIC_API_KEY (BYOK).
+    Free and open source. Requires an API key for any supported provider (BYOK).
     """
 
     VERSION = "1.0.0"
@@ -53,10 +57,13 @@ class LLMReviewerPlugin(ScreeningPlugin):
                 from tweek.security.llm_reviewer import LLMReviewer
 
                 self._reviewer = LLMReviewer(
-                    model=self._config.get("model", "claude-3-5-haiku-latest"),
+                    model=self._config.get("model", "auto"),
                     api_key=self._config.get("api_key"),
                     timeout=self._config.get("timeout", 5.0),
                     enabled=self._config.get("enabled", True),
+                    provider=self._config.get("provider", "auto"),
+                    base_url=self._config.get("base_url"),
+                    api_key_env=self._config.get("api_key_env"),
                 )
             except ImportError:
                 pass
@@ -128,7 +135,8 @@ class LLMReviewerPlugin(ScreeningPlugin):
                 recommended_action=ActionType.ASK if result.should_prompt else ActionType.WARN,
                 metadata={
                     "confidence": result.confidence,
-                    "model": self._config.get("model", "claude-3-5-haiku-latest"),
+                    "model": result.details.get("model", "unknown"),
+                    "provider": result.details.get("provider", "unknown"),
                 }
             ))
 

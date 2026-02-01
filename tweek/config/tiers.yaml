@@ -17,9 +17,14 @@
 version: 2
 
 # LLM Review Configuration
+# Supports: anthropic, openai, google, or any OpenAI-compatible endpoint
+# Provider "auto" checks for API keys: ANTHROPIC_API_KEY → OPENAI_API_KEY → GOOGLE_API_KEY
 llm_review:
   enabled: true
-  model: claude-3-5-haiku-latest
+  provider: auto              # auto | anthropic | openai | google
+  model: auto                 # auto = provider default, or explicit model name
+  base_url: null              # For OpenAI-compatible endpoints (Ollama, LM Studio, etc.)
+  api_key_env: null           # Override env var name (default: provider-specific)
   timeout_seconds: 5.0
 
 # Rate Limiting Configuration

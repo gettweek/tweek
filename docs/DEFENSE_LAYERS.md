@@ -218,13 +218,15 @@ The pattern matcher operates on extracted content, not raw tool input:
 **Invoked from**: `tweek/hooks/pre_tool_use.py` (Layer 3 block)
 **License**: Pro
 
-Semantic analysis using Claude 3.5 Haiku that understands command intent beyond what
-regex patterns can detect.
+Semantic analysis using any supported LLM provider that understands command intent
+beyond what regex patterns can detect. Supports Anthropic (Claude), OpenAI (GPT),
+Google (Gemini), and any OpenAI-compatible endpoint (Ollama, LM Studio, Together,
+Groq, Mistral, DeepSeek, vLLM, etc.). Defaults to Claude Haiku if available.
 
 ### What It Analyzes
 
-The LLM reviewer sends the command, tool name, security tier, and context to Claude
-Haiku with a structured system prompt asking it to evaluate:
+The LLM reviewer sends the command, tool name, security tier, and context to the
+configured model with a structured system prompt asking it to evaluate:
 
 1. Sensitive path access (credentials, keys, tokens)
 2. Data exfiltration potential (sending local data externally)
@@ -249,14 +251,26 @@ should_prompt = (
 )
 ```
 
+### Supported Providers
+
+| Provider | SDK | Default Model | API Key Env Var |
+|---|---|---|---|
+| **Anthropic** (default) | `anthropic` | `claude-3-5-haiku-latest` | `ANTHROPIC_API_KEY` |
+| **OpenAI** | `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` |
+| **Google** | `google-generativeai` | `gemini-2.0-flash` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
+| **OpenAI-compatible** | `openai` | (user-specified) | (user-specified via `api_key_env`) |
+
+Auto-detection checks for API keys in order: Anthropic, OpenAI, Google. The first
+available key wins. Set `provider` explicitly to override.
+
 ### Technical Details
 
-- **Model**: `claude-3-5-haiku-latest`
+- **Default model**: Provider-specific (see table above)
 - **Max tokens**: 256
-- **Timeout**: 5.0 seconds
-- **Command length limit**: 500 characters (truncated)
+- **Timeout**: 5.0 seconds (configurable)
+- **Command length limit**: 2000 characters (truncated)
 - **Response format**: JSON `{"risk_level": "...", "reason": "...", "confidence": 0.0-1.0}`
-- **Fail behavior**: Timeout returns `suspicious` at 30% confidence (no prompt). API error returns `safe` (fail open).
+- **Fail behavior**: Timeout/API error returns `suspicious` at 30% confidence (prompts user as precaution)
 
 ### System Prompt
 

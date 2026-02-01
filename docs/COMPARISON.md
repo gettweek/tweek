@@ -321,9 +321,9 @@ Tweek's security features are implemented as **external screening logic** -- the
 | Break-glass override | Configuration logic | No |
 | FP feedback loop | Statistical tracking | No |
 | Security logging with redaction | Regex-based redaction | No |
-| **LLM semantic review** | **Claude Haiku API call** | **Yes (uses its own API key)** |
+| **LLM semantic review** | **Configurable provider API call** | **Yes (uses its own API key and provider)** |
 
-The only Tweek feature that depends on a capable model is the **LLM reviewer** (Layer 3), and it makes its *own* API call to Claude Haiku using the user's API key -- it does not rely on whatever model Claude Code is running. Even if you're running Claude Code with a local Llama model, Tweek's LLM reviewer still calls Claude Haiku for semantic analysis.
+The only Tweek feature that depends on a capable model is the **LLM reviewer** (Layer 3), and it makes its *own* API call using a separately configured provider and API key -- it does not rely on whatever model Claude Code is running. Tweek supports Anthropic (Claude Haiku), OpenAI (GPT-4o-mini), Google (Gemini Flash), and any OpenAI-compatible endpoint (Ollama, LM Studio, Together, Groq, Mistral, DeepSeek, etc.). Even if you're running Claude Code with a local model, Tweek's LLM reviewer can call any capable cloud model for semantic analysis -- or run entirely locally via Ollama.
 
 ### The local model security gap
 

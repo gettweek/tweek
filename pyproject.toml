@@ -34,6 +34,8 @@ dependencies = [
 [project.optional-dependencies]
 llm = [
     "anthropic>=0.18.0",
+    "openai>=1.0.0",
+    "google-generativeai>=0.5.0",
 ]
 linux = [
     "secretstorage>=3.0",  # For GNOME Keyring / Secret Service on Linux

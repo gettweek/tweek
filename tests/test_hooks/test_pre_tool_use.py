@@ -203,6 +203,22 @@ class TestTierManager:
 class TestProcessHook:
     """Tests for the main hook processing."""
 
+    @pytest.fixture(autouse=True)
+    def reset_llm_singleton(self, monkeypatch):
+        """Reset the LLM reviewer singleton and mask API keys.
+
+        Hook tests should not make real API calls. The LLM reviewer's
+        auto-detection picks up any available API key from the env, so
+        we remove them to keep LLM review disabled during hook tests.
+        """
+        import tweek.security.llm_reviewer as llm_mod
+        old = llm_mod._llm_reviewer
+        llm_mod._llm_reviewer = None
+        for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        yield
+        llm_mod._llm_reviewer = old
+
     @pytest.fixture
     def mock_logger(self):
         """Create a mock logger."""
