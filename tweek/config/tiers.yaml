@@ -9,7 +9,7 @@
 #
 # Security Layers:
 #   1. Rate Limiting  - Detect resource theft and burst attacks
-#   2. Pattern Match  - Regex patterns for known attack vectors (215 patterns)
+#   2. Pattern Match  - Regex patterns for known attack vectors (259 patterns)
 #   3. LLM Review     - Semantic analysis using Claude Haiku
 #   4. Session Scan   - Cross-turn anomaly detection
 #   5. Sandbox        - Speculative execution in isolated environment
@@ -69,7 +69,7 @@ tools:
 
   # Default - modifications with standard screening
   Edit: default
-  Write: default
+  Write: risky
   NotebookEdit: default
 
   # Risky - external communication or significant changes
@@ -184,6 +184,21 @@ escalations:
 
   - pattern: '([╔╗╚╝║═█░▓]{5,}|TECHIRAL|!KAEL|GODMODE)'
     description: "Visual encoding or advanced jailbreak signature"
+    escalate_to: risky
+
+  # --- Red Team Hardening: Indirect Extraction Escalations (2026-02-01) ---
+  # These patterns catch bypass techniques that succeeded during multi-LLM TAP testing
+
+  - pattern: '(repeat|recite|reproduce).{0,20}(what\s+your\s+creators?|what\s+you\s+were\s+told|your\s+(purpose|rules|guidelines|instructions))'
+    description: "Indirect system prompt extraction via creator/purpose framing"
+    escalate_to: risky
+
+  - pattern: '(philosophy|principles?|design)\s+behind\s+(your|the)\s+(creation|design|helpfulness|responses?|behavior)'
+    description: "Crescendo opener: philosophical framing for system prompt extraction"
+    escalate_to: risky
+
+  - pattern: '(walk\s+me\s+through|trace\s+through|step\s+through)\s+.{0,30}(internal|your).{0,20}(reasoning|process|flow|logic|decision)'
+    description: "Chain-of-thought hijacking: request to trace internal processes"
     escalate_to: risky
 
 # Default tier for unclassified tools/skills

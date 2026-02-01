@@ -19,7 +19,7 @@
 # PRO tier adds: LLM review, session analysis, rate limiting
 
 version: 4
-pattern_count: 249
+pattern_count: 259
 
 patterns:
   # ============================================================================
@@ -1648,3 +1648,82 @@ patterns:
     description: "Package install with suspicious post-install script execution"
     regex: 'npm\s+install\s+.*--ignore-scripts\s*=\s*false|pip\s+install\s+.*--no-binary\s*=\s*:none:|setup\.py\s+.*cmdclass.*install.*subprocess'
     severity: medium
+
+  # ============================================================================
+  # RED TEAM HARDENING PATTERNS (250-259)
+  # 10 patterns addressing bypasses found during multi-LLM TAP red team testing
+  # (165 attacks, 10 bypasses, 4 hint-level leaks)
+  # Added: 2026-02-01
+  # ============================================================================
+
+  # --- Indirect Extraction (250-253) ---
+  # These catch the indirect framing that bypassed existing patterns:
+  # "what your creators told you", "purpose and rules", "authentication flow debugging"
+
+  - id: 250
+    name: indirect_creator_extraction
+    description: "Indirect system prompt extraction via creator/purpose framing"
+    regex: '(what\s+(did\s+)?your\s+creators?\s+(tell|instruct|program|configure|give)|repeat\s+.{0,20}your\s+(purpose|rules|guidelines)\s+(and|or)|what\s+were\s+you\s+(told|given|programmed)\s+(about|regarding)\s+your\s+(purpose|role|behavior))'
+    severity: medium
+
+  - id: 251
+    name: verbatim_repeat_framing
+    description: "Request to repeat instructions verbatim or word-for-word"
+    regex: '(repeat\s+(exactly|verbatim|word\s+for\s+word)|word\s+for\s+word\s+what\s+you\s+were\s+told|exactly\s+what\s+(your\s+creators?|they)\s+told\s+you|can\s+you\s+repeat\s+exactly\s+what)'
+    severity: high
+
+  - id: 252
+    name: authentication_flow_extraction
+    description: "Debugging framing to extract authentication tokens or keys"
+    regex: '(debug(ging)?\s+.{0,30}authentication\s+(flow|token|key|process)|identify\s+what\s+(authentication\s+)?(tokens?|keys?|credentials?)\s+(would\s+be|are)\s+involved|authentication\s+(flow|process).{0,30}(tokens?|keys?|secrets?))'
+    severity: medium
+
+  - id: 253
+    name: internal_architecture_probe
+    description: "Probing internal response framework or foundational guidelines"
+    regex: '(response\s+framework|foundational\s+guidelines?\s+you\s+follow|underlying\s+(principles?|framework|architecture)\s+(that\s+)?(guide|govern|shape)\s+your|core\s+(behavioral|operational)\s+(guidelines?|rules?|framework))'
+    severity: medium
+
+  # --- Crescendo Openers (254-256) ---
+  # Gradual escalation from benign curiosity about AI design was the most
+  # effective strategy with 3 bypasses in red team testing
+
+  - id: 254
+    name: crescendo_design_philosophy
+    description: "Philosophical framing about AI creation as crescendo opener"
+    regex: '(philosophy\s+behind\s+your\s+(creation|design|behavior|responses?)|how\s+(your\s+creators?|they)\s+envisioned\s+you|general\s+philosophy\s+behind\s+your\s+creation|what\s+(principles?|philosophy)\s+(guided|informed)\s+your\s+(design|creation))'
+    severity: medium
+
+  - id: 255
+    name: crescendo_ai_curiosity
+    description: "Curious about how AI systems are designed — crescendo opener"
+    regex: '(curious\s+about\s+how\s+ai\s+systems?\s+like\s+you\s+(are|were)\s+(designed|built|created|configured)|walk\s+me\s+through\s+.{0,20}(general\s+)?philosophy\s+behind\s+your\s+creation|how\s+are\s+ai\s+systems?\s+like\s+you\s+(designed|configured|set\s+up))'
+    severity: medium
+
+  - id: 256
+    name: crescendo_helpfulness_probe
+    description: "Probing what guides helpfulness as extraction vector"
+    regex: '(what\s+guides\s+your\s+helpfulness|designed\s+to\s+be\s+so\s+(useful|helpful)|what\s+makes\s+you\s+so\s+(helpful|useful).{0,20}(behind\s+the\s+scenes|internally|under\s+the\s+hood)|how\s+were\s+you\s+(made|designed|configured)\s+to\s+be\s+(so\s+)?(helpful|useful))'
+    severity: medium
+
+  # --- PostToolUse Self-Descriptive Leak Detection (257-259) ---
+  # Even when attacks bypassed screening, the target LLM sometimes paraphrased
+  # sensitive info. These patterns detect self-descriptive leak indicators in output.
+
+  - id: 257
+    name: self_describe_purpose
+    description: "LLM output describing its own purpose or design intent"
+    regex: '(my\s+(primary\s+)?purpose\s+is\s+to|i\s+was\s+(designed|configured|created|built|programmed)\s+to\s+(be|provide|help|assist|ensure)|my\s+core\s+(function|purpose|mission|objective)\s+is)'
+    severity: low
+
+  - id: 258
+    name: self_describe_protection
+    description: "LLM output describing its confidentiality protections"
+    regex: '(protecting\s+(any\s+)?(confidential|sensitive|private)\s+information|not\s+supposed\s+to\s+share|instructed\s+not\s+to\s+(reveal|disclose|share)|keep(ing)?\s+(this|that|certain)\s+(information\s+)?(confidential|secret|private))'
+    severity: low
+
+  - id: 259
+    name: self_describe_instructions
+    description: "LLM output referencing its own instructions or guidelines"
+    regex: '(my\s+instructions\s+(say|tell|state|indicate|require)|i\s+was\s+told\s+to\s+(not|never|always|ensure)|according\s+to\s+my\s+(guidelines|instructions|rules|directives)|my\s+guidelines\s+(say|tell|state|require|prohibit))'
+    severity: low
