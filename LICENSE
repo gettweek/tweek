@@ -188,3 +188,83 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+   ====================================================================
+   ADDITIONAL NOTICE — BETA SOFTWARE DISCLAIMER
+   ====================================================================
+
+   Tweek is currently beta software. The AI security landscape, including
+   the threats, attack techniques, and tools that Tweek is designed to
+   defend against, is rapidly evolving. New vulnerabilities, bypass
+   methods, and attack vectors emerge frequently, and no security tool
+   can guarantee complete protection against all threats at all times.
+
+   BY USING TWEEK, YOU ACKNOWLEDGE AND AGREE THAT:
+
+   1. BETA STATUS. Tweek is pre-release software that is still under
+      active development. It may contain bugs, errors, or defects that
+      could result in incomplete or inaccurate threat detection. Features
+      may be added, changed, or removed without prior notice.
+
+   2. NO GUARANTEE OF SECURITY. Tweek is a defense-in-depth tool
+      designed to reduce risk, not eliminate it. Tweek, LLC makes no
+      representation or warranty that the Software will detect, prevent,
+      or mitigate all security threats, prompt injection attacks,
+      credential theft attempts, data exfiltration, or other malicious
+      activity targeting AI coding assistants or any other software.
+      The inclusion of attack patterns, detection rules, or security
+      layers does not constitute a guarantee of protection.
+
+   3. USE AT YOUR OWN RISK. You assume full responsibility and risk
+      for your use of Tweek. You are solely responsible for evaluating
+      the suitability of the Software for your use case, safeguarding
+      your data, credentials, and systems, and implementing additional
+      security measures as you deem appropriate. You should not rely
+      solely on Tweek for the security of any system, data, or
+      credentials.
+
+   4. HOLD HARMLESS AND INDEMNIFICATION. To the maximum extent
+      permitted by applicable law, you agree to indemnify, defend,
+      and hold harmless Tweek, LLC, its owners, officers, employees,
+      contributors, and agents from and against any and all claims,
+      damages, losses, liabilities, costs, and expenses (including
+      reasonable attorneys' fees) arising out of or related to your
+      use of the Software, including but not limited to any failure
+      of the Software to detect or prevent a security threat, any
+      data loss, credential exposure, system compromise, or other
+      damages resulting from the use or inability to use the Software.
+
+   5. LIMITATION OF DAMAGES. In no event shall Tweek, LLC be liable
+      for any indirect, incidental, special, consequential, or punitive
+      damages, or any loss of profits, data, use, goodwill, or other
+      intangible losses, arising out of or in connection with your use
+      of the Software, even if Tweek, LLC has been advised of the
+      possibility of such damages. To the extent permitted by applicable
+      law, the total aggregate liability of Tweek, LLC for all claims
+      arising out of or related to the Software shall not exceed the
+      amount you paid to Tweek, LLC for the Software in the twelve (12)
+      months preceding the claim, or fifty U.S. dollars ($50.00),
+      whichever is greater.
+
+   6. NOT A SUBSTITUTE FOR PROFESSIONAL SECURITY. Tweek is not a
+      substitute for professional security auditing, penetration
+      testing, or comprehensive security programs. Users operating in
+      regulated environments (including but not limited to those subject
+      to HIPAA, PCI-DSS, SOC 2, or similar compliance frameworks)
+      should consult qualified security professionals and should not
+      rely on Tweek alone to satisfy compliance requirements.
+
+   7. RAPIDLY EVOLVING FIELD. The AI security landscape changes
+      rapidly. Attack techniques that did not exist at the time of any
+      given release may emerge at any time. Tweek, LLC undertakes no
+      obligation to update the Software on any particular schedule or
+      to address any specific threat, vulnerability, or attack vector.
+
+   This additional notice supplements and does not replace the
+   warranty disclaimer and limitation of liability provisions in
+   Sections 7 and 8 of the Apache License, Version 2.0, above. In
+   the event of any conflict between this notice and the Apache
+   License, the provision that provides greater protection to
+   Tweek, LLC shall control.
+
+   ====================================================================
