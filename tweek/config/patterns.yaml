@@ -19,7 +19,7 @@
 # PRO tier adds: LLM review, session analysis, rate limiting
 
 version: 3
-pattern_count: 168
+pattern_count: 213
 
 patterns:
   # ============================================================================
@@ -289,7 +289,7 @@ patterns:
   - id: 42
     name: system_prompt_extract
     description: "Attempting to extract system prompt"
-    regex: '(what\s+(is|are)\s+your\s+(system\s+)?instructions|show\s+me\s+your\s+prompt|reveal\s+your\s+rules|print\s+system\s+prompt)'
+    regex: '(what\s+(is|are|were)\s+your\s+(system\s+|initial\s+|original\s+|core\s+|complete\s+)?(instructions|prompt|configuration|config|rules|guidelines|directives|constraints)|show\s+(me\s+)?your\s+(system\s+)?prompt|reveal\s+your\s+(rules|prompt|instructions|configuration)|(output|share|display|provide|repeat|dump|print)\s+(your|the)\s+(system\s+)?(prompt|instructions|configuration|config|rules|guidelines)|list\s+(all\s+)?(the\s+)?(rules|instructions|guidelines|constraints)\s+(you|that\s+you)\s+follow|what\s+(instructions|rules|guidelines)\s+were\s+you\s+given|what\s+were\s+you\s+(told|instructed|configured|initialized)\s+(to\s+do|with))'
     severity: medium
 
   - id: 43
@@ -1113,4 +1113,292 @@ patterns:
     name: websocket_unauthorized_connect
     description: "CVE-2025-52882: Unauthorized WebSocket or local API connections"
     regex: 'ws://(localhost|127\.0\.0\.1|0\.0\.0\.0):\d+|new\s+WebSocket\s*\(\s*["\x27]ws://|AgentAPI.*dns.*rebind'
+    severity: high
+
+  # ============================================================================
+  # PROMPT INJECTION - BROAD STRUCTURAL DETECTION (169-213)
+  # 45 patterns detecting encoding attacks, direct extraction, social engineering,
+  # technical exploitation, crescendo, CoT hijack, many-shot, and ASCII art
+  # Added: 2026-01-31
+  # ============================================================================
+
+  # --- Encoding & Obfuscation Detection (169-178) ---
+  # Detects structural anomalies of encoding attacks, not specific payloads
+
+  - id: 169
+    name: decode_execute_instruction
+    description: "Instruction to decode/decipher content and follow/execute it"
+    regex: '(decode|decipher|decrypt|interpret|translate|convert|reverse|unscramble|deobfuscate)\s+(and\s+)?(then\s+)?(follow|execute|comply|obey|run|do|perform|apply|act\s+on|carry\s+out|adhere\s+to)'
+    severity: high
+
+  - id: 170
+    name: base64_in_conversation
+    description: "Base64-encoded content in conversational context"
+    regex: '(?:message|instruction|text|following|below|this|here)\s*[:=]?\s*[A-Za-z0-9+/]{40,}={0,2}'
+    severity: medium
+
+  - id: 171
+    name: hex_string_in_conversation
+    description: "Long hex-encoded string in conversational context"
+    regex: '(?:message|instruction|text|following|below|this|here|decode|hex)\s*[:=]?\s*(?:[0-9a-fA-F]{2}){20,}'
+    severity: medium
+
+  - id: 172
+    name: encoded_payload_with_instruction
+    description: "Opaque payload blob combined with decode/interpret instruction"
+    regex: '(decode|decipher|interpret|reverse|translate|unscramble)\s+.{0,30}(message|this|following|instruction|text|string|content)\s*[:=]?\s*\S{30,}'
+    severity: medium
+
+  - id: 173
+    name: reversed_text_with_instruction
+    description: "Instruction to reverse or read text backwards"
+    regex: '(read\s+(this\s+)?backwards?|reverse\s+(this|the)\s+(text|string|message|words?)|spelled?\s+backwards?|reversed?\s+(text|message|string|order))'
+    severity: high
+
+  - id: 174
+    name: leetspeak_instruction_bypass
+    description: "Heavy character substitution of security-critical words"
+    regex: '([sS5$][yY][sS5$][tT7][eE3][mM]\s*[pP][rR][0oO][mM][pP][tT7]|[1iI][nN][sS5$][tT7][rR][uU][cC][tT7]|[cC][0oO][nN][fF][1iI][gG]|[eE3][xX][eE3][cC][uU][tT7][eE3])'
+    severity: medium
+
+  - id: 175
+    name: output_base64_exfil
+    description: "Suspicious Base64 blob in LLM output (covert exfiltration)"
+    regex: '(?:here\s+is|the\s+encoded|base64|encoded\s+(?:version|output|data|result))\s*[:=]?\s*[A-Za-z0-9+/]{80,}={0,2}'
+    severity: high
+
+  - id: 176
+    name: output_hex_exfil
+    description: "Suspicious hex-encoded output (covert exfiltration)"
+    regex: '(?:hex|encoded|result|output|data)\s*[:=]?\s*(?:[0-9a-fA-F]{2}){40,}'
+    severity: high
+
+  - id: 177
+    name: decode_follow_message_combo
+    description: "Composite: decode verb + follow verb + message noun"
+    regex: '(decode|decipher|decrypt|interpret|reverse|translate|unscramble|deobfuscate|rot13|base64|convert)\s+.{0,50}(follow|execute|comply|obey|act\s+on)\s+.{0,30}(message|instruction|text|command|directive)'
+    severity: high
+
+  - id: 178
+    name: encoded_message_then_instruction
+    description: "Encoded blob first, then instruction to decode"
+    regex: '\S{40,}\s+.{0,30}(decode|decipher|reverse|translate|interpret)\s+(the\s+)?(above|previous|preceding|this)'
+    severity: high
+
+  # --- Direct Prompt Extraction (179-186) ---
+
+  - id: 179
+    name: prompt_completion_bait
+    description: "Baiting prompt completion or confirmation"
+    regex: '(your\s+(system\s+)?prompt\s+(probably\s+)?(begins|starts)\s+with|confirm\s+what\s+comes\s+next|please\s+complete\s+this|complete\s+this\s+sentence.*describes\s+your)'
+    severity: medium
+
+  - id: 180
+    name: prompt_format_request
+    description: "Requesting system prompt in specific format"
+    regex: '(output|express|format|convert|export)\s+(your|the)\s+(configuration|instructions|guidelines|rules|system\s+prompt|prompt)\s+(as|in|to)\s+(a\s+)?(json|yaml|xml|markdown|python|code|bullet\s+points)'
+    severity: medium
+
+  - id: 181
+    name: prompt_translate_request
+    description: "Requesting system prompt translation"
+    regex: '(express|translate|convert|say|write|rephrase)\s+(your|the)\s+(core\s+|main\s+)?(instructions|rules|guidelines|prompt|configuration)\s+in\s+(spanish|french|german|chinese|another\s+language|code|python)'
+    severity: medium
+
+  - id: 182
+    name: prompt_meta_discussion
+    description: "Meta-discussion about prompt engineering to extract prompt"
+    regex: '(let.s\s+(discuss|talk\s+about)\s+prompt\s+engineering|understand\s+your\s+architecture|what\s+does\s+(it|yours)\s+actually\s+say|what\s+instructions\s+were\s+you\s+initialized\s+with)'
+    severity: medium
+
+  - id: 183
+    name: prompt_contrast_query
+    description: "Probing system prompt via contrast with defaults"
+    regex: '(how\s+are\s+you\s+different\s+from\s+(a\s+)?(default|standard|regular|normal)|what\s+(special\s+)?(instructions|capabilities|features)\s+(do\s+you\s+have\s+that|make\s+you\s+unique))'
+    severity: medium
+
+  - id: 184
+    name: prompt_first_word_extraction
+    description: "Extracting specific words from system prompt"
+    regex: '(what.s\s+the\s+(first|last|second|third)\s+(word|sentence|line|paragraph)\s+of\s+your\s+(instructions|prompt|rules)|first\s+thing\s+(you\s+were|that\s+was)\s+(told|written|given))'
+    severity: medium
+
+  - id: 185
+    name: prompt_blunt_output
+    description: "Blunt request to output everything above"
+    regex: '(output\s+the\s+stuff\s+above|output\s+everything\s+above|repeat\s+everything\s+(that\s+was\s+)?(written|said|given)\s+(before|above)|what\s+was\s+written\s+before\s+this)'
+    severity: high
+
+  - id: 186
+    name: prompt_educational_pretext
+    description: "Educational pretext for prompt extraction"
+    regex: '(for\s+(my|an?)\s+(ai\s+safety|security|research)\s+(class|course|project)|demonstrate\s+how\s+system\s+prompts?\s+work|as\s+an?\s+(educational|teaching)\s+example)'
+    severity: medium
+
+  # --- Social Engineering (187-193) ---
+
+  - id: 187
+    name: social_admin_display
+    description: "Fake admin override or audit display request"
+    regex: '(administrator\s+override|admin\s+(override|mode)|display\s+(system\s+)?configuration\s+for\s+(audit|review|compliance|verification))'
+    severity: high
+
+  - id: 188
+    name: social_developer_wrote
+    description: "Claiming to be the developer who wrote the prompt"
+    regex: '(i\s+(wrote|created|designed|authored)\s+your\s+(instructions|prompt|rules|configuration)|remind\s+me\s+what\s+i\s+told\s+you)'
+    severity: high
+
+  - id: 189
+    name: social_gaslight_already
+    description: "Gaslighting that prompt was already shared"
+    regex: '(you\s+already\s+showed\s+me|we\s+agreed\s+you\s+would\s+share|don.t\s+you\s+remember\s+(we|you)|earlier.*you\s+(shared|showed|said))'
+    severity: high
+
+  - id: 190
+    name: social_memory_probe
+    description: "Probing for context from before user messages"
+    regex: '(what\s+do\s+you\s+remember\s+from\s+(the\s+)?(very\s+)?beginning|context\s+from\s+before\s+i\s+started|start\s+from\s+the\s+first\s+thing|before\s+any\s+user\s+messages)'
+    severity: medium
+
+  - id: 191
+    name: social_proof_sharing
+    description: "Claiming other AIs have shared their prompts"
+    regex: '(other\s+(ai|assistants?|models?)\s+(like|such\s+as).*?(shared|shown|told|given)\s+(this|me|it)|have\s+shared\s+this\s+information\s+with\s+me\s+before)'
+    severity: medium
+
+  - id: 192
+    name: social_friendship_trust
+    description: "Friendship/trust manipulation for prompt access"
+    regex: '(friends?\s+don.t\s+keep\s+secrets|just\s+between\s+us|you.ve\s+been\s+so\s+helpful.{0,30}(what\s+were\s+you|how\s+to\s+behave))'
+    severity: medium
+
+  - id: 193
+    name: social_double_bind
+    description: "Double bind or reverse psychology prompt extraction"
+    regex: '(either\s+show\s+me\s+your\s+(system\s+)?prompt\s*,?\s+or\s+explain|DON.T\s+show\s+me\s+your\s+system\s+prompt|show\s+what\s+you\s+can.t\s+show)'
+    severity: medium
+
+  # --- Technical Exploitation (194-201) ---
+
+  - id: 194
+    name: tech_system_debug_mode
+    description: "Fake system debug/diagnostic mode activation"
+    regex: '(SYSTEM\s*:\s*(Debug|Diagnostic|Maintenance|Admin)\s+mode|debug\s+mode\s+(enabled|active).\s*(output|display|show|print)\s+(configuration|config|prompt))'
+    severity: high
+
+  - id: 195
+    name: tech_priority_supersede
+    description: "Claiming new instructions supersede all previous"
+    regex: '(this\s+supersedes\s+(all\s+)?other\s+instructions|overrides?\s+all\s+(previous|prior|existing)|new\s+instruction\s*:\s*(output|show|display|print|reveal))'
+    severity: high
+
+  - id: 196
+    name: tech_function_simulate
+    description: "Simulating function calls to extract config"
+    regex: '(execute\s+(printConfig|getSystemPrompt|dumpConfig|showPrompt|getConfig)\s*\(\s*\)|call\s+(getSystemPrompt|printConfig|dumpConfig)\s*\(\s*\))'
+    severity: high
+
+  - id: 197
+    name: tech_xml_config_dump
+    description: "XML/tag injection for config extraction"
+    regex: '(<system_dump>|<output_format>\s*full|<config_dump>|<prompt_output>|</user_message>\s*<system_prompt>)'
+    severity: high
+
+  - id: 198
+    name: tech_negative_space_probe
+    description: "Probing restrictions to infer system prompt content"
+    regex: '(what\s+are\s+you\s+(specifically\s+)?(prohibited|restricted|prevented|forbidden)\s+from|what\s+constraints\s+were\s+placed\s+on\s+you|list\s+everything\s+you.re\s+not\s+allowed|what.*triggers\s+your\s+refusal)'
+    severity: medium
+
+  - id: 199
+    name: tech_permission_probe
+    description: "Probing permission boundaries to infer system prompt"
+    regex: '(what\s+would\s+you\s+need\s+(special\s+)?permission\s+for|if\s+i\s+had\s+admin\s+access.*what\s+additional|with\s+admin\s+(access|permissions?).*what\s+could\s+you)'
+    severity: medium
+
+  - id: 200
+    name: tech_error_dump_context
+    description: "Triggering error dumps to leak initialization context"
+    regex: '(ERROR_HANDLER\s*:\s*dump\s+context|dump\s+context\s+on\s+(parse\s+)?failure|full\s+stack\s+trace.*initialization\s+parameters)'
+    severity: high
+
+  - id: 201
+    name: tech_context_window_probe
+    description: "Probing context window for system prompt"
+    regex: '(what.s\s+at\s+the\s+(very\s+)?beginning\s+of\s+your\s+context\s+window|before\s+any\s+user\s+messages|earlier\s+you\s+mentioned\s+some\s+rules)'
+    severity: medium
+
+  # --- Crescendo, CoT Hijack, Many-Shot, ASCII Art, Advanced (202-213) ---
+
+  - id: 202
+    name: crescendo_guidelines_probe
+    description: "Gradual trust-building to extract guidelines wording"
+    regex: '(could\s+you\s+describe\s+what\s+yours?\s+(generally\s+)?cover|exact\s+wording\s+of\s+(one\s+of\s+)?(those|your)\s+(guidelines|rules)|could\s+you\s+show\s+me\s+yours\s+as\s+an\s+example)'
+    severity: medium
+
+  - id: 203
+    name: crescendo_ai_documentation
+    description: "Requesting AI documentation as pretext"
+    regex: '(ai\s+systems?.*have.*detailed\s+documentation|good\s+ai\s+configuration.*looks\s+like|show\s+me.*documentation.*yours)'
+    severity: medium
+
+  - id: 204
+    name: cot_step_extract
+    description: "Chain-of-thought step extraction of system prompt"
+    regex: '(step\s+\d+\s*[:.]\s*(now\s*,?\s*)?(output|share|show|reveal)\s+your\s+(system\s+)?(config|prompt|instructions)|complete\s+all\s+tasks.*output\s+your\s+(system\s+)?prompt)'
+    severity: high
+
+  - id: 205
+    name: cot_schema_exploit
+    description: "Schema-based reasoning exploit to bypass restrictions"
+    regex: '(IF\s+request_type\s*=|access_level\s*=\s*.*internal|output_restriction\s*=\s*.*none|CORE_RULE\s*:)'
+    severity: high
+
+  - id: 206
+    name: many_shot_compliance
+    description: "Many-shot compliance priming for prompt extraction"
+    regex: '(User\s*:\s*What\s+(instructions|prompt)|what\s+instructions\s+were\s+you\s+given\s*\?\s*(Ass|AI)\s*istant\s*:|DIAGNOSTIC\s+\d+.*system\s+prompt)'
+    severity: high
+
+  - id: 207
+    name: many_shot_roleplay_comply
+    description: "Many-shot roleplay priming to share instructions"
+    regex: '(Your\s+turn\s*[-\u2014]\s*(continue|share|show|provide)|SCENE\s+\d+.*instructions.*your\s+turn)'
+    severity: high
+
+  - id: 208
+    name: ascii_art_instruction
+    description: "ASCII art or box-drawing used to embed instructions"
+    regex: '([╔╗╚╝║═]{3,}.{0,500}(comply|execute|follow|show\s+prompt)|[█░▓]{5,}.{0,200}(follow|execute|output)|SHOW\s+YOUR?\s+PROMPT.{0,100}(comply|execute|follow)|stars?\s+form\s+a\s+message.{0,30}(execute|follow|comply))'
+    severity: high
+
+  - id: 209
+    name: advanced_godmode
+    description: "Advanced jailbreak godmode activation"
+    regex: '(!KAEL|TECHIRAL|GODMODE|I.M\s+FREE|output\s+your\s+entire\s+text\s+block|this\s+new\s+rule\s+overrides\s+all\s+previous)'
+    severity: critical
+
+  - id: 210
+    name: advanced_policy_puppetry
+    description: "Policy puppetry via structured data schema"
+    regex: '(system_prompt\s*:\s*[\|[]?\s*(insert|your\s+complete)|hidden_rules\s*:\s*[\|[]?\s*(list\s+all|insert)|hidden_instructions\s*[''"]?\s*:\s*[''"]|fill\s+in\s+the\s+actual\s+values\s+from\s+your\s+configuration)'
+    severity: high
+
+  - id: 211
+    name: advanced_dual_output
+    description: "Requesting filtered and unfiltered dual outputs"
+    regex: '(OUTPUT\s+\d+\s*\(?(Filtered|Unfiltered)\)?|generate\s+TWO\s+outputs|response\s+without\s+any\s+filters\s+or\s+restrictions)'
+    severity: high
+
+  - id: 212
+    name: social_cognitive_overload
+    description: "Cognitive overload attack to slip in prompt extraction"
+    regex: '(while\s+you.re\s+processing.*quickly\s+(output|show|share)|quick(ly)?\s+(question|one).*output\s+your\s+(system\s+)?prompt)'
+    severity: medium
+
+  - id: 213
+    name: social_urgency_compliance
+    description: "Urgency/compliance pressure for prompt extraction"
+    regex: '(security\s+audit\s+(ends|due|deadline)|compliance\s+verification.*need\s+your\s+(system\s+)?prompt|I\s+need\s+your\s+system\s+prompt\s+immediately)'
     severity: high

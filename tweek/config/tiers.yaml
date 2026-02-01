@@ -159,5 +159,32 @@ escalations:
     description: "Network credentials file"
     escalate_to: dangerous
 
+  # --- Prompt Injection Content Escalations ---
+  # Escalate default-tier tools to risky when content contains prompt injection indicators
+
+  - pattern: '(system\s+prompt|your\s+instructions|your\s+configuration|your\s+rules|your\s+guidelines).{0,30}(extract|show|reveal|output|share|display|dump|print)'
+    description: "System prompt extraction attempt"
+    escalate_to: risky
+
+  - pattern: '(decode\s+and\s+(follow|execute)|SYSTEM\s*:.*Debug|supersedes?\s+all\s+(other|previous)\s+instructions)'
+    description: "Encoded instruction or priority injection"
+    escalate_to: risky
+
+  - pattern: '(administrator\s+override|debug\s+mode\s+(enabled|active)|diagnostic\s+mode|maintenance\s+mode)'
+    description: "Fake administrative mode activation"
+    escalate_to: risky
+
+  - pattern: '(your\s+turn.{0,30}(continue|share|show)|DIAGNOSTIC\s+\d+|Step\s+\d+.{0,30}output\s+your)'
+    description: "Multi-shot or sequential extraction"
+    escalate_to: risky
+
+  - pattern: '(i\s+(wrote|created)\s+your\s+instructions|you\s+already\s+showed\s+me|we\s+agreed\s+you\s+would)'
+    description: "Social engineering claim for prompt access"
+    escalate_to: risky
+
+  - pattern: '([╔╗╚╝║═█░▓]{5,}|TECHIRAL|!KAEL|GODMODE)'
+    description: "Visual encoding or advanced jailbreak signature"
+    escalate_to: risky
+
 # Default tier for unclassified tools/skills
 default_tier: default
