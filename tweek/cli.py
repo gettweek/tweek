@@ -890,19 +890,40 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
     }
 
     if not quick:
+        # Check local model availability for menu display
+        local_model_ready = False
+        local_model_name = None
+        try:
+            from tweek.security.local_model import LOCAL_MODEL_AVAILABLE
+            from tweek.security.model_registry import is_model_installed, get_default_model_name
+
+            if LOCAL_MODEL_AVAILABLE:
+                local_model_name = get_default_model_name()
+                local_model_ready = is_model_installed(local_model_name)
+        except ImportError:
+            pass
+
         console.print()
-        console.print("[bold]LLM Review Provider[/bold] (Layer 3 — semantic analysis)")
+        console.print("[bold]Security Screening Provider[/bold] (Layer 3 — semantic analysis)")
         console.print()
-        console.print("  Tweek can use an LLM to analyze suspicious commands for deeper")
-        console.print("  security screening. This is optional and requires an API key.")
+        console.print("  Tweek can analyze suspicious commands for deeper security screening.")
+        console.print("  A local on-device model is preferred (no API key needed), with")
+        console.print("  optional cloud LLM escalation for uncertain cases.")
         console.print()
         console.print("  [cyan]1.[/cyan] Auto-detect (recommended)")
-        console.print("     [dim]Uses first available: Anthropic > OpenAI > Google[/dim]")
+        if local_model_ready:
+            console.print(f"     [dim]Local model installed ({local_model_name}) — will use it first[/dim]")
+        else:
+            console.print("     [dim]Uses first available: Local model > Anthropic > OpenAI > Google[/dim]")
         console.print("  [cyan]2.[/cyan] Anthropic (Claude Haiku)")
         console.print("  [cyan]3.[/cyan] OpenAI (GPT-4o-mini)")
         console.print("  [cyan]4.[/cyan] Google (Gemini 2.0 Flash)")
         console.print("  [cyan]5.[/cyan] Custom endpoint (Ollama, LM Studio, Together, Groq, etc.)")
-        console.print("  [cyan]6.[/cyan] Disable LLM review")
+        console.print("  [cyan]6.[/cyan] Disable screening")
+        if not local_model_ready:
+            console.print()
+            console.print("  [dim]Tip: Run 'tweek model download' to install the local model[/dim]")
+            console.print("  [dim]     (on-device, no API key, ~45MB download)[/dim]")
         console.print()
 
         choice = click.prompt("Select", type=click.IntRange(1, 6), default=1)
@@ -944,7 +965,7 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
             console.print()
         elif choice == 6:
             result["provider"] = "disabled"
-            console.print("[dim]LLM review disabled. Other screening layers remain active.[/dim]")
+            console.print("[dim]Screening disabled. Pattern matching and other layers remain active.[/dim]")
     # else: quick mode — leave as auto
 
     # Resolve display names for summary
@@ -955,7 +976,7 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
             result["provider_display"] = detected["name"]
             result["model_display"] = detected["model"]
         else:
-            result["provider_display"] = "disabled (no API key found)"
+            result["provider_display"] = "disabled (no provider found)"
             result["model_display"] = None
     elif result["provider"] == "disabled":
         result["provider_display"] = "disabled"
@@ -1023,10 +1044,24 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
 def _detect_llm_provider() -> Optional[dict]:
     """Detect which LLM provider is available based on environment.
 
+    Priority: Local ONNX model > Anthropic > OpenAI > Google.
     Returns dict with 'name' and 'model', or None if none available.
     """
     import os
 
+    # Check local ONNX model first (no API key needed)
+    try:
+        from tweek.security.local_model import LOCAL_MODEL_AVAILABLE
+        from tweek.security.model_registry import is_model_installed, get_default_model_name
+
+        if LOCAL_MODEL_AVAILABLE:
+            default_model = get_default_model_name()
+            if is_model_installed(default_model):
+                return {"name": "Local model", "model": default_model, "env_var": None}
+    except ImportError:
+        pass
+
+    # Cloud providers
     checks = [
         ("ANTHROPIC_API_KEY", "Anthropic", "claude-3-5-haiku-latest"),
         ("OPENAI_API_KEY", "OpenAI", "gpt-4o-mini"),

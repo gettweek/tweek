@@ -292,6 +292,13 @@ class TestCheckPythonVersion:
 class TestDetectLLMProvider:
     """Tests for _detect_llm_provider helper."""
 
+    @pytest.fixture(autouse=True)
+    def no_local_model(self, monkeypatch):
+        """Disable local model detection so cloud tests are deterministic."""
+        monkeypatch.setattr(
+            "tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False
+        )
+
     def test_detects_anthropic(self, monkeypatch):
         """Should detect Anthropic when ANTHROPIC_API_KEY is set."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
@@ -331,9 +338,44 @@ class TestDetectLLMProvider:
         assert result["name"] == "Anthropic"
 
     def test_returns_none_when_no_keys(self):
-        """Should return None when no API keys are set."""
+        """Should return None when no API keys and no local model."""
         result = _detect_llm_provider()
         assert result is None
+
+    def test_detects_local_model_first(self, monkeypatch):
+        """Local model should be detected before cloud providers."""
+        # Re-enable local model for this test
+        monkeypatch.setattr("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", True)
+        monkeypatch.setattr(
+            "tweek.security.model_registry.is_model_installed", lambda name: True
+        )
+        monkeypatch.setattr(
+            "tweek.security.model_registry.get_default_model_name",
+            lambda: "deberta-v3-injection",
+        )
+        # Also set an API key to prove local model takes priority
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+
+        result = _detect_llm_provider()
+        assert result is not None
+        assert result["name"] == "Local model"
+        assert result["env_var"] is None
+
+    def test_falls_through_when_local_model_not_installed(self, monkeypatch):
+        """Should fall through to cloud if local model deps are present but model not downloaded."""
+        monkeypatch.setattr("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", True)
+        monkeypatch.setattr(
+            "tweek.security.model_registry.is_model_installed", lambda name: False
+        )
+        monkeypatch.setattr(
+            "tweek.security.model_registry.get_default_model_name",
+            lambda: "deberta-v3-injection",
+        )
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        result = _detect_llm_provider()
+        assert result is not None
+        assert result["name"] == "OpenAI"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -342,6 +384,13 @@ class TestDetectLLMProvider:
 
 class TestConfigureLLMProvider:
     """Tests for _configure_llm_provider."""
+
+    @pytest.fixture(autouse=True)
+    def no_local_model(self, monkeypatch):
+        """Disable local model so cloud provider tests are deterministic."""
+        monkeypatch.setattr(
+            "tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False
+        )
 
     def test_quick_mode_skips_prompt(self, tmp_path, capsys):
         """Quick mode should not show LLM selection prompt."""
@@ -360,12 +409,28 @@ class TestConfigureLLMProvider:
         assert "haiku" in result["model_display"]
 
     def test_auto_detect_no_keys(self, tmp_path, capsys):
-        """Auto-detect should report disabled when no keys found."""
+        """Auto-detect should report disabled when no keys and no local model."""
         tweek_dir = tmp_path / ".tweek"
         tweek_dir.mkdir()
         result = _configure_llm_provider(tweek_dir, interactive=False, quick=True)
         assert "disabled" in result["provider_display"]
         assert result["model_display"] is None
+
+    def test_auto_detect_finds_local_model(self, tmp_path, monkeypatch, capsys):
+        """Auto-detect should find local model even without API keys."""
+        monkeypatch.setattr("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", True)
+        monkeypatch.setattr(
+            "tweek.security.model_registry.is_model_installed", lambda name: True
+        )
+        monkeypatch.setattr(
+            "tweek.security.model_registry.get_default_model_name",
+            lambda: "deberta-v3-injection",
+        )
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir()
+        result = _configure_llm_provider(tweek_dir, interactive=False, quick=True)
+        assert result["provider_display"] == "Local model"
+        assert result["model_display"] == "deberta-v3-injection"
 
     def test_disabled_provider_saves_config(self, tmp_path, capsys):
         """Selecting 'disable' should save enabled: false to config."""
@@ -485,6 +550,13 @@ class TestConfigureLLMProvider:
 
 class TestValidateLLMProvider:
     """Tests for _validate_llm_provider."""
+
+    @pytest.fixture(autouse=True)
+    def no_local_model(self, monkeypatch):
+        """Disable local model so fallback tests are deterministic."""
+        monkeypatch.setattr(
+            "tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False
+        )
 
     def test_validates_anthropic_key_present(self, monkeypatch, capsys):
         """Should show success when Anthropic key is found."""
