@@ -215,16 +215,21 @@ class TestInstallCommand:
 class TestUninstallCommand:
     """Tests for the uninstall command."""
 
-    def test_uninstall_not_installed(self, runner, tmp_path):
-        """Test uninstall when not installed."""
-        with patch.object(Path, 'home', return_value=tmp_path):
+    @patch('tweek.cli.sys')
+    def test_uninstall_not_installed(self, mock_sys, runner, tmp_path):
+        """Test uninstall when not installed (project scope, empty directory)."""
+        mock_sys.stdin.isatty.return_value = True
+        mock_sys.stderr = sys.stderr
+        with runner.isolated_filesystem(temp_dir=tmp_path):
             result = runner.invoke(main, ['uninstall', '--confirm'])
 
         assert "No Tweek installation" in result.output or result.exit_code == 0
 
-    def test_uninstall_removes_hooks(self, runner, tmp_path):
+    @patch('tweek.cli.sys')
+    def test_uninstall_removes_hooks(self, mock_sys, runner, tmp_path):
         """Test uninstall removes Tweek hooks."""
-        # Use project scope since it's easier to test (uses cwd)
+        mock_sys.stdin.isatty.return_value = True
+        mock_sys.stderr = sys.stderr
         with runner.isolated_filesystem(temp_dir=tmp_path) as td:
             # Set up a mock installation in current project
             claude_dir = Path(".claude")

@@ -749,7 +749,7 @@ def uninstall(uninstall_global: bool, everything: bool, confirm: bool):
     # HUMAN-ONLY GATE: Block non-interactive execution
     # This is Layer 2 of protection (Layer 1 is the PreToolUse hook)
     # ─────────────────────────────────────────────────────────────
-    if not confirm and not sys.stdin.isatty():
+    if not sys.stdin.isatty():
         console.print("[red]ERROR: tweek uninstall must be run from an interactive terminal.[/red]")
         console.print("[dim]This command cannot be run by AI agents or automated scripts.[/dim]")
         console.print("[dim]Open a terminal and run the command directly.[/dim]")
