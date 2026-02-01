@@ -233,14 +233,14 @@ class TestProcessHook:
         assert hook_output.get("permissionDecision") == "ask"
         assert "TWEEK" in hook_output.get("permissionDecisionReason", "")
 
-    def test_prompts_for_keychain_dump(self, mock_logger):
-        """Should prompt for Keychain extraction attempts."""
+    def test_denies_keychain_dump(self, mock_logger):
+        """Should hard-deny Keychain extraction (critical+deterministic)."""
         result = process_hook({
             "tool_name": "Bash",
             "tool_input": {"command": "security dump-keychain"}
         }, mock_logger)
         hook_output = result.get("hookSpecificOutput", {})
-        assert hook_output.get("permissionDecision") == "ask"
+        assert hook_output.get("permissionDecision") == "deny"
         assert "keychain_dump" in hook_output.get("permissionDecisionReason", "")
 
     def test_handles_empty_input(self, mock_logger):

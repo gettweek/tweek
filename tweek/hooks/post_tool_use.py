@@ -22,6 +22,7 @@ Claude Code PostToolUse Protocol:
 """
 
 import json
+import re
 import sys
 import uuid
 from pathlib import Path
@@ -146,10 +147,21 @@ def screen_content(
             matches, _suppressed = filter_by_severity(matches, min_severity)
 
         for match in matches:
+            # Capture matched text for redaction of critical deterministic patterns
+            matched_text = None
+            try:
+                regex_match = re.search(match.get("regex", ""), content, re.IGNORECASE | re.DOTALL)
+                if regex_match:
+                    matched_text = regex_match.group()
+            except re.error:
+                pass
+
             findings.append({
                 "pattern_name": match.get("name", "unknown"),
                 "severity": match.get("severity", "medium"),
+                "confidence": match.get("confidence", "heuristic"),
                 "description": match.get("description", ""),
+                "matched_text": matched_text,
             })
     except ImportError:
         pass
@@ -248,7 +260,25 @@ def screen_content(
     except Exception:
         pass  # Logging errors should not block the response
 
-    # Step 5: Build response
+    # Step 5: Content redaction for critical deterministic matches
+    # Replace matched content with [REDACTED] to prevent AI from acting on it
+    redacted_content = None
+    if findings:
+        redaction_applied = False
+        temp_content = content
+        for f in findings:
+            if (f["severity"] == "critical"
+                    and f.get("confidence") == "deterministic"
+                    and f.get("matched_text")):
+                temp_content = temp_content.replace(
+                    f["matched_text"],
+                    f"[REDACTED BY TWEEK: {f['pattern_name']}]"
+                )
+                redaction_applied = True
+        if redaction_applied:
+            redacted_content = temp_content
+
+    # Step 6: Build response
     if findings or llm_finding:
         # Build a warning message
         warning_parts = ["TWEEK SECURITY WARNING: Suspicious content detected in tool response."]
@@ -271,7 +301,7 @@ def screen_content(
 
         reason = "\n".join(warning_parts)
 
-        return {
+        response = {
             "decision": "block",
             "reason": reason,
             "hookSpecificOutput": {
@@ -279,6 +309,12 @@ def screen_content(
                 "additionalContext": reason,
             },
         }
+
+        # If content was redacted, include the redacted version
+        if redacted_content is not None:
+            response["hookSpecificOutput"]["redactedContent"] = redacted_content
+
+        return response
 
     return {}
 

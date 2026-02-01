@@ -288,6 +288,10 @@ class EventType(Enum):
     SANDBOX_LAYER_CHANGE = "sandbox_layer_change"       # Project isolation layer changed
     SANDBOX_MERGE_VIOLATION = "sandbox_merge_violation"  # Project tried to weaken global
 
+    # Enforcement events
+    BREAK_GLASS = "break_glass"                         # Emergency override of hard block
+    FALSE_POSITIVE_REPORT = "false_positive_report"     # User reported false positive
+
     # System events
     HEALTH_CHECK = "health_check"           # Diagnostic check results
     STARTUP = "startup"                     # System initialization

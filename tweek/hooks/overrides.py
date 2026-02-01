@@ -214,6 +214,15 @@ class SecurityOverrides:
         mode_config = self._trust_config.get(trust_mode, {})
         return mode_config.get("skip_llm_for_default_tier", False)
 
+    def get_enforcement_policy(self) -> "EnforcementPolicy":
+        """Get the enforcement policy from the config's 'enforcement' section.
+
+        Returns an EnforcementPolicy initialized from the config, or the
+        default policy if no enforcement section exists.
+        """
+        enforcement_config = self.config.get("enforcement", {})
+        return EnforcementPolicy(enforcement_config)
+
 
 # =========================================================================
 # Module-level singleton
@@ -403,6 +412,9 @@ def bash_targets_protected_config(command: str) -> bool:
 
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
+# Decision escalation order: log < ask < deny
+DECISION_RANK = {"log": 0, "ask": 1, "deny": 2}
+
 
 def filter_by_severity(
     matches: List[Dict], min_severity: str
@@ -424,3 +436,94 @@ def filter_by_severity(
         else:
             suppressed.append(match)
     return kept, suppressed
+
+
+# =========================================================================
+# Enforcement Policy
+# =========================================================================
+
+
+class EnforcementPolicy:
+    """Configurable severity+confidence → decision matrix.
+
+    Determines the enforcement decision (deny/ask/log) for a given
+    pattern match based on its severity and confidence level.
+
+    Default matrix:
+        CRITICAL + deterministic → deny (hard block)
+        CRITICAL + heuristic/contextual → ask
+        HIGH → ask
+        MEDIUM → ask
+        LOW → log (silent allow with logging)
+    """
+
+    DEFAULT_MATRIX = {
+        "critical": {"deterministic": "deny", "heuristic": "ask", "contextual": "ask"},
+        "high": {"deterministic": "ask", "heuristic": "ask", "contextual": "ask"},
+        "medium": {"deterministic": "ask", "heuristic": "ask", "contextual": "ask"},
+        "low": {"deterministic": "log", "heuristic": "log", "contextual": "log"},
+    }
+
+    VALID_DECISIONS = {"deny", "ask", "log"}
+    VALID_SEVERITIES = {"critical", "high", "medium", "low"}
+    VALID_CONFIDENCES = {"deterministic", "heuristic", "contextual"}
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.matrix = self._merge_with_defaults(config or {})
+
+    def resolve(self, severity: str, confidence: str) -> str:
+        """Determine the enforcement decision for a severity+confidence pair.
+
+        Args:
+            severity: Pattern severity (critical/high/medium/low)
+            confidence: Pattern confidence (deterministic/heuristic/contextual)
+
+        Returns:
+            Decision string: "deny", "ask", or "log"
+        """
+        row = self.matrix.get(severity, self.matrix.get("medium", {}))
+        return row.get(confidence, "ask")
+
+    def _merge_with_defaults(self, config: Dict) -> Dict:
+        """Merge user config with defaults, validating all values."""
+        merged = {}
+        for severity in self.VALID_SEVERITIES:
+            default_row = self.DEFAULT_MATRIX[severity]
+            user_row = config.get(severity, {})
+            merged_row = {}
+            for confidence in self.VALID_CONFIDENCES:
+                user_decision = user_row.get(confidence)
+                if user_decision and user_decision in self.VALID_DECISIONS:
+                    merged_row[confidence] = user_decision
+                else:
+                    merged_row[confidence] = default_row[confidence]
+            merged[severity] = merged_row
+        return merged
+
+    @staticmethod
+    def stricter_decision(a: str, b: str) -> str:
+        """Return the stricter of two decisions (deny > ask > log)."""
+        rank_a = DECISION_RANK.get(a, 1)
+        rank_b = DECISION_RANK.get(b, 1)
+        if rank_a >= rank_b:
+            return a
+        return b
+
+    @staticmethod
+    def merge_additive_only(global_policy: "EnforcementPolicy",
+                            project_policy: "EnforcementPolicy") -> "EnforcementPolicy":
+        """Merge project policy with global, enforcing additive-only (escalation only).
+
+        Project can escalate decisions (log→ask, ask→deny) but never downgrade.
+        """
+        merged_config = {}
+        for severity in EnforcementPolicy.VALID_SEVERITIES:
+            merged_row = {}
+            for confidence in EnforcementPolicy.VALID_CONFIDENCES:
+                global_decision = global_policy.resolve(severity, confidence)
+                project_decision = project_policy.resolve(severity, confidence)
+                merged_row[confidence] = EnforcementPolicy.stricter_decision(
+                    global_decision, project_decision
+                )
+            merged_config[severity] = merged_row
+        return EnforcementPolicy(merged_config)

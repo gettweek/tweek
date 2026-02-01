@@ -45,6 +45,7 @@ from tweek.logging.security_log import (
 from tweek.hooks.overrides import (
     get_overrides, get_trust_mode, is_protected_config_file,
     bash_targets_protected_config, filter_by_severity, SEVERITY_RANK,
+    EnforcementPolicy,
 )
 from tweek.skills.guard import (
     get_skill_guard_reason,
@@ -224,6 +225,69 @@ def _get_pattern_matcher() -> "PatternMatcher":
     if _cached_pattern_matcher is None:
         _cached_pattern_matcher = PatternMatcher()
     return _cached_pattern_matcher
+
+
+def _resolve_enforcement(
+    pattern_match: Optional[Dict],
+    enforcement_policy: Optional[EnforcementPolicy],
+    has_non_pattern_trigger: bool = False,
+) -> str:
+    """Determine the enforcement decision based on severity + confidence.
+
+    Args:
+        pattern_match: The highest-severity pattern match dict, or None.
+        enforcement_policy: The active EnforcementPolicy (from overrides config).
+        has_non_pattern_trigger: True if LLM/session/sandbox/compliance triggered.
+
+    Returns:
+        Decision string: "deny", "ask", or "log".
+    """
+    # Non-pattern triggers (LLM review, session anomaly, etc.) always "ask"
+    if not pattern_match:
+        if has_non_pattern_trigger:
+            return "ask"
+        return "log"
+
+    severity = pattern_match.get("severity", "medium")
+    confidence = pattern_match.get("confidence", "heuristic")
+
+    # Use the enforcement policy matrix if available
+    if enforcement_policy:
+        decision = enforcement_policy.resolve(severity, confidence)
+    elif severity == "critical" and confidence == "deterministic":
+        decision = "deny"
+    elif severity == "low":
+        decision = "log"
+    else:
+        decision = "ask"
+
+    # Break-glass: downgrade "deny" to "ask" if active override exists
+    if decision == "deny":
+        try:
+            from tweek.hooks.break_glass import check_override
+            override = check_override(pattern_match.get("name", ""))
+            if override:
+                # Log the break-glass usage
+                _log(
+                    EventType.BREAK_GLASS,
+                    "break_glass",
+                    decision="ask",
+                    decision_reason=(
+                        f"Break-glass override active for pattern "
+                        f"'{pattern_match.get('name')}': {override.get('reason', 'no reason')}"
+                    ),
+                    metadata={
+                        "pattern_name": pattern_match.get("name"),
+                        "override_mode": override.get("mode"),
+                        "override_reason": override.get("reason"),
+                        "override_created_at": override.get("created_at"),
+                    },
+                )
+                decision = "ask"  # Downgrade deny → ask (user still sees prompt)
+        except ImportError:
+            pass  # Break-glass module not available
+
+    return decision
 
 
 class TierManager:
@@ -936,6 +1000,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     # Uses project-scoped overrides (additive-only merge) if sandbox active
     # =========================================================================
     overrides = _sandbox.get_overrides() if _sandbox else get_overrides()
+    enforcement_policy = overrides.get_enforcement_policy() if overrides else EnforcementPolicy()
     if overrides:
         whitelist_match = overrides.check_whitelist(tool_name, tool_input, content)
         if whitelist_match:
@@ -1323,26 +1388,11 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     compliance_triggered = bool(compliance_findings)
 
     if pattern_match or llm_triggered or session_triggered or sandbox_triggered or compliance_triggered:
-        _log(
-            EventType.USER_PROMPTED,
-            tool_name,
-            command=content if tool_name == "Bash" else None,
-            tier=effective_tier,
-            pattern_name=pattern_match.get("name") if pattern_match else "multi_layer",
-            pattern_severity=pattern_match.get("severity") if pattern_match else "high",
-            decision="ask",
-            decision_reason="Security check triggered",
-            metadata={
-                "pattern_triggered": pattern_match is not None,
-                "llm_triggered": llm_triggered,
-                "session_triggered": session_triggered,
-                "sandbox_triggered": sandbox_triggered,
-                "compliance_triggered": compliance_triggered,
-                "compliance_findings": len(compliance_findings) if compliance_findings else 0,
-            }
-        )
+        # Determine graduated enforcement decision
+        has_non_pattern = llm_triggered or session_triggered or sandbox_triggered or compliance_triggered
+        decision = _resolve_enforcement(pattern_match, enforcement_policy, has_non_pattern)
 
-        # Combine all messages
+        # Build the warning message for ask/deny decisions
         final_msg = format_prompt_message(
             pattern_match, escalation, content, effective_tier,
             rate_limit_msg=rate_limit_msg,
@@ -1350,21 +1400,89 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             session_msg=session_msg
         )
 
-        # Add sandbox message if applicable
         if sandbox_msg:
             final_msg += f"\n\n{sandbox_msg}"
 
-        # Add compliance message if applicable
         if compliance_msg:
             final_msg += f"\n\n COMPLIANCE NOTICE\n{compliance_msg}"
 
-        return {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "ask",
-                "permissionDecisionReason": final_msg,
+        if decision == "deny":
+            # Hard block: critical + deterministic patterns (or configured deny)
+            _log(
+                EventType.BLOCKED,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier=effective_tier,
+                pattern_name=pattern_match.get("name") if pattern_match else "multi_layer",
+                pattern_severity=pattern_match.get("severity") if pattern_match else "high",
+                decision="deny",
+                decision_reason="Hard block: critical deterministic pattern",
+                metadata={
+                    "pattern_triggered": pattern_match is not None,
+                    "pattern_confidence": pattern_match.get("confidence") if pattern_match else None,
+                    "llm_triggered": llm_triggered,
+                    "session_triggered": session_triggered,
+                    "sandbox_triggered": sandbox_triggered,
+                    "compliance_triggered": compliance_triggered,
+                    "enforcement_decision": "deny",
+                }
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": final_msg,
+                }
             }
-        }
+
+        elif decision == "log":
+            # Silent allow with logging: low-severity or low-confidence patterns
+            _log(
+                EventType.ALLOWED,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier=effective_tier,
+                pattern_name=pattern_match.get("name") if pattern_match else "multi_layer",
+                pattern_severity=pattern_match.get("severity") if pattern_match else "low",
+                decision="log",
+                decision_reason="Low-severity pattern logged only",
+                metadata={
+                    "pattern_triggered": pattern_match is not None,
+                    "pattern_confidence": pattern_match.get("confidence") if pattern_match else None,
+                    "enforcement_decision": "log",
+                }
+            )
+            return {}
+
+        else:
+            # Ask: prompt user for confirmation (default behavior)
+            _log(
+                EventType.USER_PROMPTED,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier=effective_tier,
+                pattern_name=pattern_match.get("name") if pattern_match else "multi_layer",
+                pattern_severity=pattern_match.get("severity") if pattern_match else "high",
+                decision="ask",
+                decision_reason="Security check triggered",
+                metadata={
+                    "pattern_triggered": pattern_match is not None,
+                    "pattern_confidence": pattern_match.get("confidence") if pattern_match else None,
+                    "llm_triggered": llm_triggered,
+                    "session_triggered": session_triggered,
+                    "sandbox_triggered": sandbox_triggered,
+                    "compliance_triggered": compliance_triggered,
+                    "compliance_findings": len(compliance_findings) if compliance_findings else 0,
+                    "enforcement_decision": "ask",
+                }
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "ask",
+                    "permissionDecisionReason": final_msg,
+                }
+            }
 
     # No issues found - allow
     _log(

@@ -427,6 +427,22 @@ class MergedOverrides:
         mode_config = self._trust_config.get(trust_mode, {})
         return mode_config.get("skip_llm_for_default_tier", False)
 
+    def get_enforcement_policy(self):
+        """Get merged enforcement policy (additive-only: project can only escalate).
+
+        Uses EnforcementPolicy.merge_additive_only to ensure the project
+        can escalate decisions (log→ask, ask→deny) but never downgrade them.
+        """
+        from tweek.hooks.overrides import EnforcementPolicy
+
+        global_policy = EnforcementPolicy(
+            self.global_ovr.config.get("enforcement", {}) if self.global_ovr else {}
+        )
+        project_policy = EnforcementPolicy(
+            self.project_ovr.config.get("enforcement", {}) if self.project_ovr else {}
+        )
+        return EnforcementPolicy.merge_additive_only(global_policy, project_policy)
+
 
 # ==========================================================================
 # Module-level singleton cache (keyed by resolved project path)
