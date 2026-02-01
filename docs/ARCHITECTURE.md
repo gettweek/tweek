@@ -251,6 +251,33 @@ the human-in-the-loop workflow.
 | `~/.tweek/config.yaml` | User home | User-level configuration overrides |
 | `.tweek/config.yaml` | Project root | Project-level configuration overrides |
 
+### SQLite: `~/.tweek/memory.db`
+
+Persistent agentic memory database managed by `tweek/memory/store.py`. Enables Tweek
+to learn from past security decisions across sessions.
+
+**5 tables + 1 view**:
+
+| Table | Purpose |
+|---|---|
+| `pattern_decisions` | Per-pattern approval/denial history with time-decay weighting |
+| `source_trust` | URL/file/domain injection history and trust scores |
+| `workflow_baselines` | Normal tool usage patterns per project (bucketed by hour) |
+| `learned_whitelists` | Auto-generated whitelist suggestions from approval patterns |
+| `memory_audit` | Accountability log for all memory reads/writes |
+| `pattern_confidence_view` | Computed view: per-pattern confidence adjustments |
+
+**Safety invariants**: CRITICAL+deterministic patterns are immune from any memory adjustment
+(enforced via SQL CHECK constraint). Maximum relaxation is one step: `ask` → `log` only.
+Memory requires 10+ weighted decisions at 90%+ approval ratio before suggesting changes.
+
+**Time decay**: 30-day half-life. Entries below 0.01 weight are excluded from queries.
+
+**Per-project memory**: `ProjectSandbox.get_memory_store()` provides project-scoped
+memory that can only escalate (never relax) global decisions.
+
+See [MEMORY.md](MEMORY.md) for the full schema and safety invariant documentation.
+
 ### NDJSON Log: `~/.tweek/security_events.jsonl`
 
 Structured newline-delimited JSON log managed by `tweek/logging/json_logger.py`.
@@ -391,6 +418,16 @@ tweek/
 |   +-- json_logger.py             # JsonEventLogger: NDJSON output for log aggregation
 |   +-- bundle.py                  # Log bundle export
 |
++-- memory/                        # Agentic memory (cross-session learning)
+|   +-- __init__.py                # Exports: get_memory_store, MemoryStore
+|   +-- schemas.py                 # Dataclasses: PatternDecisionEntry, ConfidenceAdjustment,
+|   |                              #   SourceTrustEntry, WorkflowBaseline, LearnedWhitelistSuggestion
+|   +-- safety.py                  # Safety invariants: is_immune_pattern(), validate_memory_adjustment()
+|   +-- store.py                   # MemoryStore: SQLite CRUD, decay engine, stats, export
+|   +-- queries.py                 # Hook entry points: memory_read_for_pattern(),
+|                                  #   memory_write_after_decision(), memory_read_source_trust(),
+|                                  #   memory_write_source_scan(), memory_update_workflow()
+|
 +-- vault/                         # Credential vaulting
 |   +-- __init__.py
 |   +-- keychain.py                # macOS Keychain integration
@@ -406,4 +443,5 @@ tweek/
 
 - [PHILOSOPHY.md](PHILOSOPHY.md) - Threat model and design principles
 - [DEFENSE_LAYERS.md](DEFENSE_LAYERS.md) - Detailed documentation of each screening layer
+- [MEMORY.md](MEMORY.md) - Agentic memory system (cross-session learning)
 - [CONFIGURATION.md](CONFIGURATION.md) - Configuration system and security tiers

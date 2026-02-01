@@ -16,7 +16,7 @@
   <a href="https://pypi.org/project/tweek/"><img src="https://img.shields.io/pypi/v/tweek" alt="PyPI version"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License: Apache 2.0"></a>
-  <img src="https://img.shields.io/badge/tests-1787%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1893%20passing-brightgreen" alt="Tests">
 </p>
 
 <p align="center">
@@ -349,6 +349,7 @@ Project-level overrides can only **escalate** decisions (e.g., `log` → `ask`),
 - **Rate limiting** with burst detection, velocity anomaly, and circuit breaker
 - **Sandbox preview** -- speculative execution on macOS (sandbox-exec) and Linux (firejail/bwrap)
 - **Credential vault** with OS keychain integration (macOS Keychain, GNOME Keyring, Windows Credential Locker)
+- **Agentic memory** -- persistent cross-session learning from past security decisions with time-decay weighting, source trust tracking, workflow baselines, and learned whitelist suggestions (`tweek memory`)
 - **Security event logging** with automatic redaction to SQLite
 - **NDJSON structured log export** (for ELK/Splunk/Datadog)
 - **CLI hooks** for Claude Code (global or per-project, both PreToolUse and PostToolUse)
@@ -426,6 +427,7 @@ Project-level overrides can only **escalate** decisions (e.g., `log` → `ask`),
 | Content redaction (critical matches) | Yes | Yes | Yes |
 | Break-glass override (`tweek override`) | Yes | Yes | Yes |
 | False-positive feedback loop | Yes | Yes | Yes |
+| Agentic memory (cross-session learning) | Yes | Yes | Yes |
 | Skill audit with translation | Yes | Yes | Yes |
 | Credential vault (OS keychain) | Yes | Yes | Yes |
 | MCP proxy & HTTP proxy | Yes | Yes | Yes |
@@ -458,6 +460,7 @@ Teams and Enterprise tiers are coming soon. Join the waitlist at [gettweek.com](
 | [CLI Reference](docs/CLI_REFERENCE.md) | All commands, flags, and examples |
 | [MCP Integration](docs/MCP_INTEGRATION.md) | MCP proxy and gateway setup |
 | [HTTP Proxy](docs/HTTP_PROXY.md) | HTTPS interception setup |
+| [Agentic Memory](docs/MEMORY.md) | Cross-session learning and memory management |
 | [Credential Vault](docs/VAULT.md) | Vault setup and migration |
 | [Plugins](docs/PLUGINS.md) | Plugin development and registry |
 | [Logging](docs/LOGGING.md) | Event logging and audit trail |

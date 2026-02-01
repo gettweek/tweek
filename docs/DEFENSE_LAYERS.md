@@ -11,6 +11,7 @@ Detailed documentation of each layer in Tweek's screening pipeline.
 - [Layer 3: LLM Review](#layer-3-llm-review)
 - [Layer 4: Session Analysis](#layer-4-session-analysis)
 - [Layer 5: Sandbox Preview](#layer-5-sandbox-preview)
+- [Memory Integration](#memory-integration)
 - [Tier-to-Layer Mapping](#tier-to-layer-mapping)
 
 ---
@@ -416,6 +417,75 @@ operation), the layer returns `ask` with a detailed message listing all violatio
 
 ---
 
+## Memory Integration
+
+**Source**: `tweek/memory/` (store, queries, safety, schemas)
+**Invoked from**: `tweek/hooks/pre_tool_use.py` (after L2, before enforcement), `tweek/hooks/post_tool_use.py` (source trust)
+**License**: Free
+
+Agentic memory sits between Layer 2 (Pattern Matching) and the enforcement decision gate.
+It provides cross-session learning to reduce noise from repeatedly-approved patterns without
+weakening protection against genuine threats.
+
+### Decision Flow with Memory
+
+```
+Pattern Match Found
+       │
+       ▼
+Memory Read ──── query (pattern_name, path_prefix) ──── memory.db
+       │
+       ├── No data / insufficient (< 10 decisions) → proceed as normal
+       ├── Immune pattern (CRITICAL+deterministic) → proceed as normal (never adjusted)
+       └── Adjustment available (90%+ approval, 80%+ confidence) → suggest relaxation
+               │
+               ▼
+       Enforcement Resolution
+       │  ├── deny → deny (memory never relaxes deny)
+       │  ├── ask + memory suggests log → log (one-step relaxation)
+       │  └── ask + no memory suggestion → ask
+       │
+       ▼
+Memory Write ──── record (pattern, decision, severity, path) ──── memory.db
+```
+
+### What Memory Can and Cannot Do
+
+| Scenario | Memory Behavior |
+|---|---|
+| CRITICAL+deterministic pattern (`ssh_key_read`) | **Immune**: Memory never adjusts. SQL CHECK constraint prevents `allow` records. |
+| HIGH+heuristic pattern approved 15/15 times | **Suggest**: `ask` → `log` (if confidence >= 0.80) |
+| MEDIUM+heuristic pattern approved 8/10 times | **No change**: Below 90% approval threshold |
+| Any pattern with < 10 weighted decisions | **No change**: Insufficient data |
+| `deny` decision from enforcement | **No change**: Memory never relaxes `deny` |
+| Pattern in new path context | **No change**: Memory is keyed by `(pattern, path_prefix)` — new contexts start fresh |
+
+### Source Trust (PostToolUse)
+
+Every URL and file processed by PostToolUse screening gets a trust score. The PostToolUse
+hook reads source trust before screening and writes the result after screening:
+
+- **Clean source** (0 injections / 50 scans): trust_score = 1.0
+- **Suspicious source** (8 injections / 10 scans): trust_score = 0.2
+- **Domain-level trust**: URL trust is also aggregated at the domain level
+
+Source trust information is logged and available via `tweek memory sources`.
+
+### Safety Invariants Summary
+
+1. CRITICAL+deterministic immune (SQL CHECK + code guards)
+2. One-step max relaxation: `ask` → `log` only (never `deny` → anything, never → `allow`)
+3. Minimum 10 weighted decisions before any suggestion
+4. 90% approval ratio required
+5. 80% confidence score required
+6. 30-day half-life time decay
+7. Full audit trail in `memory_audit` table
+8. `memory.db` protected from AI modification
+
+See [MEMORY.md](MEMORY.md) for the full schema, safety invariant proofs, and CLI reference.
+
+---
+
 ## Tier-to-Layer Mapping
 
 | Layer | Safe | Default | Risky | Dangerous |
@@ -451,4 +521,5 @@ is available.
 
 - [PHILOSOPHY.md](PHILOSOPHY.md) - Threat model and design principles
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and module map
+- [MEMORY.md](MEMORY.md) - Agentic memory system (cross-session learning)
 - [CONFIGURATION.md](CONFIGURATION.md) - Configuration system and security tiers

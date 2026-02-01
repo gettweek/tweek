@@ -662,6 +662,142 @@ tweek plugins registry --info
 
 ---
 
+## Memory Commands (`tweek memory`)
+
+Manage Tweek's agentic memory -- persistent, cross-session learning from past security decisions.
+
+See [MEMORY.md](MEMORY.md) for architecture details.
+
+### `tweek memory status`
+
+Show overall memory statistics: table sizes, last decay run, database file size.
+
+```bash
+tweek memory status
+```
+
+### `tweek memory patterns`
+
+Show per-pattern confidence adjustments from historical decisions.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--min-decisions` | `0` | Only show patterns with N+ decisions |
+| `--sort {count,approval,name}` | `count` | Sort order |
+
+```bash
+tweek memory patterns
+tweek memory patterns --min-decisions 5
+tweek memory patterns --sort approval
+```
+
+### `tweek memory sources`
+
+Show source trustworthiness scores for URLs, files, and domains.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--suspicious` | off | Only show sources with trust < 0.5 |
+
+```bash
+tweek memory sources
+tweek memory sources --suspicious
+```
+
+### `tweek memory suggestions`
+
+Show pending whitelist suggestions generated from approval patterns.
+
+```bash
+tweek memory suggestions
+```
+
+Suggestions appear when a pattern has 10+ decisions with 90%+ approval. Use `accept` or `reject` to review.
+
+### `tweek memory accept`
+
+Accept a whitelist suggestion. Writes the pattern to the overrides whitelist.
+
+| Argument | Description |
+|----------|-------------|
+| `ID` | Suggestion ID (from `tweek memory suggestions`) |
+
+```bash
+tweek memory accept 1
+tweek memory accept 3
+```
+
+### `tweek memory reject`
+
+Reject a whitelist suggestion. Marks it as reviewed without action.
+
+| Argument | Description |
+|----------|-------------|
+| `ID` | Suggestion ID (from `tweek memory suggestions`) |
+
+```bash
+tweek memory reject 2
+```
+
+### `tweek memory baseline`
+
+Show workflow baseline for the current project. Displays per-tool invocation counts and denial rates.
+
+```bash
+tweek memory baseline
+```
+
+### `tweek memory audit`
+
+Show the memory operation audit log.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--limit, -n` | `50` | Number of entries to show |
+
+```bash
+tweek memory audit
+tweek memory audit -n 100
+```
+
+### `tweek memory clear`
+
+Clear memory data.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--table {patterns,sources,baselines,whitelists,all}` | `all` | Which table(s) to clear |
+| `--confirm` | off | Skip confirmation prompt |
+
+```bash
+tweek memory clear --table patterns --confirm
+tweek memory clear --table sources
+tweek memory clear --confirm                     # Clear all tables
+```
+
+### `tweek memory export`
+
+Export all memory data to JSON.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output, -o` | stdout | Output file path |
+
+```bash
+tweek memory export
+tweek memory export -o memory_backup.json
+```
+
+### `tweek memory decay`
+
+Manually trigger time decay across all tables. Uses a 30-day half-life.
+
+```bash
+tweek memory decay
+```
+
+---
+
 ## MCP Commands (`tweek mcp`)
 
 MCP Security Gateway for desktop LLM applications. Requires `pip install tweek[mcp]`.
@@ -743,6 +879,7 @@ tweek mcp decide abc12345 deny -n "Not authorized"
 
 ## Cross-References
 
+- [MEMORY.md](MEMORY.md) -- Agentic memory system (cross-session learning)
 - [MCP_INTEGRATION.md](MCP_INTEGRATION.md) -- MCP gateway and proxy architecture
 - [HTTP_PROXY.md](HTTP_PROXY.md) -- HTTP proxy and HTTPS interception
 - [VAULT.md](VAULT.md) -- Credential storage architecture
