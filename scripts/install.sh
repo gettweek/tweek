@@ -120,12 +120,90 @@ check_python() {
                     exit 1
                 fi
             else
-                echo "  Install Python via one of:"
-                echo "    1. Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-                echo "       Then: brew install python@3.12"
-                echo "    2. python.org: https://www.python.org/downloads/"
-                echo "    3. pyenv: https://github.com/pyenv/pyenv#installation"
-                exit 1
+                # Homebrew not installed — offer to install it without admin
+                if [ "$INTERACTIVE" = true ] && command -v git &>/dev/null; then
+                    echo -e "  Homebrew is not installed. It can be installed ${BOLD}without admin access${NC}"
+                    echo -e "  to ${DIM}~/.homebrew${NC}, then used to install Python."
+                    echo ""
+                    echo -ne "${CYAN}→${NC} Install Homebrew to ~/.homebrew (no sudo required)? ${DIM}[Y/n]${NC} "
+                    read -r reply </dev/tty
+                    if [[ ! "$reply" =~ ^[Nn]$ ]]; then
+                        local brew_prefix="$HOME/.homebrew"
+                        if [ -d "$brew_prefix" ] && [ -x "$brew_prefix/bin/brew" ]; then
+                            info "Existing Homebrew found at $brew_prefix"
+                        else
+                            [ -d "$brew_prefix" ] && rm -rf "$brew_prefix"
+                            step "Cloning Homebrew into $brew_prefix..."
+                            git clone --depth=1 https://github.com/Homebrew/brew "$brew_prefix"
+                        fi
+
+                        # Make brew available in this session
+                        eval "$("$brew_prefix/bin/brew" shellenv)"
+
+                        # Persist to shell profile
+                        local shell_rc=""
+                        if [ -f "$HOME/.zshrc" ]; then
+                            shell_rc="$HOME/.zshrc"
+                        elif [ -f "$HOME/.bashrc" ]; then
+                            shell_rc="$HOME/.bashrc"
+                        elif [ -f "$HOME/.bash_profile" ]; then
+                            shell_rc="$HOME/.bash_profile"
+                        fi
+
+                        if [ -n "$shell_rc" ]; then
+                            if ! grep -q '.homebrew/bin/brew shellenv' "$shell_rc" 2>/dev/null; then
+                                echo '' >> "$shell_rc"
+                                echo '# Homebrew (user-local install)' >> "$shell_rc"
+                                echo "eval \"\$($brew_prefix/bin/brew shellenv)\"" >> "$shell_rc"
+                                info "Added Homebrew to $shell_rc"
+                            fi
+                        else
+                            warn "Could not detect shell profile. Add this to your shell config:"
+                            echo "  eval \"\$($brew_prefix/bin/brew shellenv)\""
+                        fi
+
+                        info "Homebrew installed to $brew_prefix"
+                        echo ""
+
+                        # Now install Python via the fresh Homebrew
+                        step "Installing Python 3.12 via Homebrew..."
+                        brew install python@3.12
+                        brew link --overwrite python@3.12 2>/dev/null || true
+
+                        # Retry detection
+                        for cmd in python3 python; do
+                            if command -v "$cmd" &>/dev/null; then
+                                ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
+                                major=$(echo "$ver" | cut -d. -f1)
+                                minor=$(echo "$ver" | cut -d. -f2)
+                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 10 ]; then
+                                    py="$cmd"
+                                    break
+                                fi
+                            fi
+                        done
+
+                        if [ -z "$py" ]; then
+                            echo ""
+                            warn "Python installed but not detected on PATH."
+                            echo "  Open a new terminal and re-run this installer."
+                            exit 1
+                        fi
+                    else
+                        echo ""
+                        echo "  Install Python manually via one of:"
+                        echo "    1. python.org: https://www.python.org/downloads/"
+                        echo "    2. pyenv: https://github.com/pyenv/pyenv#installation"
+                        exit 1
+                    fi
+                else
+                    echo "  Install Python via one of:"
+                    echo "    1. Homebrew: https://brew.sh"
+                    echo "       Then: brew install python@3.12"
+                    echo "    2. python.org: https://www.python.org/downloads/"
+                    echo "    3. pyenv: https://github.com/pyenv/pyenv#installation"
+                    exit 1
+                fi
             fi
         elif [ "$(uname -s)" = "Linux" ]; then
             echo "  Install Python 3.10+:"
