@@ -54,6 +54,7 @@ def run_health_checks(verbose: bool = False) -> List[HealthCheck]:
         _check_mcp_available,
         _check_proxy_config,
         _check_plugin_integrity,
+        _check_llm_review,
     ]
 
     results = []
@@ -586,4 +587,72 @@ def _check_plugin_integrity(verbose: bool = False) -> HealthCheck:
             label="Plugin Integrity",
             status=CheckStatus.WARNING,
             message=f"Cannot check plugins: {e}",
+        )
+
+
+def _check_llm_review(verbose: bool = False) -> HealthCheck:
+    """Check LLM review provider availability and configuration."""
+    try:
+        from tweek.security.llm_reviewer import (
+            get_llm_reviewer,
+            _detect_local_server,
+            FallbackReviewProvider,
+        )
+
+        reviewer = get_llm_reviewer()
+
+        if not reviewer.enabled:
+            return HealthCheck(
+                name="llm_review",
+                label="LLM Review",
+                status=CheckStatus.WARNING,
+                message="No LLM provider available (review disabled)",
+                fix_hint="Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY. "
+                         "Or install Ollama: https://ollama.ai",
+            )
+
+        # Build status message
+        provider_name = reviewer.provider_name
+        model = reviewer.model
+        parts = [f"{model} via {provider_name}"]
+
+        # Check for fallback chain details
+        provider = reviewer._provider_instance
+        if isinstance(provider, FallbackReviewProvider):
+            count = provider.provider_count
+            parts.append(f"fallback chain: {count} providers")
+
+        # Check for local LLM server
+        try:
+            server = _detect_local_server()
+            if server:
+                if verbose:
+                    parts.append(
+                        f"local: {server.model} on {server.server_type} "
+                        f"({len(server.all_models)} models available)"
+                    )
+                else:
+                    parts.append(f"local: {server.server_type}")
+        except Exception:
+            pass
+
+        return HealthCheck(
+            name="llm_review",
+            label="LLM Review",
+            status=CheckStatus.OK,
+            message="; ".join(parts),
+        )
+    except ImportError:
+        return HealthCheck(
+            name="llm_review",
+            label="LLM Review",
+            status=CheckStatus.SKIPPED,
+            message="LLM reviewer module not available",
+        )
+    except Exception as e:
+        return HealthCheck(
+            name="llm_review",
+            label="LLM Review",
+            status=CheckStatus.WARNING,
+            message=f"Cannot check LLM review: {e}",
         )

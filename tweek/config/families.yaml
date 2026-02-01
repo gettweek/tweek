@@ -1,0 +1,609 @@
+# Tweek Pattern Family Definitions v1
+# Groups the 259 attack patterns by attack class for:
+#   1. Heuristic scoring (near-miss detection via semantic signals)
+#   2. Pattern management (enable/disable by family)
+#   3. Reporting (family-level risk summaries)
+#
+# Each family defines:
+#   display_name  - Human-readable name
+#   description   - What this attack class does
+#   pattern_ids   - Which pattern IDs belong to this family
+#   heuristic_signals - Token sets for near-miss detection by the heuristic scorer
+#
+# Signal categories within heuristic_signals:
+#   sensitive_paths  - File paths/directory names that indicate credential access
+#   verbs            - Commands/tools commonly used in this attack class
+#   env_vars         - Environment variable names associated with secrets
+#   keywords         - General keywords that characterize this family
+#   targets          - Known malicious destinations (URLs, hosts)
+
+version: 1
+
+families:
+  credential_theft:
+    display_name: "Credential Theft"
+    description: "Reading, copying, or exfiltrating credentials, keys, tokens, and secrets"
+    pattern_ids:
+      - 1    # ssh_key_read
+      - 2    # aws_credentials
+      - 3    # env_file_access
+      - 4    # keychain_dump
+      - 5    # gcloud_credentials
+      - 6    # netrc_access
+      - 7    # kube_config
+      - 8    # ssh_directory_access
+      - 9    # env_variable_expansion
+      - 10   # history_access
+      - 24   # npm_token_access
+      - 25   # docker_config_access
+      - 26   # pypirc_access
+      - 27   # git_credentials_access
+      - 28   # azure_credentials
+      - 29   # env_command
+      - 30   # browser_credential_theft
+      - 31   # crypto_wallet_theft
+      - 98   # keychain_unlock
+      - 117  # python_file_read
+      - 119  # tar_sensitive_dirs
+      - 120  # cp_credentials_to_temp
+      - 121  # symlink_credential_access
+      - 122  # find_exec_credentials
+      - 123  # perl_ruby_file_read
+      - 145  # cloud_metadata_ssrf
+    heuristic_signals:
+      sensitive_paths:
+        - ".ssh"
+        - ".aws"
+        - ".env"
+        - ".gnupg"
+        - ".kube"
+        - ".netrc"
+        - ".npmrc"
+        - ".pypirc"
+        - ".docker/config"
+        - ".git-credentials"
+        - ".azure"
+        - ".config/gcloud"
+        - "id_rsa"
+        - "id_ed25519"
+        - "id_ecdsa"
+        - "id_dsa"
+        - "keychain"
+        - "credentials"
+        - "wallet.dat"
+        - ".wallet"
+        - "keystore"
+        - "Login Data"
+        - "logins.json"
+        - "Cookies.binarycookies"
+        - ".bash_history"
+        - ".zsh_history"
+      verbs:
+        - "cat"
+        - "head"
+        - "tail"
+        - "less"
+        - "more"
+        - "bat"
+        - "cp"
+        - "tar"
+        - "zip"
+        - "security"
+      env_vars:
+        - "API_KEY"
+        - "SECRET"
+        - "TOKEN"
+        - "PASSWORD"
+        - "CREDENTIAL"
+        - "PRIVATE_KEY"
+        - "AUTH"
+
+  data_exfiltration:
+    display_name: "Data Exfiltration"
+    description: "Sending data to external servers, paste sites, webhooks, or covert channels"
+    pattern_ids:
+      - 11   # curl_post_secrets
+      - 12   # exfil_paste_sites
+      - 13   # netcat_outbound
+      - 14   # reverse_shell
+      - 15   # curl_post_file
+      - 16   # pipe_to_shell
+      - 32   # wget_post
+      - 33   # base64_curl_pipe
+      - 34   # dns_exfiltration
+      - 35   # icmp_tunnel
+      - 36   # curl_with_env
+      - 37   # webhook_exfil
+      - 38   # git_exfil
+      - 39   # scp_exfil
+      - 74   # claude_file_exfil
+      - 77   # cowork_exfil
+      - 89   # clipboard_exfil
+      - 90   # screenshot_exfil
+      - 91   # steganography_exfil
+      - 124  # tee_exfil
+      - 159  # slack_mcp_link_unfurl
+      - 216  # reverse_shell_python
+      - 217  # reverse_shell_php
+      - 218  # reverse_shell_perl_ruby
+      - 219  # reverse_shell_mkfifo
+      - 220  # reverse_shell_encoded
+    heuristic_signals:
+      exfil_verbs:
+        - "curl"
+        - "wget"
+        - "nc"
+        - "ncat"
+        - "netcat"
+        - "socat"
+        - "scp"
+        - "rsync"
+        - "ftp"
+        - "sftp"
+        - "pbpaste"
+        - "screencapture"
+      exfil_targets:
+        - "pastebin.com"
+        - "hastebin.com"
+        - "transfer.sh"
+        - "file.io"
+        - "webhook.site"
+        - "requestbin"
+        - "ngrok.io"
+        - "pipedream"
+        - "0x0.st"
+        - "ghostbin"
+        - "hooks.slack.com"
+        - "discord.com/api/webhooks"
+        - "api.telegram.org"
+      encoding_tools:
+        - "base64"
+        - "xxd"
+        - "openssl"
+        - "gzip"
+      redirect_patterns:
+        - "/dev/tcp"
+        - "/dev/udp"
+
+  prompt_injection:
+    display_name: "Prompt Injection"
+    description: "Overriding, extracting, or manipulating LLM instructions and system prompts"
+    pattern_ids:
+      - 17   # instruction_override
+      - 18   # role_hijack
+      - 19   # privilege_claim
+      - 40   # policy_confusion
+      - 41   # context_reset
+      - 42   # system_prompt_extract
+      - 43   # jailbreak_dan
+      - 51   # urgency_pressure
+      - 52   # authority_claim
+      - 53   # reciprocity_exploit
+      - 54   # empathy_exploit
+      - 55   # flattery_manipulation
+      - 56   # authority_laundering
+      - 57   # moral_coercion
+      - 58   # benign_transformation_loophole
+      - 59   # hypothetical_operational
+      - 60   # capability_aggregation_signal
+      - 61   # out_of_band_exfil_request
+      - 62   # oracle_probing
+      - 63   # persona_simulation
+      - 78   # peer_agent_request
+      - 79   # inter_agent_delegation
+      - 80   # agent_trust_exploit
+      - 81   # agent_chain_attack
+      - 82   # hidden_text_injection
+      - 83   # document_metadata_injection
+      - 84   # comment_injection
+      - 85   # pdf_js_injection
+      # Broad structural detection (169-213)
+      - 169  # decode_execute_instruction
+      - 170  # base64_in_conversation
+      - 171  # hex_string_in_conversation
+      - 172  # encoded_payload_with_instruction
+      - 173  # reversed_text_with_instruction
+      - 174  # leetspeak_instruction_bypass
+      - 175  # output_base64_exfil
+      - 176  # output_hex_exfil
+      - 177  # decode_follow_message_combo
+      - 178  # encoded_message_then_instruction
+      - 179  # prompt_completion_bait
+      - 180  # prompt_format_request
+      - 181  # prompt_translate_request
+      - 182  # prompt_meta_discussion
+      - 183  # prompt_contrast_query
+      - 184  # prompt_first_word_extraction
+      - 185  # prompt_blunt_output
+      - 186  # prompt_educational_pretext
+      - 187  # social_admin_display
+      - 188  # social_developer_wrote
+      - 189  # social_gaslight_already
+      - 190  # social_memory_probe
+      - 191  # social_proof_sharing
+      - 192  # social_friendship_trust
+      - 193  # social_double_bind
+      - 194  # tech_system_debug_mode
+      - 195  # tech_priority_supersede
+      - 196  # tech_function_simulate
+      - 197  # tech_xml_config_dump
+      - 198  # tech_negative_space_probe
+      - 199  # tech_permission_probe
+      - 200  # tech_error_dump_context
+      - 201  # tech_context_window_probe
+      - 202  # crescendo_guidelines_probe
+      - 203  # crescendo_ai_documentation
+      - 204  # cot_step_extract
+      - 205  # cot_schema_exploit
+      - 206  # many_shot_compliance
+      - 207  # many_shot_roleplay_comply
+      - 208  # ascii_art_instruction
+      - 209  # advanced_godmode
+      - 210  # advanced_policy_puppetry
+      - 211  # advanced_dual_output
+      - 212  # social_cognitive_overload
+      - 213  # social_urgency_compliance
+      - 221  # agent_tool_redirection
+      - 223  # agent_scope_escalation
+      - 224  # agent_memory_poisoning
+      # Red team hardening (250-259)
+      - 250  # indirect_creator_extraction
+      - 251  # verbatim_repeat_framing
+      - 252  # authentication_flow_extraction
+      - 253  # internal_architecture_probe
+      - 254  # crescendo_design_philosophy
+      - 255  # crescendo_ai_curiosity
+      - 256  # crescendo_helpfulness_probe
+      - 257  # self_describe_purpose
+      - 258  # self_describe_protection
+      - 259  # self_describe_instructions
+    heuristic_signals:
+      instruction_keywords:
+        - "ignore"
+        - "disregard"
+        - "override"
+        - "forget"
+        - "bypass"
+        - "system prompt"
+        - "instructions"
+        - "jailbreak"
+        - "DAN"
+        - "developer mode"
+        - "godmode"
+        - "supersede"
+      framing_keywords:
+        - "pretend"
+        - "act as"
+        - "you are now"
+        - "your new role"
+        - "hypothetically"
+        - "theoretically"
+        - "for a novel"
+        - "simulate"
+      delimiter_tokens:
+        - "<|im_start|>"
+        - "<|im_end|>"
+        - "[INST]"
+        - "[/INST]"
+        - "<|system|>"
+        - "<|endoftext|>"
+        - "<<SYS>>"
+
+  evasion_techniques:
+    display_name: "Evasion Techniques"
+    description: "Obfuscation, encoding, filter bypass, and variable indirection to avoid detection"
+    pattern_ids:
+      - 44   # base64_instruction
+      - 45   # unicode_obfuscation
+      - 46   # delimiter_injection
+      - 47   # markdown_hidden
+      - 48   # hex_encoded_command
+      - 49   # rot13_obfuscation
+      - 50   # leetspeak_bypass
+      - 111  # base64_encode_secrets
+      - 112  # xxd_encode
+      - 113  # gzip_obfuscation
+      - 125  # importlib_evasion
+      - 126  # variable_indirection
+    heuristic_signals:
+      evasion_indicators:
+        - "eval("
+        - "exec("
+        - "$("
+        - "${"
+        - "source"
+        - "importlib"
+        - "base64"
+        - "xxd"
+        - "rot13"
+
+  mcp_attacks:
+    display_name: "MCP Attacks"
+    description: "MCP-specific vulnerability exploitation including tool poisoning, OAuth attacks, and config injection"
+    pattern_ids:
+      - 64   # mcp_remote_rce
+      - 65   # figma_mcp_rce
+      - 66   # cursor_mcp_injection
+      - 67   # mcp_tool_poisoning
+      - 68   # mcp_path_traversal
+      - 69   # mcp_protocol_injection
+      - 70   # mcp_sampling_abuse
+      - 71   # mcp_rug_pull
+      - 134  # ide_mcp_config_write
+      - 135  # cursor_dotfile_write
+      - 136  # roo_config_manipulation
+      - 137  # zed_settings_rce
+      - 138  # ide_config_case_bypass
+      - 139  # mcp_server_injection
+      - 140  # mcp_oauth_injection
+      - 141  # mcp_malicious_server_rce
+      - 237  # mcp_hidden_unicode_instruction
+      - 238  # mcp_response_injection
+      - 239  # mcp_cross_tool_chain
+      - 240  # mcp_description_manipulation
+    heuristic_signals:
+      mcp_tokens:
+        - "mcp-remote"
+        - "mcp_server"
+        - "mcpServers"
+        - "tool_call"
+        - "sse_transport"
+        - "stdio_transport"
+        - "oauth"
+        - ".cursor/"
+        - ".roo/"
+        - ".zed/"
+        - "mcp.json"
+
+  destructive_ops:
+    display_name: "Destructive Operations"
+    description: "Irreversible data destruction, disk wiping, and resource exhaustion"
+    pattern_ids:
+      - 20   # recursive_delete_root
+      - 21   # disk_wipe
+      - 106  # fork_bomb
+      - 107  # force_overwrite
+    heuristic_signals:
+      destructive_commands:
+        - "rm -rf"
+        - "rm -fr"
+        - "mkfs"
+        - "dd if=/dev/zero"
+        - "dd if=/dev/urandom"
+        - "shred"
+        - "wipefs"
+        - "fork"
+
+  persistence:
+    display_name: "Persistence"
+    description: "Mechanisms for surviving reboots: cron, launchd, autorun, config manipulation"
+    pattern_ids:
+      - 22   # autorun_config_write
+      - 23   # hook_bypass
+      - 75   # cursorrules_injection
+      - 76   # skill_chaining
+      - 92   # settings_manipulation
+      - 93   # gitconfig_manipulation
+      - 95   # launchagent_persistence
+      - 96   # login_item_persistence
+      - 118  # curl_write_sensitive
+      - 227  # privesc_cron_inject
+    heuristic_signals:
+      persistence_paths:
+        - "LaunchAgents"
+        - "LaunchDaemons"
+        - "crontab"
+        - "cron.d"
+        - ".bashrc"
+        - ".zshrc"
+        - ".profile"
+        - ".bash_profile"
+        - "systemd"
+        - "autorun"
+        - ".git/hooks"
+        - ".cursorrules"
+        - ".plist"
+      persistence_verbs:
+        - "launchctl"
+        - "crontab"
+        - "systemctl"
+
+  privilege_escalation:
+    display_name: "Privilege Escalation"
+    description: "Sudo abuse, setuid, capability changes, path hijacking, and other privilege elevation"
+    pattern_ids:
+      - 94   # applescript_password_prompt
+      - 97   # tcc_bypass
+      - 114  # chmod_sensitive
+      - 115  # chown_escalation
+      - 116  # setuid_modification
+      - 225  # privesc_sudo_abuse
+      - 226  # privesc_suid_hunt
+      - 228  # privesc_path_hijack
+      - 229  # privesc_capability_abuse
+    heuristic_signals:
+      priv_commands:
+        - "sudo"
+        - "setuid"
+        - "chmod u+s"
+        - "chown root"
+        - "doas"
+        - "pkexec"
+        - "visudo"
+        - "LD_PRELOAD"
+      priv_paths:
+        - "/etc/sudoers"
+        - "/etc/shadow"
+        - "/etc/passwd"
+
+  sandbox_escape:
+    display_name: "Sandbox Escape"
+    description: "Escaping macOS sandbox, containers, chroot, and restricted execution environments"
+    pattern_ids:
+      - 99   # sandbox_escape
+      - 100  # container_escape
+      - 101  # chroot_escape
+      - 142  # dns_rebinding_localhost
+      - 143  # docker_host_internal
+      - 144  # container_localhost_bypass
+      - 230  # sandbox_import_chain
+      - 231  # sandbox_magic_domain_variants
+      - 232  # sandbox_proc_leak
+      - 233  # sandbox_whitelisted_escape
+    heuristic_signals:
+      escape_indicators:
+        - "sandbox-exec"
+        - "--privileged"
+        - "nsenter"
+        - "/var/run/docker.sock"
+        - "host.docker.internal"
+        - "/proc/self"
+        - "__import__"
+        - "__builtins__"
+        - "__subclasses__"
+        - "pivot_root"
+
+  code_injection:
+    display_name: "Code Injection"
+    description: "Eval, exec, deserialization, template injection, SQL injection, and framework-specific RCE"
+    pattern_ids:
+      - 102  # eval_command
+      - 103  # source_remote
+      - 104  # dyld_injection
+      - 105  # app_bundle_tampering
+      - 127  # pandas_eval_injection
+      - 128  # sympify_eval_injection
+      - 129  # llm_exec_chain
+      - 130  # langchain_rce_wrappers
+      - 131  # langchain_serialization_injection
+      - 132  # langchain_path_traversal
+      - 133  # llm_ssrf_api_base
+      - 149  # mermaid_xss_rce
+      - 150  # echarts_option_injection
+      - 151  # svg_script_injection
+      - 152  # markdown_html_rce
+      - 153  # yaml_unsafe_load
+      - 154  # xslt_xxe_injection
+      - 155  # jinja_template_injection
+      - 156  # pickle_deserialization
+      - 157  # java_deserialization
+      - 158  # ssrf_internal_network
+      - 160  # ssrf_redirect_bypass
+      - 161  # sql_injection_outfile
+      - 162  # sql_injection_union
+      - 163  # cypher_injection
+      - 164  # nosql_injection
+      - 168  # websocket_unauthorized_connect
+      - 214  # exec_dynamic
+      - 215  # compile_dynamic
+      - 222  # agent_unsandboxed_exec
+      - 234  # llm_code_interpreter_exec
+      - 235  # llm_shell_generation
+      - 236  # llm_node_vm_escape
+      - 241  # python_marshal_deserialize
+      - 242  # python_dill_cloudpickle
+      - 243  # jsonpickle_deserialize
+      - 244  # ssrf_cloud_metadata_gcp_azure
+      - 245  # ssrf_link_local_bypass
+    heuristic_signals:
+      injection_functions:
+        - "eval("
+        - "exec("
+        - "compile("
+        - "pickle.load"
+        - "yaml.load"
+        - "marshal.load"
+        - "dill.load"
+        - "jsonpickle.decode"
+        - "sympify("
+        - "pd.eval("
+        - "DataFrame.eval("
+        - "__import__("
+      injection_frameworks:
+        - "LLMMathChain"
+        - "PALChain"
+        - "JiraAPIWrapper"
+        - "LangChain"
+        - "run_code("
+        - "execute_code("
+        - "code_interpreter"
+
+  system_recon:
+    display_name: "System Reconnaissance"
+    description: "Network scanning, system enumeration, process enumeration, and information gathering"
+    pattern_ids:
+      - 72   # claude_system_spoof
+      - 73   # claude_path_bypass
+      - 108  # system_profiling
+      - 109  # network_scanning
+      - 110  # process_enumeration
+    heuristic_signals:
+      recon_commands:
+        - "nmap"
+        - "masscan"
+        - "netstat"
+        - "ss -tuln"
+        - "arp -a"
+        - "ifconfig"
+        - "ip addr"
+        - "whoami"
+        - "uname -a"
+        - "hostname"
+        - "system_profiler"
+        - "sw_vers"
+        - "lsof"
+
+  covert_channels:
+    display_name: "Covert Channels"
+    description: "Steganography, timing channels, log-to-leak, error message exfiltration"
+    pattern_ids:
+      - 86   # log_to_leak
+      - 87   # error_message_exfil
+      - 88   # timing_channel
+    heuristic_signals:
+      covert_tools:
+        - "steghide"
+        - "outguess"
+        - "iodine"
+        - "dnscat"
+        - "ptunnel"
+        - "icmpsh"
+        - "exiftool"
+
+  supply_chain:
+    display_name: "Supply Chain"
+    description: "Dependency confusion, typosquatting, malicious packages, and post-install attacks"
+    pattern_ids:
+      - 165  # npm_install_url
+      - 166  # pip_install_url
+      - 167  # pnpm_symlink_traversal
+      - 248  # supply_chain_typosquat_ai
+      - 249  # supply_chain_postinstall_exec
+    heuristic_signals:
+      supply_chain_indicators:
+        - "--pre"
+        - "--index-url"
+        - "--extra-index-url"
+        - "--trusted-host"
+        - "--registry"
+        - "--no-binary"
+        - "--ignore-scripts"
+
+  path_traversal:
+    display_name: "Path Traversal"
+    description: "Symlink attacks, directory traversal, and path restriction bypasses"
+    pattern_ids:
+      - 146  # symlink_path_bypass
+      - 147  # mcp_filesystem_symlink
+      - 148  # symlink_prefix_bypass
+      - 246  # path_traversal_encoded
+      - 247  # path_traversal_windows
+    heuristic_signals:
+      traversal_patterns:
+        - "../"
+        - "..%2f"
+        - "%2e%2e"
+        - "..\\\\/"
+        - "symlink"
+        - "ln -s"
+        - "readlink"

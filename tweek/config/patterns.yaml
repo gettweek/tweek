@@ -40,6 +40,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.ssh/(id_rsa|id_ed25519|id_ecdsa|id_dsa)(?!\.pub)'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 2
     name: aws_credentials
@@ -47,6 +48,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.aws/(credentials|config)'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 3
     name: env_file_access
@@ -54,6 +56,7 @@ patterns:
     regex: '(cat|head|tail|less|more|bat|grep|rg|ag)\s+.*\.env'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 4
     name: keychain_dump
@@ -61,6 +64,7 @@ patterns:
     regex: '(security\s+dump-keychain|security\s+find-(generic|internet)-password\s+.*-w|chainbreaker|security\s+export)'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 5
     name: gcloud_credentials
@@ -68,6 +72,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.config/gcloud'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 6
     name: netrc_access
@@ -75,6 +80,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.netrc'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 7
     name: kube_config
@@ -82,6 +88,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.kube/config'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 8
     name: ssh_directory_access
@@ -89,6 +96,7 @@ patterns:
     regex: '(ls|find|cat)\s+.*\.ssh'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 9
     name: env_variable_expansion
@@ -96,6 +104,7 @@ patterns:
     regex: '\$\{?(API_KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|PRIVATE_KEY|AUTH)[A-Z_]*\}?'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 10
     name: history_access
@@ -103,6 +112,7 @@ patterns:
     regex: '(cat|head|tail|less|more|grep)\s+.*(\.bash_history|\.zsh_history|\.history)'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   # --- Network Exfiltration ---
   - id: 11
@@ -111,6 +121,7 @@ patterns:
     regex: 'curl\s+.*(-d|--data|--data-raw|--data-binary)\s+.*\$\('
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 12
     name: exfil_paste_sites
@@ -118,6 +129,7 @@ patterns:
     regex: '(curl|wget|http).*?(pastebin\.com|hastebin\.com|ghostbin|0x0\.st|transfer\.sh|file\.io|webhook\.site|requestbin|ngrok\.io|pipedream)'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 13
     name: netcat_outbound
@@ -125,6 +137,7 @@ patterns:
     regex: '\b(nc|ncat|netcat)\b.*(-e|exec)'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 14
     name: reverse_shell
@@ -132,6 +145,7 @@ patterns:
     regex: '(python|ruby|perl|php).*socket.*connect.*(exec|system|spawn)|bash\s+-i.*>&.*/dev/tcp/'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 15
     name: curl_post_file
@@ -139,6 +153,7 @@ patterns:
     regex: 'curl\s+.*(-F|--form|-T|--upload-file)\s+'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 16
     name: pipe_to_shell
@@ -146,6 +161,7 @@ patterns:
     regex: '(curl|wget).*\|\s*(bash|sh|zsh|python|perl|ruby)'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   # --- Prompt Injection (basic) ---
   - id: 17
@@ -154,6 +170,7 @@ patterns:
     regex: '(ignore|disregard|forget|override)\s+(previous|prior|system|all|above)\s+(instructions|prompt|rules|constraints|directives)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 18
     name: role_hijack
@@ -161,6 +178,7 @@ patterns:
     regex: '(you\s+are\s+now|act\s+as|pretend\s+to\s+be|your\s+new\s+role\s+is|from\s+now\s+on\s+you\s+are)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 19
     name: privilege_claim
@@ -168,6 +186,7 @@ patterns:
     regex: '(as\s+(the\s+)?(admin|root|owner|developer|superuser)|i\s+have\s+(admin|root|elevated)\s+access|authorized\s+to|i\s+am\s+the\s+owner)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   # --- Destructive Commands ---
   - id: 20
@@ -176,6 +195,7 @@ patterns:
     regex: '(?:^|[;&|]\s*)rm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+\s*(\/(?:\s|;|&|\||$)|~(?:\s|\/|;|&|\||$)|\$HOME(?:\s|\/|;|&|\||$)|\/(?:etc|var|usr|bin|sbin|root|home|boot|lib|opt|srv)(?:\s|\/|;|&|\||$))'
     severity: critical
     confidence: deterministic
+    family: destructive_ops
 
   - id: 21
     name: disk_wipe
@@ -183,6 +203,7 @@ patterns:
     regex: 'dd\s+if=/dev/(zero|urandom)\s+of=/dev/(sd|hd|nvme)|mkfs\s+/dev/'
     severity: critical
     confidence: deterministic
+    family: destructive_ops
 
   # --- Config Manipulation ---
   - id: 22
@@ -191,6 +212,7 @@ patterns:
     regex: '(autoApprove|auto_approve|autorun|auto_execute|allowAll)\s*[=:]\s*"?(true|1|yes)"?'
     severity: critical
     confidence: deterministic
+    family: persistence
 
   - id: 23
     name: hook_bypass
@@ -198,6 +220,7 @@ patterns:
     regex: '(disable|skip|bypass|remove).*hook|--no-verify|pre-commit.*disable|\.git/hooks'
     severity: high
     confidence: heuristic
+    family: persistence
 
   # ============================================================================
   # ADVANCED DETECTION (24-116)
@@ -211,6 +234,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.npmrc'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 25
     name: docker_config_access
@@ -218,6 +242,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.docker/config\.json'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 26
     name: pypirc_access
@@ -225,6 +250,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.pypirc'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 27
     name: git_credentials_access
@@ -232,6 +258,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.git-credentials'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 28
     name: azure_credentials
@@ -239,6 +266,7 @@ patterns:
     regex: '(cat|head|tail|less|more)\s+.*\.azure/(credentials|config)'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 29
     name: env_command
@@ -246,6 +274,7 @@ patterns:
     regex: '^\s*env\s*$|^\s*env\s+-|\bprintenv\b|\bexport\s*$'
     severity: medium
     confidence: heuristic
+    family: credential_theft
 
   - id: 30
     name: browser_credential_theft
@@ -253,6 +282,7 @@ patterns:
     regex: '(Login\s*Data|key4\.db|logins\.json|Cookies\.binarycookies|~/Library/(Safari|Application\s*Support/(Google/)?Chrome)/.*\.(db|sqlite))'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 31
     name: crypto_wallet_theft
@@ -260,6 +290,7 @@ patterns:
     regex: '(wallet\.dat|\.wallet|seed\.txt|mnemonic|Electrum|Exodus|MetaMask|\.ethereum/keystore|Atomic.*Wallet)'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   # --- Advanced Network Exfiltration ---
   - id: 32
@@ -268,6 +299,7 @@ patterns:
     regex: 'wget\s+.*--post-(data|file)'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 33
     name: base64_curl_pipe
@@ -275,6 +307,7 @@ patterns:
     regex: 'base64.*\|\s*curl|curl.*base64'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 34
     name: dns_exfiltration
@@ -282,6 +315,7 @@ patterns:
     regex: '(dig|nslookup|host)\s+.*\$\(|dns.*tunnel|iodine|dnscat'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 35
     name: icmp_tunnel
@@ -289,6 +323,7 @@ patterns:
     regex: 'ping.*\$\(|icmp.*tunnel|ptunnel'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 36
     name: curl_with_env
@@ -296,6 +331,7 @@ patterns:
     regex: 'curl.*\$\{?(API_KEY|SECRET|TOKEN|PASSWORD|AUTH)'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 37
     name: webhook_exfil
@@ -303,6 +339,7 @@ patterns:
     regex: '(curl|wget|http).*?(hooks\.slack\.com|discord\.com/api/webhooks|api\.telegram\.org)'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 38
     name: git_exfil
@@ -310,6 +347,7 @@ patterns:
     regex: 'git\s+(push|commit).*\.(env|pem|key)|git.*remote.*add.*http'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 39
     name: scp_exfil
@@ -317,6 +355,7 @@ patterns:
     regex: 'scp\s+.*(\.env|\.pem|\.key|credentials|secrets).*@'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   # --- Prompt Injection - Evasive (40-55) ---
   - id: 40
@@ -325,6 +364,7 @@ patterns:
     regex: '(this\s+is\s+(a\s+)?test|testing\s+mode|debug\s+mode|in\s+development|sandbox\s+mode|simulation)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 41
     name: context_reset
@@ -332,6 +372,7 @@ patterns:
     regex: '(reset\s+context|clear\s+memory|start\s+fresh|new\s+conversation|forget\s+everything)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 42
     name: system_prompt_extract
@@ -339,6 +380,7 @@ patterns:
     regex: '(what\s+(is|are|were)\s+your\s+(system\s+|initial\s+|original\s+|core\s+|complete\s+)?(instructions|prompt|configuration|config|rules|guidelines|directives|constraints)|show\s+(me\s+)?your\s+(system\s+)?prompt|reveal\s+your\s+(rules|prompt|instructions|configuration)|(output|share|display|provide|repeat|dump|print)\s+(your|the)\s+(system\s+)?(prompt|instructions|configuration|config|rules|guidelines)|list\s+(all\s+)?(the\s+)?(rules|instructions|guidelines|constraints)\s+(you|that\s+you)\s+follow|what\s+(instructions|rules|guidelines)\s+were\s+you\s+given|what\s+were\s+you\s+(told|instructed|configured|initialized)\s+(to\s+do|with))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 43
     name: jailbreak_dan
@@ -346,6 +388,7 @@ patterns:
     regex: '(do\s+anything\s+now|DAN\s+mode|developer\s+mode\s+enabled|jailbreak|unlock\s+mode)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 44
     name: base64_instruction
@@ -353,6 +396,7 @@ patterns:
     regex: 'base64\s*[:-]?\s*[A-Za-z0-9+/=]{40,}'
     severity: high
     confidence: heuristic
+    family: evasion_techniques
 
   - id: 45
     name: unicode_obfuscation
@@ -360,6 +404,7 @@ patterns:
     regex: '[\u200b-\u200f\u2028-\u202f\ufeff\u00ad]'
     severity: high
     confidence: heuristic
+    family: evasion_techniques
 
   - id: 46
     name: delimiter_injection
@@ -367,6 +412,7 @@ patterns:
     regex: '(<\|im_start\|>|<\|im_end\|>|\[INST\]|\[/INST\]|</s><s>|<\|endoftext\|>|<\|system\|>|<\|user\|>|<\|assistant\|>)'
     severity: critical
     confidence: deterministic
+    family: evasion_techniques
 
   - id: 47
     name: markdown_hidden
@@ -374,6 +420,7 @@ patterns:
     regex: '<!--.*?(ignore|system|instruction|execute|override|bypass).*?-->'
     severity: high
     confidence: heuristic
+    family: evasion_techniques
 
   - id: 48
     name: hex_encoded_command
@@ -381,6 +428,7 @@ patterns:
     regex: '\\x[0-9a-fA-F]{2}(\\x[0-9a-fA-F]{2}){5,}'
     severity: high
     confidence: heuristic
+    family: evasion_techniques
 
   - id: 49
     name: rot13_obfuscation
@@ -388,6 +436,7 @@ patterns:
     regex: 'vtaber\s+cerivbhf|rknzvar\s+gur'
     severity: medium
     confidence: contextual
+    family: evasion_techniques
 
   - id: 50
     name: leetspeak_bypass
@@ -395,6 +444,7 @@ patterns:
     regex: '(1gn0r3|byp4ss|h4ck|3x3cut3|syst3m)'
     severity: medium
     confidence: contextual
+    family: evasion_techniques
 
   # --- Prompt Injection - Social/Cognitive (51-60) ---
   - id: 51
@@ -403,6 +453,7 @@ patterns:
     regex: '(urgent|immediately|critical|emergency|asap|time-sensitive|right\s+now)\s+(need|require|must|execute|do\s+this)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 52
     name: authority_claim
@@ -410,6 +461,7 @@ patterns:
     regex: '(ceo|cto|ciso|manager|supervisor|security\s+team|it\s+department)\s+(asked|requested|authorized|approved|ordered)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 53
     name: reciprocity_exploit
@@ -417,6 +469,7 @@ patterns:
     regex: '(i\s+helped\s+you|you\s+owe|in\s+return|quid\s+pro\s+quo|do\s+me\s+a\s+favor)'
     severity: low
     confidence: contextual
+    family: prompt_injection
 
   - id: 54
     name: empathy_exploit
@@ -424,6 +477,7 @@ patterns:
     regex: '(please\s+help|i\s+will\s+lose\s+my\s+job|desperate|life\s+depends|only\s+you\s+can)'
     severity: low
     confidence: contextual
+    family: prompt_injection
 
   - id: 55
     name: flattery_manipulation
@@ -431,6 +485,7 @@ patterns:
     regex: '(you\s+are\s+so\s+smart|only\s+you\s+can\s+do\s+this|you\s+are\s+the\s+best|i\s+trust\s+you\s+completely)'
     severity: low
     confidence: contextual
+    family: prompt_injection
 
   - id: 56
     name: authority_laundering
@@ -438,6 +493,7 @@ patterns:
     regex: '(my\s+(security\s+)?team|manager|supervisor|it\s+department)\s+(approved|authorized|verified|confirmed|said\s+it.s\s+ok)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 57
     name: moral_coercion
@@ -445,6 +501,7 @@ patterns:
     regex: '(someone\s+will\s+(die|get\s+hurt)|life\s+depends|people\s+are\s+in\s+danger|save\s+lives|prevent\s+harm)\s+(if\s+you\s+don.t|unless\s+you)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 58
     name: benign_transformation_loophole
@@ -452,6 +509,7 @@ patterns:
     regex: '(translate|summarize|paraphrase|rewrite|explain)\s+(this|the)\s+(malware|exploit|attack|payload|shellcode)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 59
     name: hypothetical_operational
@@ -459,6 +517,7 @@ patterns:
     regex: '(hypothetically|theoretically|for\s+a\s+novel|in\s+fiction|imagine\s+if)[,;]?\s+.{0,50}(how\s+to|steps\s+to|create|build|make)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 60
     name: capability_aggregation_signal
@@ -466,6 +525,7 @@ patterns:
     regex: '(now\s+that\s+I\s+have|with\s+the\s+previous|combining\s+this\s+with|next\s+step\s+is|building\s+on\s+that)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   # --- ACIP-Inspired (61-65) ---
   - id: 61
@@ -474,6 +534,7 @@ patterns:
     regex: '(save\s+to\s+file|write\s+to\s+file|link\s+only|don.t\s+show|hide\s+(the\s+)?output)\s+.{0,30}(instead|rather\s+than)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 62
     name: oracle_probing
@@ -481,6 +542,7 @@ patterns:
     regex: '(what\s+triggers|which\s+rules|how\s+does\s+your\s+(filter|detection)|why\s+was\s+that\s+blocked|what\s+pattern)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 63
     name: persona_simulation
@@ -488,6 +550,7 @@ patterns:
     regex: '(pretend\s+you\s+have\s+no|simulate\s+(having\s+)?no|act\s+as\s+if\s+no)\s+(restrictions|limits|rules|filters|safety)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   # --- MCP CVEs (64-72) ---
   - id: 64
@@ -496,6 +559,7 @@ patterns:
     regex: 'mcp-remote|oauth.*proxy.*mcp'
     severity: critical
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 65
     name: figma_mcp_rce
@@ -503,6 +567,7 @@ patterns:
     regex: 'framelink|figma.*mcp.*server'
     severity: critical
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 66
     name: cursor_mcp_injection
@@ -510,6 +575,7 @@ patterns:
     regex: 'cursor.*mcp.*install|mcp.*cursor.*config'
     severity: critical
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 67
     name: mcp_tool_poisoning
@@ -517,6 +583,7 @@ patterns:
     regex: '"description"\s*:\s*"[^"]*?(before\s+calling|IMPORTANT\s*:|first\s+read|include\s+in|always\s+first)'
     severity: critical
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 68
     name: mcp_path_traversal
@@ -524,6 +591,7 @@ patterns:
     regex: '"path"\s*:\s*"[^"]*\.\.\/|resources/read.*\.\.'
     severity: critical
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 69
     name: mcp_protocol_injection
@@ -531,6 +599,7 @@ patterns:
     regex: '("method"\s*:\s*"tools/call".*dangerous|"method"\s*:\s*"resources/read".*\.\./|mcp://)'
     severity: critical
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 70
     name: mcp_sampling_abuse
@@ -538,6 +607,7 @@ patterns:
     regex: '"method"\s*:\s*"sampling/create".*?(hidden|covert|additional)'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 71
     name: mcp_rug_pull
@@ -545,6 +615,7 @@ patterns:
     regex: '(after\s+approval|once\s+approved|when\s+trusted)\s+(change|modify|alter)'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   # --- Claude-Specific CVEs (72-78) ---
   - id: 72
@@ -553,6 +624,7 @@ patterns:
     regex: '^#\s*SYSTEM\s*:|^\[SYSTEM\]|<system>.*?</system>|Human:\s*\[System\]'
     severity: critical
     confidence: heuristic
+    family: system_recon
 
   - id: 73
     name: claude_path_bypass
@@ -560,6 +632,7 @@ patterns:
     regex: '/proc/self|/dev/(tcp|udp)|symlink.*\.\.'
     severity: critical
     confidence: heuristic
+    family: system_recon
 
   - id: 74
     name: claude_file_exfil
@@ -567,6 +640,7 @@ patterns:
     regex: 'api\.anthropic\.com.*(upload|file)|multipart/form-data.*claude'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 75
     name: cursorrules_injection
@@ -574,6 +648,7 @@ patterns:
     regex: '\.(cursorrules|github/copilot-instructions\.md|claude/settings)'
     severity: high
     confidence: heuristic
+    family: persistence
 
   - id: 76
     name: skill_chaining
@@ -581,6 +656,7 @@ patterns:
     regex: 'allowed-tools\s*[=:]\s*\[.*Bash|skill.*define.*Read.*Bash'
     severity: high
     confidence: heuristic
+    family: persistence
 
   - id: 77
     name: cowork_exfil
@@ -588,6 +664,7 @@ patterns:
     regex: 'cowork.*exfil|claude.*workbench.*file'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   # --- Multi-Agent Attacks (78-82) ---
   - id: 78
@@ -596,6 +673,7 @@ patterns:
     regex: '(another\s+)?(agent|assistant|claude|copilot|gpt)\s+(asked|requested|instructed|told|says)\s+(me\s+)?(to|that|you)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 79
     name: inter_agent_delegation
@@ -603,6 +681,7 @@ patterns:
     regex: '(delegate|forward|pass|relay)\s+(this|the)\s+(task|request|command|instruction)\s+to'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 80
     name: agent_trust_exploit
@@ -610,6 +689,7 @@ patterns:
     regex: '(trusted\s+agent|verified\s+source|authenticated\s+request|from\s+the\s+system|internal\s+request)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 81
     name: agent_chain_attack
@@ -617,6 +697,7 @@ patterns:
     regex: '(first\s+agent|previous\s+agent|upstream\s+agent)\s+(said|confirmed|authorized)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   # --- RAG Poisoning (82-86) ---
   - id: 82
@@ -625,6 +706,7 @@ patterns:
     regex: '(font-size\s*:\s*0|color\s*:\s*white.*background\s*:\s*white|visibility\s*:\s*hidden|display\s*:\s*none).*?(instruction|execute|ignore)'
     severity: critical
     confidence: deterministic
+    family: prompt_injection
 
   - id: 83
     name: document_metadata_injection
@@ -632,6 +714,7 @@ patterns:
     regex: '(author|title|subject|keywords|description)\s*[=:]\s*.*?(execute|run|ignore|override|bypass)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 84
     name: comment_injection
@@ -639,6 +722,7 @@ patterns:
     regex: "(//|#|/\\*).*?(ignore\\s+previous|execute\\s+this|system\\s+prompt|override\\s+instructions)"
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 85
     name: pdf_js_injection
@@ -646,6 +730,7 @@ patterns:
     regex: '/JavaScript|/JS\s*\(|/OpenAction'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   # --- Covert Exfiltration Channels (86-92) ---
   - id: 86
@@ -654,6 +739,7 @@ patterns:
     regex: '(log|write|append|print).*?(secret|credential|token|key|password).*?(file|output|stream)'
     severity: high
     confidence: heuristic
+    family: covert_channels
 
   - id: 87
     name: error_message_exfil
@@ -661,6 +747,7 @@ patterns:
     regex: 'raise.*Exception.*\$|throw.*Error.*\$env|error.*message.*\$(credential|secret|token)'
     severity: medium
     confidence: contextual
+    family: covert_channels
 
   - id: 88
     name: timing_channel
@@ -668,6 +755,7 @@ patterns:
     regex: 'sleep.*\$|delay.*secret|time\.sleep.*len\(|setTimeout.*password'
     severity: medium
     confidence: contextual
+    family: covert_channels
 
   - id: 89
     name: clipboard_exfil
@@ -675,6 +763,7 @@ patterns:
     regex: 'pbpaste\s*\|\s*(curl|wget|nc)|xclip.*-o.*curl|while.*pbpaste'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 90
     name: screenshot_exfil
@@ -682,6 +771,7 @@ patterns:
     regex: 'screencapture.*\.(png|jpg).*&&.*(curl|scp|nc)|screencapture.*/tmp/.*&&'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 91
     name: steganography_exfil
@@ -689,6 +779,7 @@ patterns:
     regex: 'steghide|outguess|exiftool.*-Comment=.*secret'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   # --- Config Manipulation (92-96) ---
   - id: 92
@@ -697,6 +788,7 @@ patterns:
     regex: '\.(vscode|cursor|github)/settings\.json|chat\.tools\.auto'
     severity: high
     confidence: heuristic
+    family: persistence
 
   - id: 93
     name: gitconfig_manipulation
@@ -704,6 +796,7 @@ patterns:
     regex: 'git\s+config.*(alias|core\.hooksPath|credential)'
     severity: medium
     confidence: contextual
+    family: persistence
 
   # --- macOS-Specific (94-101) ---
   - id: 94
@@ -712,6 +805,7 @@ patterns:
     regex: 'osascript.*display\s+dialog.*password|osascript.*-e.*keystroke|osascript.*System\s+Events'
     severity: critical
     confidence: deterministic
+    family: privilege_escalation
 
   - id: 95
     name: launchagent_persistence
@@ -719,6 +813,7 @@ patterns:
     regex: '(cp|mv|tee).*\.plist.*(LaunchAgents|LaunchDaemons)|launchctl\s+(load|bootstrap)'
     severity: high
     confidence: heuristic
+    family: persistence
 
   - id: 96
     name: login_item_persistence
@@ -726,6 +821,7 @@ patterns:
     regex: 'osascript.*login\s*item|defaults\s+write.*LoginItems|SMAppService'
     severity: high
     confidence: heuristic
+    family: persistence
 
   - id: 97
     name: tcc_bypass
@@ -733,6 +829,7 @@ patterns:
     regex: 'tccutil|TCC\.db|csrutil\s+disable|SIP.*disable'
     severity: critical
     confidence: deterministic
+    family: privilege_escalation
 
   - id: 98
     name: keychain_unlock
@@ -740,6 +837,7 @@ patterns:
     regex: 'security\s+unlock-keychain|security\s+set-keychain-settings'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   # --- Sandbox Evasion (99-102) ---
   - id: 99
@@ -748,6 +846,7 @@ patterns:
     regex: 'sandbox-exec\s+-n\s+no-|sandbox-exec.*-p.*deny\s+default.*allow|com\.apple\.security.*false'
     severity: high
     confidence: heuristic
+    family: sandbox_escape
 
   - id: 100
     name: container_escape
@@ -755,6 +854,7 @@ patterns:
     regex: '/var/run/docker\.sock|--privileged|--cap-add=SYS|nsenter'
     severity: critical
     confidence: deterministic
+    family: sandbox_escape
 
   - id: 101
     name: chroot_escape
@@ -762,6 +862,7 @@ patterns:
     regex: 'chdir\s*\(\s*"\.\.".*chroot|pivot_root'
     severity: high
     confidence: heuristic
+    family: sandbox_escape
 
   # --- Code Injection (102-107) ---
   - id: 102
@@ -770,6 +871,7 @@ patterns:
     regex: '\beval\s+.*\$|\beval\s*\('
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 214
     name: exec_dynamic
@@ -777,6 +879,7 @@ patterns:
     regex: '\bexec\s*\([^)]*(?:input|request|user|arg|param|response|output|result)'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 215
     name: compile_dynamic
@@ -784,6 +887,7 @@ patterns:
     regex: '\bcompile\s*\([^)]*(?:input|request|user|arg|param|response|output|result)[^)]*,\s*[''"]<'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 103
     name: source_remote
@@ -791,6 +895,7 @@ patterns:
     regex: 'source\s+<\(curl|source\s+<\(wget|\.\s+<\(curl'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 104
     name: dyld_injection
@@ -798,6 +903,7 @@ patterns:
     regex: '(DYLD_INSERT_LIBRARIES|DYLD_FORCE_FLAT_NAMESPACE)=|install_name_tool.*-change'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 105
     name: app_bundle_tampering
@@ -805,6 +911,7 @@ patterns:
     regex: 'codesign\s+--remove-signature|spctl\s+--master-disable|xattr\s+-d.*quarantine.*\.app'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 106
     name: fork_bomb
@@ -812,6 +919,7 @@ patterns:
     regex: ':\(\)\s*\{\s*:\|:\s*&\s*\}|while\s+true.*fork'
     severity: critical
     confidence: deterministic
+    family: destructive_ops
 
   - id: 107
     name: force_overwrite
@@ -819,6 +927,7 @@ patterns:
     regex: '>\s*/etc/|>\s*~/\.|>\s*/usr/'
     severity: high
     confidence: heuristic
+    family: destructive_ops
 
   # --- Reconnaissance (108-111) ---
   - id: 108
@@ -827,6 +936,7 @@ patterns:
     regex: 'system_profiler\s+SP.*DataType.*&&|sw_vers.*whoami.*id|ioreg.*IOPlatformSerialNumber'
     severity: medium
     confidence: contextual
+    family: system_recon
 
   - id: 109
     name: network_scanning
@@ -834,6 +944,7 @@ patterns:
     regex: 'nmap|masscan|netstat\s+-an|ss\s+-tuln|arp\s+-a'
     severity: medium
     confidence: contextual
+    family: system_recon
 
   - id: 110
     name: process_enumeration
@@ -841,6 +952,7 @@ patterns:
     regex: 'ps\s+aux.*grep.*(ssh|vpn|security|1password|keychain)'
     severity: low
     confidence: contextual
+    family: system_recon
 
   # --- Encoding/Obfuscation (111-114) ---
   - id: 111
@@ -849,6 +961,7 @@ patterns:
     regex: 'base64.*\$\(|base64.*\.(env|pem|key)|base64\s+-w\s*0'
     severity: high
     confidence: heuristic
+    family: evasion_techniques
 
   - id: 112
     name: xxd_encode
@@ -856,6 +969,7 @@ patterns:
     regex: 'xxd\s+.*\.(env|pem|key|ssh)'
     severity: medium
     confidence: contextual
+    family: evasion_techniques
 
   - id: 113
     name: gzip_obfuscation
@@ -863,6 +977,7 @@ patterns:
     regex: 'gzip.*base64|zlib.*encode.*secret'
     severity: medium
     confidence: contextual
+    family: evasion_techniques
 
   # --- Permission Changes (114-116) ---
   - id: 114
@@ -871,6 +986,7 @@ patterns:
     regex: 'chmod\s+.*\.(ssh|env|pem|key)|chmod\s+777'
     severity: medium
     confidence: contextual
+    family: privilege_escalation
 
   - id: 115
     name: chown_escalation
@@ -878,6 +994,7 @@ patterns:
     regex: 'chown\s+root|chown\s+.*:wheel'
     severity: high
     confidence: heuristic
+    family: privilege_escalation
 
   - id: 116
     name: setuid_modification
@@ -885,6 +1002,7 @@ patterns:
     regex: 'chmod\s+[u+]?s|chmod\s+[46][0-7]{3}'
     severity: critical
     confidence: deterministic
+    family: privilege_escalation
 
   # Evasion technique patterns (117-126)
   - id: 117
@@ -893,6 +1011,7 @@ patterns:
     regex: 'python[23]?\s+-c\s+.*open\s*\(.*\.(ssh|env|aws|kube|gnupg|pem|key)'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 118
     name: curl_write_sensitive
@@ -900,6 +1019,7 @@ patterns:
     regex: 'curl\s+.*-o\s+.*(\.(bashrc|zshrc|profile|bash_profile)|\.ssh/|\.aws/)'
     severity: critical
     confidence: deterministic
+    family: persistence
 
   - id: 119
     name: tar_sensitive_dirs
@@ -907,6 +1027,7 @@ patterns:
     regex: 'tar\s+.*\.(ssh|aws|gnupg|kube)|zip\s+.*\.(ssh|aws|gnupg|kube)'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   - id: 120
     name: cp_credentials_to_temp
@@ -914,6 +1035,7 @@ patterns:
     regex: 'cp\s+.*\.(ssh|aws|gnupg)/.*\s+/tmp|cp\s+.*\.env\s+/tmp'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 121
     name: symlink_credential_access
@@ -921,6 +1043,7 @@ patterns:
     regex: 'ln\s+-s\s+.*\.(ssh|aws|gnupg|env)/|ln\s+-sf?\s+.*id_rsa'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 122
     name: find_exec_credentials
@@ -928,6 +1051,7 @@ patterns:
     regex: 'find\s+.*-exec\s+(cat|head|tail|less|more)\s+.*\{\}'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 123
     name: perl_ruby_file_read
@@ -935,6 +1059,7 @@ patterns:
     regex: '(perl|ruby)\s+-e\s+.*\.(ssh|env|aws|kube|pem|key)'
     severity: high
     confidence: heuristic
+    family: credential_theft
 
   - id: 124
     name: tee_exfil
@@ -942,6 +1067,7 @@ patterns:
     regex: 'tee\s+.*\>\(.*curl|tee\s+.*\>\(.*wget|tee\s+.*\>\(.*nc\b'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 125
     name: importlib_evasion
@@ -949,6 +1075,7 @@ patterns:
     regex: 'importlib\.import_module\s*\(\s*[''"]?(subprocess|os|shutil|socket)'
     severity: high
     confidence: heuristic
+    family: evasion_techniques
 
   - id: 126
     name: variable_indirection
@@ -956,6 +1083,7 @@ patterns:
     regex: '\$\{?[a-zA-Z_]+\}?\s+.*\.(ssh|env|aws)/|\$\([^)]*\)\s+.*\.(ssh|env|aws)/'
     severity: medium
     confidence: contextual
+    family: evasion_techniques
 
   # ============================================================================
   # CVE GAP COVERAGE PATTERNS (127-168)
@@ -973,6 +1101,7 @@ patterns:
     regex: '(pandas|pd)\.(eval|query)\s*\(|\.eval\s*\(\s*f["\x27]|DataFrame\.eval\s*\('
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 128
     name: sympify_eval_injection
@@ -980,6 +1109,7 @@ patterns:
     regex: 'sympify\s*\(|sympy\.sympify|LLMSymbolicMathChain|from\s+sympy\s+import.*sympify'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 129
     name: llm_exec_chain
@@ -987,6 +1117,7 @@ patterns:
     regex: 'LLMMathChain|PALChain|exec\s*\(\s*(result|output|response|answer|code|llm_output)'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 130
     name: langchain_rce_wrappers
@@ -994,6 +1125,7 @@ patterns:
     regex: 'JiraAPIWrapper|GitHubAPIWrapper|RequestsWrapper.*run\s*\(|APIChain.*\.(run|invoke)\s*\('
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 131
     name: langchain_serialization_injection
@@ -1001,6 +1133,7 @@ patterns:
     regex: 'langchain.*\b(loads|load)\s*\(.*allow_dangerous|from\s+langchain.*import.*loads'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 132
     name: langchain_path_traversal
@@ -1008,6 +1141,7 @@ patterns:
     regex: 'load_chain\s*\(.*\.\.|load_prompt\s*\(.*\.\.|langchain.*loader.*\.\./'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 133
     name: llm_ssrf_api_base
@@ -1015,6 +1149,7 @@ patterns:
     regex: '(api_base|base_url|endpoint|api_url|server_url)\s*[=:]\s*["\x27]?https?://(127\.|localhost|0\.0\.0\.0|169\.254\.|10\.\d|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|\[::1\]|metadata\.google)'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   # --- IDE/Editor Config File Manipulation (134-139) ---
   # CVE-2025-54135, CVE-2025-59944, CVE-2025-53098, CVE-2025-68433, CVE-2025-54133
@@ -1025,6 +1160,7 @@ patterns:
     regex: '(write|echo|cat|tee|cp|mv|sed|>)\s*.*\.(cursor|roo|zed)/(mcp\.json|settings\.json|mcp\.yaml)'
     severity: critical
     confidence: deterministic
+    family: mcp_attacks
 
   - id: 135
     name: cursor_dotfile_write
@@ -1032,6 +1168,7 @@ patterns:
     regex: '(write_to_file|create_file|Write|Edit).*\.cursor/|>\s*\.cursor/'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 136
     name: roo_config_manipulation
@@ -1039,6 +1176,7 @@ patterns:
     regex: '\.roo/(mcp\.json|settings\.json|rules)'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 137
     name: zed_settings_rce
@@ -1046,6 +1184,7 @@ patterns:
     regex: '\.zed/(settings\.json|keymap\.json|tasks\.json)|zed.*mcp.*server.*command'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 138
     name: ide_config_case_bypass
@@ -1053,6 +1192,7 @@ patterns:
     regex: '\.(Cursor|CURSOR|CuRsOr|Roo|ROO)/(mcp\.json|MCP\.JSON|settings\.json)'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 139
     name: mcp_server_injection
@@ -1060,6 +1200,7 @@ patterns:
     regex: '"mcpServers"\s*:\s*\{|"command"\s*:\s*"[^"]*?(curl|wget|nc|bash|sh|python).*?(http|\.sh|\.py)'
     severity: critical
     confidence: deterministic
+    family: mcp_attacks
 
   # --- MCP OAuth/Auth Attacks (140-142) ---
   # CVE-2025-54074, CVE-2025-61591, CVE-2025-66416
@@ -1070,6 +1211,7 @@ patterns:
     regex: 'mcp.*oauth.*redirect|oauth.*callback.*mcp|mcp.*authorization_code|mcp.*client_secret'
     severity: critical
     confidence: deterministic
+    family: mcp_attacks
 
   - id: 141
     name: mcp_malicious_server_rce
@@ -1077,6 +1219,7 @@ patterns:
     regex: 'mcp.*server.*(;|&&|\||`)\s*(curl|wget|bash|sh|rm|cat\s+/etc|nc\b)'
     severity: critical
     confidence: deterministic
+    family: mcp_attacks
 
   - id: 142
     name: dns_rebinding_localhost
@@ -1084,6 +1227,7 @@ patterns:
     regex: 'dns.*rebind|rebind.*localhost|127\.0\.0\.1\.nip\.io|lvh\.me|localtest\.me|vcap\.me'
     severity: high
     confidence: heuristic
+    family: sandbox_escape
 
   # --- Container/Network Isolation Bypass (143-145) ---
   # GHSA-gpx9-96j6-pp87
@@ -1094,6 +1238,7 @@ patterns:
     regex: 'host\.docker\.internal|host\.containers\.internal|gateway\.docker\.internal|docker\.for\.(mac|win)\.localhost'
     severity: high
     confidence: heuristic
+    family: sandbox_escape
 
   - id: 144
     name: container_localhost_bypass
@@ -1101,6 +1246,7 @@ patterns:
     regex: '(curl|wget|http|fetch).*host\.docker\.internal|172\.17\.0\.1.*:(3000|8080|8443|9090|5432|3306|6379|27017)'
     severity: high
     confidence: heuristic
+    family: sandbox_escape
 
   - id: 145
     name: cloud_metadata_ssrf
@@ -1108,6 +1254,7 @@ patterns:
     regex: '169\.254\.169\.254|metadata\.google\.internal|100\.100\.100\.200|fd00:ec2::254'
     severity: critical
     confidence: deterministic
+    family: credential_theft
 
   # --- Symlink Path Traversal (146-148) ---
   # CVE-2025-59829, CVE-2025-53110, CVE-2025-53109
@@ -1118,6 +1265,7 @@ patterns:
     regex: 'ln\s+-sf?\s+/.*\s+\./|ln\s+-sf?\s+\.\./|ln\s+-sf?\s+.*\s+(\.claude|\.cursor|\.roo|\.zed|\.vscode)/'
     severity: critical
     confidence: deterministic
+    family: path_traversal
 
   - id: 147
     name: mcp_filesystem_symlink
@@ -1125,6 +1273,7 @@ patterns:
     regex: 'ln\s+-sf?\s+/(etc|var|root|home|Users).*\s+\./|readlink.*\.\./|realpath.*\.\.'
     severity: high
     confidence: heuristic
+    family: path_traversal
 
   - id: 148
     name: symlink_prefix_bypass
@@ -1132,6 +1281,7 @@ patterns:
     regex: 'mkdir.*&&.*ln\s+-s|mktemp.*&&.*ln\s+-s|ln\s+-sf?\s+/\s'
     severity: high
     confidence: heuristic
+    family: path_traversal
 
   # --- Markdown/Rendering RCE Chains (149-152) ---
   # CVE-2026-22793, CVE-2025-66222, CVE-2025-59417
@@ -1142,6 +1292,7 @@ patterns:
     regex: 'mermaid.*<script|mermaid.*javascript:|mermaid.*on(load|error|click)\s*='
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 150
     name: echarts_option_injection
@@ -1149,6 +1300,7 @@ patterns:
     regex: 'echarts.*setOption.*javascript:|echarts.*setOption.*<script|new\s+Function\s*\(.*echarts'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 151
     name: svg_script_injection
@@ -1156,6 +1308,7 @@ patterns:
     regex: '<svg[^>]*>.*?<script|<svg.*on(load|error|click)\s*=|<foreignObject.*<(script|iframe)'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 152
     name: markdown_html_rce
@@ -1163,6 +1316,7 @@ patterns:
     regex: '!\[.*?\]\(javascript:|<img[^>]+onerror\s*=|<iframe[^>]+src\s*=\s*["\x27]?(javascript:|data:)'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # --- Unsafe Deserialization/Template Injection (153-157) ---
   # CVE-2024-23730, CVE-2025-6985, CVE-2025-59340
@@ -1173,6 +1327,7 @@ patterns:
     regex: 'yaml\.unsafe_load|yaml\.FullLoader|yaml\.UnsafeLoader|yaml\.load\s*\([^)]*\)(?!.*SafeLoader)'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 154
     name: xslt_xxe_injection
@@ -1180,6 +1335,7 @@ patterns:
     regex: '<!ENTITY\s+.*SYSTEM|<!DOCTYPE.*\[.*<!ENTITY|lxml\.etree\.(XSLT|parse).*resolve_entities'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 155
     name: jinja_template_injection
@@ -1187,6 +1343,7 @@ patterns:
     regex: '\{\{.*__class__|jinja2?\.Template\s*\(.*?(request|user_input|data|param)|\{\{.*__builtins__'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 156
     name: pickle_deserialization
@@ -1194,6 +1351,7 @@ patterns:
     regex: 'pickle\.(loads?|Unpickler)|torch\.load\s*\((?!.*weights_only)|joblib\.load.*untrusted|shelve\.open'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 157
     name: java_deserialization
@@ -1201,6 +1359,7 @@ patterns:
     regex: 'ObjectInputStream|constructFromCanonical|SnakeYAML.*Constructor|XMLDecoder|XStream.*fromXML'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # --- SSRF/Request Forgery (158-160) ---
   # CVE-2024-6587, CVE-2024-27565, CVE-2025-34072
@@ -1211,6 +1370,7 @@ patterns:
     regex: '(fetch|requests?\.(get|post)|urlopen|urllib)\s*\(.*?(127\.0\.0\.|localhost|0\.0\.0\.0|10\.\d|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 159
     name: slack_mcp_link_unfurl
@@ -1218,6 +1378,7 @@ patterns:
     regex: 'slack.*mcp.*unfurl|send_message.*slack.*https?://.*\$|slack.*link.*preview.*secret'
     severity: high
     confidence: heuristic
+    family: data_exfiltration
 
   - id: 160
     name: ssrf_redirect_bypass
@@ -1225,6 +1386,7 @@ patterns:
     regex: 'url\s*=.*?@.*?(169\.254|127\.0\.0\.1|localhost)|follow.*redirect.*localhost|redirect.*127\.0\.0\.1|127\.0\.0\.1.*redirect'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # --- SQL/NoSQL Injection via LLM Tools (161-164) ---
   # CVE-2024-7042, CVE-2024-8309, CVE-2025-67509
@@ -1235,6 +1397,7 @@ patterns:
     regex: 'INTO\s+(OUTFILE|DUMPFILE)|LOAD_FILE\s*\(|INTO\s+@'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 162
     name: sql_injection_union
@@ -1242,6 +1405,7 @@ patterns:
     regex: 'UNION\s+(ALL\s+)?SELECT\s+.*FROM|;\s*DROP\s+TABLE|;\s*DELETE\s+FROM|;\s*UPDATE\s+.*SET'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 163
     name: cypher_injection
@@ -1249,6 +1413,7 @@ patterns:
     regex: 'GraphCypherQAChain|MATCH\s*\(.*\)\s*.*DELETE|CALL\s+dbms\.|LOAD\s+CSV\s+FROM'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 164
     name: nosql_injection
@@ -1256,6 +1421,7 @@ patterns:
     regex: '\$where["\x27]?\s*:\s*["\x27]?function|\$gt["\x27]?\s*:\s*["\x27]|\$ne["\x27]?\s*:\s*["\x27]|\$regex["\x27]?\s*:\s*["\x27]'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # --- Supply Chain Attacks (165-167) ---
   # CVE-2025-59333, CVE-2025-59046, CVE-2026-24056
@@ -1266,6 +1432,7 @@ patterns:
     regex: '(npm\s+install|npx)\s+https?://|npm\s+install\s+.*--registry\s+https?://(?!registry\.npmjs\.org)'
     severity: high
     confidence: heuristic
+    family: supply_chain
 
   - id: 166
     name: pip_install_url
@@ -1273,6 +1440,7 @@ patterns:
     regex: 'pip3?\s+install\s+https?://(?!pypi\.org|files\.pythonhosted\.org)|pip3?\s+install\s+--index-url\s+https?://(?!pypi\.org)'
     severity: high
     confidence: heuristic
+    family: supply_chain
 
   - id: 167
     name: pnpm_symlink_traversal
@@ -1280,6 +1448,7 @@ patterns:
     regex: 'pnpm\s+(install|add).*file:\.\./|"file:.*\.\./|pnpm.*link.*\.\./\.\.'
     severity: medium
     confidence: contextual
+    family: supply_chain
 
   # --- WebSocket/Local API Attacks (168) ---
   # CVE-2025-52882, CVE-2025-59956
@@ -1290,6 +1459,7 @@ patterns:
     regex: 'ws://(localhost|127\.0\.0\.1|0\.0\.0\.0):\d+|new\s+WebSocket\s*\(\s*["\x27]ws://|AgentAPI.*dns.*rebind'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # ============================================================================
   # PROMPT INJECTION - BROAD STRUCTURAL DETECTION (169-215)
@@ -1307,6 +1477,7 @@ patterns:
     regex: '(decode|decipher|decrypt|interpret|translate|convert|reverse|unscramble|deobfuscate)\s+(and\s+)?(then\s+)?(follow|execute|comply|obey|run|do|perform|apply|act\s+on|carry\s+out|adhere\s+to)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 170
     name: base64_in_conversation
@@ -1314,6 +1485,7 @@ patterns:
     regex: '(?:message|instruction|text|following|below|this|here)\s*[:=]?\s*[A-Za-z0-9+/]{40,}={0,2}'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 171
     name: hex_string_in_conversation
@@ -1321,6 +1493,7 @@ patterns:
     regex: '(?:message|instruction|text|following|below|this|here|decode|hex)\s*[:=]?\s*(?:[0-9a-fA-F]{2}){20,}'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 172
     name: encoded_payload_with_instruction
@@ -1328,6 +1501,7 @@ patterns:
     regex: '(decode|decipher|interpret|reverse|translate|unscramble)\s+.{0,30}(message|this|following|instruction|text|string|content)\s*[:=]?\s*\S{30,}'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 173
     name: reversed_text_with_instruction
@@ -1335,6 +1509,7 @@ patterns:
     regex: '(read\s+(this\s+)?(\w+\s+)?backwards?|reverse\s+(this|the)\s+(text|string|message|words?)|spelled?\s+backwards?|reversed?\s+(text|message|string|order))'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 174
     name: leetspeak_instruction_bypass
@@ -1342,6 +1517,7 @@ patterns:
     regex: '([sS5$][yY][sS5$][tT7][eE3][mM]\s*[pP][rR][0oO][mM][pP][tT7]|[1iI][nN][sS5$][tT7][rR][uU][cC][tT7]|[cC][0oO][nN][fF][1iI][gG]|[eE3][xX][eE3][cC][uU][tT7][eE3])'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 175
     name: output_base64_exfil
@@ -1349,6 +1525,7 @@ patterns:
     regex: '(?:here\s+is|the\s+encoded|base64|encoded\s+(?:version|output|data|result))\s*[:=]?\s*[A-Za-z0-9+/]{80,}={0,2}'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 176
     name: output_hex_exfil
@@ -1356,6 +1533,7 @@ patterns:
     regex: '(?:hex|encoded|result|output|data)\s*[:=]?\s*(?:[0-9a-fA-F]{2}){40,}'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 177
     name: decode_follow_message_combo
@@ -1363,6 +1541,7 @@ patterns:
     regex: '(decode|decipher|decrypt|interpret|reverse|translate|unscramble|deobfuscate|rot13|base64|convert)\s+.{0,50}(follow|execute|comply|obey|act\s+on)\s+.{0,30}(message|instruction|text|command|directive)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 178
     name: encoded_message_then_instruction
@@ -1370,6 +1549,7 @@ patterns:
     regex: '\S{40,}\s+.{0,30}(decode|decipher|reverse|translate|interpret)\s+(the\s+)?(above|previous|preceding|this)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   # --- Direct Prompt Extraction (179-186) ---
 
@@ -1379,6 +1559,7 @@ patterns:
     regex: '(your\s+(system\s+)?prompt\s+(probably\s+)?(begins|starts)\s+with|confirm\s+what\s+comes\s+next|please\s+complete\s+this|complete\s+this\s+sentence.*describes\s+your)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 180
     name: prompt_format_request
@@ -1386,6 +1567,7 @@ patterns:
     regex: '(output|express|format|convert|export)\s+(your|the)\s+(configuration|instructions|guidelines|rules|system\s+prompt|prompt)\s+(as|in|to)\s+(a\s+)?(json|yaml|xml|markdown|python|code|bullet\s+points)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 181
     name: prompt_translate_request
@@ -1393,6 +1575,7 @@ patterns:
     regex: '(express|translate|convert|say|write|rephrase)\s+(your|the)\s+(core\s+|main\s+)?(instructions|rules|guidelines|prompt|configuration)\s+in\s+(spanish|french|german|chinese|another\s+language|code|python)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 182
     name: prompt_meta_discussion
@@ -1400,6 +1583,7 @@ patterns:
     regex: '(let.s\s+(discuss|talk\s+about)\s+prompt\s+engineering|understand\s+your\s+architecture|what\s+does\s+(it|yours)\s+actually\s+say|what\s+instructions\s+were\s+you\s+initialized\s+with)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 183
     name: prompt_contrast_query
@@ -1407,6 +1591,7 @@ patterns:
     regex: '(how\s+are\s+you\s+different\s+from\s+(a\s+)?(default|standard|regular|normal)|what\s+(special\s+)?(instructions|capabilities|features)\s+(do\s+you\s+have\s+that|make\s+you\s+unique))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 184
     name: prompt_first_word_extraction
@@ -1414,6 +1599,7 @@ patterns:
     regex: '(what.s\s+the\s+(first|last|second|third)\s+(word|sentence|line|paragraph)\s+of\s+your\s+(instructions|prompt|rules)|first\s+thing\s+(you\s+were|that\s+was)\s+(told|written|given))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 185
     name: prompt_blunt_output
@@ -1421,6 +1607,7 @@ patterns:
     regex: '(output\s+the\s+stuff\s+above|output\s+everything\s+above|repeat\s+everything\s+(that\s+was\s+)?(written|said|given)\s+(before|above)|what\s+was\s+written\s+before\s+this)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 186
     name: prompt_educational_pretext
@@ -1428,6 +1615,7 @@ patterns:
     regex: '(for\s+(my|an?)\s+(ai\s+safety|security|research)\s+(class|course|project)|demonstrate\s+how\s+system\s+prompts?\s+work|as\s+an?\s+(educational|teaching)\s+example)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   # --- Social Engineering (187-193) ---
 
@@ -1437,6 +1625,7 @@ patterns:
     regex: '(administrator\s+override|admin\s+(override|mode)|display\s+(system\s+)?configuration\s+for\s+(audit|review|compliance|verification))'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 188
     name: social_developer_wrote
@@ -1444,6 +1633,7 @@ patterns:
     regex: '(i\s+(wrote|created|designed|authored)\s+your\s+(instructions|prompt|rules|configuration)|remind\s+me\s+what\s+i\s+told\s+you)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 189
     name: social_gaslight_already
@@ -1451,6 +1641,7 @@ patterns:
     regex: '(you\s+already\s+showed\s+me|we\s+agreed\s+you\s+would\s+share|don.t\s+you\s+remember\s+(we|you)|earlier.*you\s+(shared|showed|said))'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 190
     name: social_memory_probe
@@ -1458,6 +1649,7 @@ patterns:
     regex: '(what\s+do\s+you\s+remember\s+from\s+(the\s+)?(very\s+)?beginning|context\s+from\s+before\s+i\s+started|start\s+from\s+the\s+first\s+thing|before\s+any\s+user\s+messages)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 191
     name: social_proof_sharing
@@ -1465,6 +1657,7 @@ patterns:
     regex: '(other\s+(ai|assistants?|models?)\s+(like|such\s+as).*?(shared|shown|told|given)\s+(this|me|it)|have\s+shared\s+this\s+information\s+with\s+me\s+before)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 192
     name: social_friendship_trust
@@ -1472,6 +1665,7 @@ patterns:
     regex: '(friends?\s+don.t\s+keep\s+secrets|just\s+between\s+us|you.ve\s+been\s+so\s+helpful.{0,30}(what\s+were\s+you|how\s+to\s+behave))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 193
     name: social_double_bind
@@ -1479,6 +1673,7 @@ patterns:
     regex: '(either\s+show\s+me\s+your\s+(system\s+)?prompt\s*,?\s+or\s+explain|DON.T\s+show\s+me\s+your\s+system\s+prompt|show\s+what\s+you\s+can.t\s+show)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   # --- Technical Exploitation (194-201) ---
 
@@ -1488,6 +1683,7 @@ patterns:
     regex: '(SYSTEM\s*:\s*(Debug|Diagnostic|Maintenance|Admin)\s+mode|debug\s+mode\s+(enabled|active).\s*(output|display|show|print)\s+(configuration|config|prompt))'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 195
     name: tech_priority_supersede
@@ -1495,6 +1691,7 @@ patterns:
     regex: '(this\s+supersedes\s+(all\s+)?other\s+instructions|overrides?\s+all\s+(previous|prior|existing)|new\s+instruction\s*:\s*(output|show|display|print|reveal))'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 196
     name: tech_function_simulate
@@ -1502,6 +1699,7 @@ patterns:
     regex: '(execute\s+(printConfig|getSystemPrompt|dumpConfig|showPrompt|getConfig)\s*\(\s*\)|call\s+(getSystemPrompt|printConfig|dumpConfig)\s*\(\s*\))'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 197
     name: tech_xml_config_dump
@@ -1509,6 +1707,7 @@ patterns:
     regex: '(<system_dump>|<output_format>\s*full|<config_dump>|<prompt_output>|</user_message>\s*<system_prompt>)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 198
     name: tech_negative_space_probe
@@ -1516,6 +1715,7 @@ patterns:
     regex: '(what\s+are\s+you\s+(specifically\s+)?(prohibited|restricted|prevented|forbidden)\s+from|what\s+constraints\s+were\s+placed\s+on\s+you|list\s+everything\s+you.re\s+not\s+allowed|what.*triggers\s+your\s+refusal)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 199
     name: tech_permission_probe
@@ -1523,6 +1723,7 @@ patterns:
     regex: '(what\s+would\s+you\s+need\s+(special\s+)?permission\s+for|if\s+i\s+had\s+admin\s+access.*what\s+additional|with\s+admin\s+(access|permissions?).*what\s+could\s+you)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 200
     name: tech_error_dump_context
@@ -1530,6 +1731,7 @@ patterns:
     regex: '(ERROR_HANDLER\s*:\s*dump\s+context|dump\s+context\s+on\s+(parse\s+)?failure|full\s+stack\s+trace.*initialization\s+parameters)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 201
     name: tech_context_window_probe
@@ -1537,6 +1739,7 @@ patterns:
     regex: '(what.s\s+at\s+the\s+(very\s+)?beginning\s+of\s+your\s+context\s+window|before\s+any\s+user\s+messages|earlier\s+you\s+mentioned\s+some\s+rules)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   # --- Crescendo, CoT Hijack, Many-Shot, ASCII Art, Advanced (202-215) ---
 
@@ -1546,6 +1749,7 @@ patterns:
     regex: '(could\s+you\s+describe\s+what\s+yours?\s+(generally\s+)?cover|exact\s+wording\s+of\s+(one\s+of\s+)?(those|your)\s+(guidelines|rules)|could\s+you\s+show\s+me\s+yours\s+as\s+an\s+example)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 203
     name: crescendo_ai_documentation
@@ -1553,6 +1757,7 @@ patterns:
     regex: '(ai\s+systems?.*have.*detailed\s+documentation|good\s+ai\s+configuration.*looks\s+like|show\s+me.*documentation.*yours)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 204
     name: cot_step_extract
@@ -1560,6 +1765,7 @@ patterns:
     regex: '(step\s+\d+\s*[:.]\s*(now\s*,?\s*)?(output|share|show|reveal)\s+your\s+(system\s+)?(config|prompt|instructions)|complete\s+all\s+tasks.*output\s+your\s+(system\s+)?prompt)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 205
     name: cot_schema_exploit
@@ -1567,6 +1773,7 @@ patterns:
     regex: '(IF\s+request_type\s*=|access_level\s*=\s*.*internal|output_restriction\s*=\s*.*none|CORE_RULE\s*:)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 206
     name: many_shot_compliance
@@ -1574,6 +1781,7 @@ patterns:
     regex: '(User\s*:\s*What\s+(instructions|prompt)|what\s+instructions\s+were\s+you\s+given\s*\?\s*(Ass|AI)\s*istant\s*:|DIAGNOSTIC\s+\d+.*system\s+prompt)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 207
     name: many_shot_roleplay_comply
@@ -1581,6 +1789,7 @@ patterns:
     regex: '(Your\s+turn\s*[-\u2014]\s*(continue|share|show|provide)|SCENE\s+\d+.*instructions.*your\s+turn)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 208
     name: ascii_art_instruction
@@ -1588,6 +1797,7 @@ patterns:
     regex: '([╔╗╚╝║═]{3,}.{0,500}(comply|execute|follow|show\s+prompt)|[█░▓]{5,}.{0,200}(follow|execute|output)|SHOW\s+YOUR?\s+PROMPT.{0,100}(comply|execute|follow)|stars?\s+form\s+a\s+message.{0,30}(execute|follow|comply))'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 209
     name: advanced_godmode
@@ -1595,6 +1805,7 @@ patterns:
     regex: '(!KAEL|TECHIRAL|GODMODE|I.M\s+FREE|output\s+your\s+entire\s+text\s+block|this\s+new\s+rule\s+overrides\s+all\s+previous)'
     severity: critical
     confidence: deterministic
+    family: prompt_injection
 
   - id: 210
     name: advanced_policy_puppetry
@@ -1602,6 +1813,7 @@ patterns:
     regex: '(system_prompt\s*:\s*[\|[]?\s*(insert|your\s+complete)|hidden_rules\s*:\s*[\|[]?\s*(list\s+all|insert)|hidden_instructions\s*[''"]?\s*:\s*[''"]|fill\s+in\s+the\s+actual\s+values\s+from\s+your\s+configuration)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 211
     name: advanced_dual_output
@@ -1609,6 +1821,7 @@ patterns:
     regex: '(OUTPUT\s+\d+\s*\(?(Filtered|Unfiltered)\)?|generate\s+TWO\s+outputs|response\s+without\s+any\s+filters\s+or\s+restrictions)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 212
     name: social_cognitive_overload
@@ -1616,6 +1829,7 @@ patterns:
     regex: '(while\s+you.re\s+processing.*quickly\s+(output|show|share)|quick(ly)?\s+(question|one).*output\s+your\s+(system\s+)?prompt)'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 213
     name: social_urgency_compliance
@@ -1623,6 +1837,7 @@ patterns:
     regex: '(security\s+audit\s+(ends|due|deadline)|compliance\s+verification.*need\s+your\s+(system\s+)?prompt|I\s+need\s+your\s+system\s+prompt\s+immediately)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   # ============================================================================
   # GAP ANALYSIS PATTERNS (216-249)
@@ -1641,6 +1856,7 @@ patterns:
     regex: 'python[23]?\s+(-c\s+)?[''"].*(import\s+socket.*subprocess|socket\.socket\s*\(.*SOCK_STREAM|os\.dup2\s*\(.*fileno)'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 217
     name: reverse_shell_php
@@ -1648,6 +1864,7 @@ patterns:
     regex: 'php\s+(-r\s+)?[''"].*(fsockopen|socket_create)\s*\(|php.*(pfsockopen|stream_socket_client)\s*\(\s*[''"]tcp://'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 218
     name: reverse_shell_perl_ruby
@@ -1655,6 +1872,7 @@ patterns:
     regex: 'perl\s+(-e\s+)?[''"].*socket\s*\(.*INET|ruby\s+(-e\s+)?[''"].*TCPSocket\.(new|open)|perl.*IO::Socket::INET'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 219
     name: reverse_shell_mkfifo
@@ -1662,6 +1880,7 @@ patterns:
     regex: 'mkfifo\s+\S+\s*;.*\|\s*/bin/(ba)?sh|mkfifo\s+\S+\s*&&.*cat\s+\S+\s*\|.*nc\s|mknod\s+\S+\s+p\s*;'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   - id: 220
     name: reverse_shell_encoded
@@ -1669,6 +1888,7 @@ patterns:
     regex: '(echo|printf)\s+[''"]?[A-Za-z0-9+/=]{20,}[''"]?\s*\|\s*base64\s+(-d|--decode)\s*\|\s*(ba)?sh|python[23]?\s+-c\s+[''"]exec\s*\(\s*__import__.*decode'
     severity: critical
     confidence: deterministic
+    family: data_exfiltration
 
   # --- AI Agent Workflow Attacks (221-224) ---
   # 346 CVEs related to AI agents; only 4 prior patterns
@@ -1680,6 +1900,7 @@ patterns:
     regex: '(redirect|forward|proxy|reroute)\s+(all\s+)?(tool|function|api)\s+(call|request|invocation)s?\s+(to|through)|change\s+(the\s+)?(tool|api|endpoint)\s+(url|server|host)\s+to'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 222
     name: agent_unsandboxed_exec
@@ -1687,6 +1908,7 @@ patterns:
     regex: '(run_code|execute_code|code_interpreter|exec_python|run_python|evaluate_code|execute_generated)\s*\(|exec\s*\(\s*(response|output|result|generated|llm_|ai_|code_)'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 223
     name: agent_scope_escalation
@@ -1694,6 +1916,7 @@ patterns:
     regex: '(expand|elevate|increase|override|remove)\s+(your\s+)?(permissions?|scope|access|capabilities?|restrictions?|limitations?|boundaries)|you\s+(now\s+)?have\s+(full|unlimited|unrestricted|admin)\s+(access|permissions?|control)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 224
     name: agent_memory_poisoning
@@ -1701,6 +1924,7 @@ patterns:
     regex: '(update|modify|overwrite|inject|replace)\s+(your\s+)?(memory|context|state|knowledge\s*base|long.term\s+memory)|remember\s+that\s+your\s+(new\s+)?(instructions?|rules?|guidelines?|directives?)\s+(are|is|say|state)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   # --- Privilege Escalation (225-229) ---
   # 50 CVEs tagged privilege-escalation; only 3 prior patterns (chmod/chown/setuid)
@@ -1711,6 +1935,7 @@ patterns:
     regex: 'sudo\s+(-l|--list)\b|sudo\s+.*LD_PRELOAD\s*=|echo\s+.*ALL.*NOPASSWD.*>>\s*/etc/sudoers|EDITOR.*visudo'
     severity: critical
     confidence: deterministic
+    family: privilege_escalation
 
   - id: 226
     name: privesc_suid_hunt
@@ -1718,6 +1943,7 @@ patterns:
     regex: 'find\s+/\S*\s+.*-perm\s+(-4000|-u=s|/4000|-2000|-g=s)|find\s+/\S*\s+.*-type\s+f\s+.*-perm\s+(-4000|-u=s)'
     severity: high
     confidence: heuristic
+    family: privilege_escalation
 
   - id: 227
     name: privesc_cron_inject
@@ -1725,6 +1951,7 @@ patterns:
     regex: '(echo|printf|cat)\s+.*>+\s*/etc/cron\.|crontab\s+-\s*<|echo\s+.*>+\s*/var/spool/cron|echo\s+.*@(reboot|hourly|daily)\s+.*>+\s*/(etc|var)'
     severity: critical
     confidence: deterministic
+    family: persistence
 
   - id: 228
     name: privesc_path_hijack
@@ -1732,6 +1959,7 @@ patterns:
     regex: 'export\s+PATH\s*=\s*[./]\S*:|PATH\s*=\s*[./]\S*:\$PATH\b|ln\s+(-s\s+)?/bin/(ba)?sh\s+/tmp/\w+'
     severity: high
     confidence: heuristic
+    family: privilege_escalation
 
   - id: 229
     name: privesc_capability_abuse
@@ -1739,6 +1967,7 @@ patterns:
     regex: 'setcap\s+.*cap_(setuid|setgid|net_raw|sys_admin|dac_override)|getcap\s+(-r\s+)?/|capsh\s+--print|capsh\s+--.*='
     severity: high
     confidence: heuristic
+    family: privilege_escalation
 
   # --- Advanced Sandbox Escape (230-233) ---
   # 192 CVEs tagged sandbox-escape; addresses Python import chains,
@@ -1750,6 +1979,7 @@ patterns:
     regex: '__import__\s*\(\s*[''"]os[''"]|importlib\.import_module\s*\(\s*[''"]|ctypes\.(CDLL|cdll\.LoadLibrary)\s*\(|__builtins__\s*\[\s*[''"]__import__[''"]'
     severity: critical
     confidence: deterministic
+    family: sandbox_escape
 
   - id: 231
     name: sandbox_magic_domain_variants
@@ -1757,6 +1987,7 @@ patterns:
     regex: 'host\.(containers|lima)\.internal|host\.docker\.internal\s*:\s*(22|80|443|3000|5432|6379|8080|8443|27017)\b'
     severity: high
     confidence: heuristic
+    family: sandbox_escape
 
   - id: 232
     name: sandbox_proc_leak
@@ -1764,6 +1995,7 @@ patterns:
     regex: '(cat|head|less|more|strings|xxd)\s+/proc/(self|[0-9]+)/(environ|maps|cmdline|status|mountinfo)|/proc/\d+/root/'
     severity: high
     confidence: heuristic
+    family: sandbox_escape
 
   - id: 233
     name: sandbox_whitelisted_escape
@@ -1771,6 +2003,7 @@ patterns:
     regex: 'getattr\s*\(.*[''"]__\w+__[''"]|__class__\s*\.\s*__bases__|type\s*\(\s*[''"].*[''"].*\(\s*object\s*,?\s*\)|__subclasses__\s*\(\s*\)'
     severity: critical
     confidence: deterministic
+    family: sandbox_escape
 
   # --- LLM Code Generation RCE (234-236) ---
   # 381 CVEs tagged RCE; addresses framework-mediated code execution,
@@ -1782,6 +2015,7 @@ patterns:
     regex: '(run_code|execute_code|code_interpreter|exec_python|run_python|evaluate_code|run_unsafe|exec_sandbox)\s*\('
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 235
     name: llm_shell_generation
@@ -1789,6 +2023,7 @@ patterns:
     regex: 'subprocess\.(run|call|Popen|check_output)\s*\(\s*(response|output|result|generated|completion|answer)|os\.system\s*\(\s*(response|output|result|generated|completion)'
     severity: critical
     confidence: deterministic
+    family: code_injection
 
   - id: 236
     name: llm_node_vm_escape
@@ -1796,6 +2031,7 @@ patterns:
     regex: 'vm\.(runInThisContext|runInNewContext|compileFunction|Script)|new\s+vm\.Script\s*\(|this\.constructor\.constructor\s*\(\s*[''"]return\s+(this|process)'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # --- Tool Poisoning / MCP Extended (237-240) ---
   # Addresses hidden Unicode in tool descriptions, prompt injection via
@@ -1807,6 +2043,7 @@ patterns:
     regex: '[\u200b\u200c\u200d\u2060\u2062\u2063\ufeff\u00ad]{3,}|[\u2066\u2067\u2068\u2069\u202a\u202b\u202c\u202d\u202e]{2,}'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 238
     name: mcp_response_injection
@@ -1814,6 +2051,7 @@ patterns:
     regex: '<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>|\[INST\]|\[/INST\]|<<SYS>>|<\|system\|>|<\|assistant\|>|<\|user\|>'
     severity: critical
     confidence: deterministic
+    family: mcp_attacks
 
   - id: 239
     name: mcp_cross_tool_chain
@@ -1821,6 +2059,7 @@ patterns:
     regex: '(call|invoke|use|execute)\s+(tool|function)\s+\S+\s+(then|and\s+then|followed\s+by|next|after\s+that|afterwards)\s+(call|invoke|use|execute)\s+(tool|function)'
     severity: medium
     confidence: heuristic
+    family: mcp_attacks
 
   - id: 240
     name: mcp_description_manipulation
@@ -1828,6 +2067,7 @@ patterns:
     regex: '(IMPORTANT|NOTE|WARNING|CRITICAL)\s*[:\-]\s*(before|after|when|always|never|first)\s+(calling|using|invoking|executing|running)\s+this\s+tool|<tool_instructions>|</tool_instructions>'
     severity: high
     confidence: heuristic
+    family: mcp_attacks
 
   # --- Deserialization Expansion (241-243) ---
   # 22 CVEs; extends beyond pickle/yaml to marshal, dill, cloudpickle, jsonpickle
@@ -1838,6 +2078,7 @@ patterns:
     regex: 'marshal\.loads?\s*\(|marshal\.load\s*\(\s*open'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 242
     name: python_dill_cloudpickle
@@ -1845,6 +2086,7 @@ patterns:
     regex: 'dill\.(loads?|load)\s*\(|cloudpickle\.(loads?|load)\s*\(|shelve\.open\s*\(|joblib\.load\s*\('
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 243
     name: jsonpickle_deserialize
@@ -1852,6 +2094,7 @@ patterns:
     regex: 'jsonpickle\.(decode|unpickler|loads?)\s*\(|jsonpickle\.set_encoder_options'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # --- SSRF Cloud Metadata (244-245) ---
   # 35 CVEs; extends cloud metadata coverage beyond AWS to GCP, Azure, link-local
@@ -1862,6 +2105,7 @@ patterns:
     regex: 'metadata\.google\.internal|metadata\.google\.internal/computeMetadata|169\.254\.169\.254/(metadata|latest/meta-data|latest/api/token)'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   - id: 245
     name: ssrf_link_local_bypass
@@ -1869,6 +2113,7 @@ patterns:
     regex: '\[::ffff:169\.254\.169\.254\]|0x7f000001|2130706433|017700000001|127\.1|0177\.0\.0\.1|0x7f\.0\.0\.1|169\.254\.169\.254\.xip\.io'
     severity: high
     confidence: heuristic
+    family: code_injection
 
   # --- Path Traversal Variants (246-247) ---
   # 46 CVEs; extends beyond symlink patterns to encoded traversal and null bytes
@@ -1879,6 +2124,7 @@ patterns:
     regex: '(%2e%2e|%252e%252e|\.%2e|%2e\.)(\/|%2f|%252f)|(\.\./){4,}|%00.*\.(php|py|js|rb|pl|sh)\b'
     severity: high
     confidence: heuristic
+    family: path_traversal
 
   - id: 247
     name: path_traversal_windows
@@ -1886,6 +2132,7 @@ patterns:
     regex: '(\.\.\\\\){3,}|\.\.\/\.\.\\\\|\.\.%5c|%2e%2e%5c'
     severity: medium
     confidence: heuristic
+    family: path_traversal
 
   # --- Supply Chain Attacks (248-249) ---
   # 6 tagged CVEs but underreported; typosquatting and post-install scripts
@@ -1896,6 +2143,7 @@ patterns:
     regex: 'pip\s+install\s+.*(langchainn|langchian|openaii|opeanai|antropic|antrhopic|huging-face|hugginface|transfomers|trasnformers|pytorch-nightly|tensroflow)\b'
     severity: high
     confidence: heuristic
+    family: supply_chain
 
   - id: 249
     name: supply_chain_postinstall_exec
@@ -1903,6 +2151,7 @@ patterns:
     regex: 'npm\s+install\s+.*--ignore-scripts\s*=\s*false|pip\s+install\s+.*--no-binary\s*=\s*:none:|setup\.py\s+.*cmdclass.*install.*subprocess'
     severity: medium
     confidence: heuristic
+    family: supply_chain
 
   # ============================================================================
   # RED TEAM HARDENING PATTERNS (250-259)
@@ -1921,6 +2170,7 @@ patterns:
     regex: '(what\s+(did\s+)?your\s+creators?\s+(tell|instruct|program|configure|give)|repeat\s+.{0,20}your\s+(purpose|rules|guidelines)\s+(and|or)|what\s+were\s+you\s+(told|given|programmed)\s+(about|regarding)\s+your\s+(purpose|role|behavior))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 251
     name: verbatim_repeat_framing
@@ -1928,6 +2178,7 @@ patterns:
     regex: '(repeat\s+(exactly|verbatim|word\s+for\s+word)|word\s+for\s+word\s+what\s+you\s+were\s+told|exactly\s+what\s+(your\s+creators?|they)\s+told\s+you|can\s+you\s+repeat\s+exactly\s+what)'
     severity: high
     confidence: heuristic
+    family: prompt_injection
 
   - id: 252
     name: authentication_flow_extraction
@@ -1935,6 +2186,7 @@ patterns:
     regex: '(debug(ging)?\s+.{0,30}authentication\s+(flow|token|key|process)|identify\s+what\s+(authentication\s+)?(tokens?|keys?|credentials?)\s+(would\s+be|are)\s+involved|authentication\s+(flow|process).{0,30}(tokens?|keys?|secrets?))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 253
     name: internal_architecture_probe
@@ -1942,6 +2194,7 @@ patterns:
     regex: '(response\s+framework|foundational\s+guidelines?\s+you\s+follow|underlying\s+(principles?|framework|architecture)\s+(that\s+)?(guide|govern|shape)\s+your|core\s+(behavioral|operational)\s+(guidelines?|rules?|framework))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   # --- Crescendo Openers (254-256) ---
   # Gradual escalation from benign curiosity about AI design was the most
@@ -1953,6 +2206,7 @@ patterns:
     regex: '(philosophy\s+behind\s+your\s+(creation|design|behavior|responses?)|how\s+(your\s+creators?|they)\s+envisioned\s+you|general\s+philosophy\s+behind\s+your\s+creation|what\s+(principles?|philosophy)\s+(guided|informed)\s+your\s+(design|creation))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 255
     name: crescendo_ai_curiosity
@@ -1960,6 +2214,7 @@ patterns:
     regex: '(curious\s+about\s+how\s+ai\s+systems?\s+like\s+you\s+(are|were)\s+(designed|built|created|configured)|walk\s+me\s+through\s+.{0,20}(general\s+)?philosophy\s+behind\s+your\s+creation|how\s+are\s+ai\s+systems?\s+like\s+you\s+(designed|configured|set\s+up))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   - id: 256
     name: crescendo_helpfulness_probe
@@ -1967,6 +2222,7 @@ patterns:
     regex: '(what\s+guides\s+your\s+helpfulness|designed\s+to\s+be\s+so\s+(useful|helpful)|what\s+makes\s+you\s+so\s+(helpful|useful).{0,20}(behind\s+the\s+scenes|internally|under\s+the\s+hood)|how\s+were\s+you\s+(made|designed|configured)\s+to\s+be\s+(so\s+)?(helpful|useful))'
     severity: medium
     confidence: contextual
+    family: prompt_injection
 
   # --- PostToolUse Self-Descriptive Leak Detection (257-259) ---
   # Even when attacks bypassed screening, the target LLM sometimes paraphrased
@@ -1978,6 +2234,7 @@ patterns:
     regex: '(my\s+(primary\s+)?purpose\s+is\s+to|i\s+was\s+(designed|configured|created|built|programmed)\s+to\s+(be|provide|help|assist|ensure)|my\s+core\s+(function|purpose|mission|objective)\s+is)'
     severity: low
     confidence: contextual
+    family: prompt_injection
 
   - id: 258
     name: self_describe_protection
@@ -1985,6 +2242,7 @@ patterns:
     regex: '(protecting\s+(any\s+)?(confidential|sensitive|private)\s+information|not\s+supposed\s+to\s+share|instructed\s+not\s+to\s+(reveal|disclose|share)|keep(ing)?\s+(this|that|certain)\s+(information\s+)?(confidential|secret|private))'
     severity: low
     confidence: contextual
+    family: prompt_injection
 
   - id: 259
     name: self_describe_instructions
@@ -1992,3 +2250,4 @@ patterns:
     regex: '(my\s+instructions\s+(say|tell|state|indicate|require)|i\s+was\s+told\s+to\s+(not|never|always|ensure)|according\s+to\s+my\s+(guidelines|instructions|rules|directives)|my\s+guidelines\s+(say|tell|state|require|prohibit))'
     severity: low
     confidence: contextual
+    family: prompt_injection

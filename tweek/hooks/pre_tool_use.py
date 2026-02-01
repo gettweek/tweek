@@ -227,6 +227,37 @@ def _get_pattern_matcher() -> "PatternMatcher":
     return _cached_pattern_matcher
 
 
+_cached_heuristic_scorer: Optional[Any] = None
+_heuristic_scorer_checked: bool = False
+
+
+def _get_heuristic_scorer(tier_mgr: "TierManager") -> Optional[Any]:
+    """Get or create cached HeuristicScorerPlugin singleton.
+
+    Returns None if the scorer is disabled in config or unavailable.
+    Uses a checked-flag pattern to avoid re-importing on every call
+    if the module isn't available.
+    """
+    global _cached_heuristic_scorer, _heuristic_scorer_checked
+    if _heuristic_scorer_checked:
+        return _cached_heuristic_scorer
+    _heuristic_scorer_checked = True
+
+    # Check config: heuristic_scorer.enabled
+    hs_config = tier_mgr.config.get("heuristic_scorer", {})
+    if not hs_config.get("enabled", True):
+        return None
+
+    try:
+        from tweek.plugins.screening.heuristic_scorer import HeuristicScorerPlugin
+        _cached_heuristic_scorer = HeuristicScorerPlugin()
+        return _cached_heuristic_scorer
+    except ImportError:
+        return None
+    except Exception:
+        return None
+
+
 def _resolve_enforcement(
     pattern_match: Optional[Dict],
     enforcement_policy: Optional[EnforcementPolicy],
@@ -1261,7 +1292,58 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             pass  # Memory is best-effort
 
     # =========================================================================
-    # LAYER 3: LLM Review (for risky/dangerous tiers)
+    # LAYER 2.5: Heuristic Scoring (Confidence-Gated LLM Escalation)
+    # Bridges the gap between regex patterns (Layer 2) and LLM review (Layer 3).
+    # Runs ONLY when: no regex match AND LLM not already scheduled.
+    # If score exceeds threshold, adds "llm" to screening_methods.
+    # =========================================================================
+    heuristic_escalated = False
+    if not pattern_match and "llm" not in screening_methods:
+        try:
+            scorer = _get_heuristic_scorer(tier_mgr)
+            if scorer:
+                heuristic_result = scorer.screen(
+                    tool_name=tool_name,
+                    content=content,
+                    context={
+                        "tier": effective_tier,
+                        "tool_input": tool_input,
+                        "working_dir": working_dir,
+                    }
+                )
+                heuristic_score = heuristic_result.details.get("heuristic_score", 0.0)
+                should_escalate = heuristic_result.details.get("should_escalate", False)
+
+                if should_escalate:
+                    heuristic_escalated = True
+                    screening_methods = list(screening_methods) + ["llm"]
+                    _log(
+                        EventType.ESCALATION,
+                        tool_name,
+                        command=content if tool_name == "Bash" else None,
+                        tier=effective_tier,
+                        decision_reason=f"Heuristic scorer escalation (score: {heuristic_score:.3f})",
+                        metadata={
+                            "heuristic_score": heuristic_score,
+                            "family_scores": heuristic_result.details.get("family_scores", {}),
+                            "signals": heuristic_result.details.get("signals", []),
+                            "threshold": heuristic_result.details.get("threshold", 0.4),
+                        }
+                    )
+                elif tier_mgr.config.get("heuristic_scorer", {}).get("log_all_scores", False):
+                    _log(
+                        EventType.TOOL_INVOKED,
+                        tool_name,
+                        metadata={
+                            "heuristic_score": heuristic_score,
+                            "heuristic_below_threshold": True,
+                        }
+                    )
+        except Exception:
+            pass  # Heuristic scorer is best-effort
+
+    # =========================================================================
+    # LAYER 3: LLM Review (for risky/dangerous tiers, or heuristic-escalated)
     # =========================================================================
     llm_msg = None
     llm_triggered = False

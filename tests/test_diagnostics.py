@@ -349,7 +349,7 @@ class TestRunHealthChecks:
     def test_returns_list(self):
         results = run_health_checks()
         assert isinstance(results, list)
-        assert len(results) == 10  # 10 checks defined
+        assert len(results) == 11  # 10 checks defined
 
     def test_all_results_are_health_checks(self):
         results = run_health_checks()
@@ -363,7 +363,7 @@ class TestRunHealthChecks:
     def test_verbose_mode(self):
         results = run_health_checks(verbose=True)
         assert isinstance(results, list)
-        assert len(results) == 10
+        assert len(results) == 11
 
     def test_check_names_unique(self):
         results = run_health_checks()
@@ -378,7 +378,7 @@ class TestRunHealthChecks:
 
         with patch("tweek.diagnostics._check_hooks_installed", _failing_check):
             results = run_health_checks()
-            assert len(results) == 10
+            assert len(results) == 11
             # The failing check should be ERROR
             hooks_check = [r for r in results if "hooks" in r.name.lower() or "check failed" in r.message.lower()]
             assert len(hooks_check) >= 1
