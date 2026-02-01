@@ -37,6 +37,11 @@ llm = [
     "openai>=1.0.0",
     "google-generativeai>=0.5.0",
 ]
+local-models = [
+    "onnxruntime>=1.16.0",
+    "tokenizers>=0.15.0",
+    "numpy>=1.24.0",
+]
 linux = [
     "secretstorage>=3.0",  # For GNOME Keyring / Secret Service on Linux
 ]
@@ -55,7 +60,7 @@ dev = [
     "build>=1.0",
 ]
 all = [
-    "tweek[llm,mcp,proxy]",  # Full installation with all features
+    "tweek[llm,local-models,mcp,proxy]",  # Full installation with all features
 ]
 
 [project.scripts]
@@ -83,6 +88,7 @@ continue = "tweek.plugins.detectors:ContinueDetector"
 rate_limiter = "tweek.plugins.screening:RateLimiterPlugin"
 pattern_matcher = "tweek.plugins.screening:PatternMatcherPlugin"
 llm_reviewer = "tweek.plugins.screening:LLMReviewerPlugin"
+local_model_reviewer = "tweek.plugins.screening:LocalModelReviewerPlugin"
 session_analyzer = "tweek.plugins.screening:SessionAnalyzerPlugin"
 
 [project.urls]
@@ -119,6 +125,7 @@ markers = [
     "config: Configuration manager and licensing",
     "memory: Memory store, safety, and query system",
     "core: Approval queue, audit, diagnostics, feedback, rate limiting, sessions",
+    "local_model: Local ONNX model inference, registry, and CLI commands",
 ]
 
 [tool.black]

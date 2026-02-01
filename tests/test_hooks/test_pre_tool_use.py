@@ -210,14 +210,21 @@ class TestProcessHook:
         Hook tests should not make real API calls. The LLM reviewer's
         auto-detection picks up any available API key from the env, so
         we remove them to keep LLM review disabled during hook tests.
+        Also disable the local ONNX model so it doesn't take over as
+        the default provider.
         """
         import tweek.security.llm_reviewer as llm_mod
+        import tweek.security.local_model as local_mod
         old = llm_mod._llm_reviewer
         llm_mod._llm_reviewer = None
+        # Disable local model so it doesn't auto-detect as provider
+        old_local = local_mod.LOCAL_MODEL_AVAILABLE
+        local_mod.LOCAL_MODEL_AVAILABLE = False
         for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"):
             monkeypatch.delenv(var, raising=False)
         yield
         llm_mod._llm_reviewer = old
+        local_mod.LOCAL_MODEL_AVAILABLE = old_local
 
     @pytest.fixture
     def mock_logger(self):

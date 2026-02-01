@@ -171,6 +171,9 @@ class ConfigManager:
     VALID_TOP_LEVEL_KEYS = {
         "tools", "skills", "default_tier", "escalations",
         "plugins", "mcp", "proxy", "sandbox", "isolation_chamber",
+        "llm_review", "local_model", "rate_limiting", "session_analysis",
+        "path_boundary", "non_english_handling", "version", "tiers",
+        "heuristic_scorer",
     }
 
     def __init__(
@@ -993,7 +996,7 @@ class ConfigManager:
             return "compliance"
 
         # Check known screening plugins
-        screening_plugins = {"rate_limiter", "pattern_matcher", "llm_reviewer", "session_analyzer"}
+        screening_plugins = {"rate_limiter", "pattern_matcher", "llm_reviewer", "local_model_reviewer", "session_analyzer"}
         if plugin_name in screening_plugins:
             return "screening"
 
@@ -1017,6 +1020,40 @@ class ConfigManager:
 
         # Default to screening
         return "screening"
+
+    # ==================== LOCAL MODEL ====================
+
+    def get_local_model_config(self) -> Dict[str, Any]:
+        """Get the merged local model configuration with defaults."""
+        defaults = {
+            "enabled": True,
+            "model": "auto",
+            "escalate_to_llm": True,
+            "escalate_min_confidence": 0.1,
+            "escalate_max_confidence": 0.9,
+        }
+
+        # Merge from builtin, user, project
+        for source in [self._builtin, self._user, self._project]:
+            local_cfg = source.get("local_model", {})
+            if isinstance(local_cfg, dict):
+                defaults.update(local_cfg)
+
+        return defaults
+
+    def set_active_model(self, name: str) -> None:
+        """Set the active local model in user config.
+
+        Args:
+            name: Model name from the catalog.
+        """
+        if "local_model" not in self._user:
+            self._user["local_model"] = {}
+
+        self._user["local_model"]["model"] = name
+        self._save_yaml(self.user_config_path, self._user)
+        self._invalidate_cache()
+        self._log_config_change("set_active_model", model=name)
 
     # ==================== FULL CONFIG ====================
 

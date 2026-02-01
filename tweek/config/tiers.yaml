@@ -8,24 +8,37 @@
 #   dangerous - Regex + LLM + Sandbox preview
 #
 # Security Layers:
-#   1. Rate Limiting  - Detect resource theft and burst attacks
-#   2. Pattern Match  - Regex patterns for known attack vectors (259 patterns)
-#   3. LLM Review     - Semantic analysis using Claude Haiku
-#   4. Session Scan   - Cross-turn anomaly detection
-#   5. Sandbox        - Speculative execution in isolated environment
+#   1. Rate Limiting    - Detect resource theft and burst attacks
+#   2. Pattern Match    - Regex patterns for known attack vectors (259 patterns)
+#   2.5 Heuristic Score - Signal-based scoring for confidence-gated LLM escalation
+#   3. LLM Review       - Semantic analysis using Claude Haiku or local LLM
+#   4. Session Scan     - Cross-turn anomaly detection
+#   5. Sandbox          - Speculative execution in isolated environment
 
 version: 2
 
 # LLM Review Configuration
 # Supports: anthropic, openai, google, or any OpenAI-compatible endpoint
-# Provider "auto" checks for API keys: ANTHROPIC_API_KEY → OPENAI_API_KEY → GOOGLE_API_KEY
+# Provider "auto" checks: local (if enabled) → ANTHROPIC_API_KEY → OPENAI_API_KEY → GOOGLE_API_KEY
 llm_review:
   enabled: true
-  provider: auto              # auto | anthropic | openai | google
+  provider: auto              # auto | local | anthropic | openai | google | fallback
   model: auto                 # auto = provider default, or explicit model name
   base_url: null              # For OpenAI-compatible endpoints (Ollama, LM Studio, etc.)
   api_key_env: null           # Override env var name (default: provider-specific)
   timeout_seconds: 5.0
+  local:
+    enabled: true             # Probe for Ollama/LM Studio on startup
+    probe_timeout: 0.5        # Max probe time per server (seconds)
+    timeout_seconds: 3.0      # Per-request timeout (local should be fast)
+    ollama_host: null          # Override (default: OLLAMA_HOST env or localhost:11434)
+    lm_studio_host: null       # Override (default: localhost:1234)
+    preferred_models: []       # User override for model ranking
+    validate_on_first_use: true
+    min_validation_score: 0.6  # Must pass 3/5 validation commands
+  fallback:
+    enabled: true             # Enable fallback chain (try local, then cloud)
+    order: [local, cloud]     # Priority order for provider attempts
 
 # Rate Limiting Configuration
 rate_limiting:
@@ -41,6 +54,28 @@ session_analysis:
   enabled: true
   lookback_minutes: 30
   alert_on_risk_score: 0.5
+
+# Heuristic Scorer Configuration (Layer 2.5)
+# Bridges the gap between regex patterns and LLM review.
+# Runs ONLY when: no regex match AND LLM not already scheduled.
+# Scores content using signal-based heuristics from pattern families.
+# If score exceeds threshold, escalates to LLM review.
+heuristic_scorer:
+  enabled: true
+  threshold: 0.4               # Score [0.0-1.0] to trigger LLM escalation
+  log_all_scores: false         # Log below-threshold scores (for tuning)
+
+# Local ONNX Model Configuration
+# On-device prompt injection classifier — no API key needed.
+# Install with: pip install tweek[local-models] && tweek model download
+# When installed, takes priority over cloud LLM in auto-detection.
+# Cloud LLM becomes the escalation fallback for uncertain results.
+local_model:
+  enabled: true
+  model: auto                     # auto = configured default, or explicit model name
+  escalate_to_llm: true           # Escalate uncertain results to cloud LLM
+  escalate_min_confidence: 0.1    # Below this = definitely safe, no escalation
+  escalate_max_confidence: 0.9    # Above this = use local result, no escalation
 
 tiers:
   safe:

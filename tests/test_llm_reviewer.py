@@ -212,6 +212,7 @@ class TestAutoDetection:
                 model=DEFAULT_MODELS["google"], api_key="goog-key", timeout=5.0,
             )
 
+    @patch("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False)
     @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", False)
     @patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", False)
     @patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", False)
@@ -219,6 +220,7 @@ class TestAutoDetection:
         provider = _auto_detect_provider("auto", None, None, None, 5.0)
         assert provider is None
 
+    @patch("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False)
     @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", True)
     @patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", True)
     def test_no_keys_returns_none(self, clean_env):
@@ -359,7 +361,8 @@ class TestResolveProvider:
             assert provider is not None
 
     def test_no_providers_returns_none(self, clean_env):
-        with patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", False), \
+        with patch("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False), \
+             patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", False), \
              patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", False), \
              patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", False):
             provider = resolve_provider()
@@ -664,14 +667,15 @@ class TestGetLLMReviewer:
                 base_url="http://localhost:11434/v1",
                 api_key_env="MY_KEY",
             )
-            mock_resolve.assert_called_once_with(
-                provider="openai",
-                model="gpt-4o",
-                base_url="http://localhost:11434/v1",
-                api_key_env="MY_KEY",
-                api_key=None,
-                timeout=5.0,
-            )
+            # Verify core params are passed through (local_config/fallback_config
+            # are loaded from tiers.yaml and may vary)
+            call_kwargs = mock_resolve.call_args[1]
+            assert call_kwargs["provider"] == "openai"
+            assert call_kwargs["model"] == "gpt-4o"
+            assert call_kwargs["base_url"] == "http://localhost:11434/v1"
+            assert call_kwargs["api_key_env"] == "MY_KEY"
+            assert call_kwargs["api_key"] is None
+            assert call_kwargs["timeout"] == 5.0
 
     def test_disabled_when_no_provider(self, clean_env):
         with patch("tweek.security.llm_reviewer.resolve_provider", return_value=None):
@@ -908,7 +912,8 @@ class TestLLMReviewerInit:
         assert reviewer._provider_instance is None
 
     def test_enabled_with_no_provider_disables(self, clean_env):
-        with patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", False), \
+        with patch("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False), \
+             patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", False), \
              patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", False), \
              patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", False):
             reviewer = LLMReviewer(enabled=True)
@@ -932,14 +937,15 @@ class TestLLMReviewerInit:
                 api_key="direct-key",
                 timeout=3.0,
             )
-            mock_resolve.assert_called_once_with(
-                provider="openai",
-                model="llama3.2",
-                base_url="http://localhost:11434/v1",
-                api_key_env="MY_KEY",
-                api_key="direct-key",
-                timeout=3.0,
-            )
+            # Verify core params are passed through (local_config/fallback_config
+            # default to None when called directly via LLMReviewer)
+            call_kwargs = mock_resolve.call_args[1]
+            assert call_kwargs["provider"] == "openai"
+            assert call_kwargs["model"] == "llama3.2"
+            assert call_kwargs["base_url"] == "http://localhost:11434/v1"
+            assert call_kwargs["api_key_env"] == "MY_KEY"
+            assert call_kwargs["api_key"] == "direct-key"
+            assert call_kwargs["timeout"] == 3.0
 
 
 # =============================================================================

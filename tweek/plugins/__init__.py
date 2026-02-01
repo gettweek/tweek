@@ -707,15 +707,25 @@ def _register_builtin_plugins(registry: PluginRegistry) -> None:
         from tweek.plugins.screening import (
             RateLimiterPlugin,
             PatternMatcherPlugin,
+            HeuristicScorerPlugin,
             LLMReviewerPlugin,
             SessionAnalyzerPlugin,
         )
         registry.register("rate_limiter", RateLimiterPlugin, PluginCategory.SCREENING)
         registry.register("pattern_matcher", PatternMatcherPlugin, PluginCategory.SCREENING)
+        registry.register("heuristic_scorer", HeuristicScorerPlugin, PluginCategory.SCREENING)
         registry.register("llm_reviewer", LLMReviewerPlugin, PluginCategory.SCREENING)
         registry.register("session_analyzer", SessionAnalyzerPlugin, PluginCategory.SCREENING)
     except ImportError as e:
         logger.debug(f"Screening plugins not available: {e}")
+
+    # Local model reviewer plugin (optional — requires tweek[local-models])
+    try:
+        from tweek.plugins.screening.local_model_reviewer import LocalModelReviewerPlugin
+        if LocalModelReviewerPlugin is not None:
+            registry.register("local_model_reviewer", LocalModelReviewerPlugin, PluginCategory.SCREENING)
+    except ImportError:
+        pass
 
 
 def _discover_git_plugins(registry: PluginRegistry) -> int:

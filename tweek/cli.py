@@ -158,6 +158,7 @@ Examples:
   tweek install --global                 Install globally (all projects)
   tweek install --interactive            Walk through configuration prompts
   tweek install --preset paranoid        Apply paranoid security preset
+  tweek install --quick                  Zero-prompt install with defaults
   tweek install --with-sandbox           Install sandbox tool if needed (Linux)
   tweek install --force-proxy            Override existing proxy configurations
 """
@@ -182,7 +183,9 @@ Examples:
               help="Force Tweek proxy to override existing proxy configurations (e.g., moltbot)")
 @click.option("--skip-proxy-check", is_flag=True,
               help="Skip checking for existing proxy configurations")
-def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool):
+@click.option("--quick", is_flag=True,
+              help="Zero-prompt install with cautious defaults (skips env scan and proxy check)")
+def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool, quick: bool):
     """Install Tweek hooks into Claude Code.
 
     By default, installs to the current project (./.claude/).
@@ -192,6 +195,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
         --interactive  : Walk through configuration prompts
         --preset       : Apply paranoid/cautious/trusted preset
         --ai-defaults  : Auto-configure based on detected skills
+        --quick        : Zero-prompt install with cautious defaults
         --with-sandbox : Install sandbox tool if needed (Linux: firejail)
     """
     import json
@@ -199,10 +203,31 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
     from tweek.platform import IS_LINUX, get_capabilities
     from tweek.config.manager import ConfigManager, SecurityTier
 
+    # --quick implies non-interactive defaults
+    if quick:
+        skip_env_scan = True
+        skip_proxy_check = True
+        if not preset:
+            preset = "cautious"
+
     console.print(TWEEK_BANNER, style="cyan")
 
     # ─────────────────────────────────────────────────────────────
-    # Detect Claude Code CLI
+    # Pre-flight: Python version check
+    # ─────────────────────────────────────────────────────────────
+    _check_python_version(console, quick)
+
+    # Track install summary for verification output
+    install_summary = {
+        "scope": "project",
+        "preset": None,
+        "llm_provider": None,
+        "llm_model": None,
+        "proxy": False,
+    }
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 1: Detect Claude Code CLI
     # ─────────────────────────────────────────────────────────────
     claude_path = shutil.which("claude")
     if claude_path:
@@ -213,14 +238,83 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
         console.print("  [dim]Tweek hooks require Claude Code to function.[/dim]")
         console.print("  [dim]https://docs.anthropic.com/en/docs/claude-code[/dim]")
         console.print()
-        if not click.confirm("Continue installing hooks anyway?", default=False):
-            console.print()
-            console.print("[dim]Run 'tweek install' later after installing Claude Code.[/dim]")
+        if quick or not click.confirm("Continue installing hooks anyway?", default=False):
+            if not quick:
+                console.print()
+                console.print("[dim]Run 'tweek install' later after installing Claude Code.[/dim]")
             return
         console.print()
 
     # ─────────────────────────────────────────────────────────────
-    # Detect Moltbot and offer protection options
+    # Step 2: Scope selection (always shown unless --global or --quick)
+    # ─────────────────────────────────────────────────────────────
+    if not install_global and not dev_test and not quick:
+        # Smart default: if in a git repo, default to project; otherwise global
+        in_git_repo = (Path.cwd() / ".git").exists()
+        default_scope = 1 if in_git_repo else 2
+
+        console.print()
+        console.print("[bold]Installation Scope[/bold]")
+        console.print()
+        console.print("  [cyan]1.[/cyan] This project only (./.claude/)")
+        console.print("     [dim]Protects only the current project[/dim]")
+        console.print("  [cyan]2.[/cyan] All projects globally (~/.claude/)")
+        console.print("     [dim]Protects every project on this machine[/dim]")
+        console.print()
+        if in_git_repo:
+            console.print(f"  [dim]Git repo detected — defaulting to project scope[/dim]")
+        else:
+            console.print(f"  [dim]No git repo — defaulting to global scope[/dim]")
+        console.print()
+        scope_choice = click.prompt("Select", type=click.IntRange(1, 2), default=default_scope)
+        if scope_choice == 2:
+            install_global = True
+        console.print()
+
+    # Determine target directory based on scope
+    if dev_test:
+        console.print("[yellow]Installing in DEV TEST mode (isolated environment)[/yellow]")
+        target = Path("~/AI/tweek/test-environment/.claude").expanduser()
+        install_summary["scope"] = "dev-test"
+    elif install_global:
+        target = Path("~/.claude").expanduser()
+        console.print(f"[cyan]Scope: global[/cyan] — Hooks will protect all projects")
+        install_summary["scope"] = "global"
+    else:  # project (default)
+        target = Path.cwd() / ".claude"
+        console.print(f"[cyan]Scope: project[/cyan] — Hooks will protect this project only")
+        install_summary["scope"] = "project"
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 3: Scope conflict detection
+    # ─────────────────────────────────────────────────────────────
+    if not dev_test:
+        try:
+            if install_global:
+                # Installing globally — check if project-level hooks exist here
+                project_settings = Path.cwd() / ".claude" / "settings.json"
+                if project_settings.exists():
+                    with open(project_settings) as f:
+                        project_config = json.load(f)
+                    if _has_tweek_hooks(project_config):
+                        console.print("[dim]Note: Tweek is also installed in this project.[/dim]")
+                        console.print("[dim]Project-level settings take precedence over global.[/dim]")
+                        console.print()
+            else:
+                # Installing per-project — check if global hooks exist
+                global_settings = Path("~/.claude/settings.json").expanduser()
+                if global_settings.exists():
+                    with open(global_settings) as f:
+                        global_config = json.load(f)
+                    if _has_tweek_hooks(global_config):
+                        console.print("[dim]Note: Tweek is also installed globally.[/dim]")
+                        console.print("[dim]Project-level settings will take precedence in this directory.[/dim]")
+                        console.print()
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 4: Detect Moltbot and offer protection options
     # ─────────────────────────────────────────────────────────────
     proxy_override_enabled = force_proxy
     if not skip_proxy_check:
@@ -305,60 +399,8 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             console.print(f"[dim]Warning: Could not check for proxy conflicts: {e}[/dim]")
 
     # ─────────────────────────────────────────────────────────────
-    # Interactive scope selection (if --interactive and no --global)
+    # Step 5: Install hooks into settings.json
     # ─────────────────────────────────────────────────────────────
-    if interactive and not install_global and not dev_test:
-        console.print("[bold]Installation Scope[/bold]")
-        console.print()
-        console.print("  [cyan]1.[/cyan] This project only (./.claude/)")
-        console.print("     [dim]Protects only the current project[/dim]")
-        console.print("  [cyan]2.[/cyan] All projects globally (~/.claude/)")
-        console.print("     [dim]Protects every project on this machine[/dim]")
-        console.print()
-        scope_choice = click.prompt("Select", type=click.IntRange(1, 2), default=1)
-        if scope_choice == 2:
-            install_global = True
-        console.print()
-
-    # Determine target directory based on scope
-    if dev_test:
-        console.print("[yellow]Installing in DEV TEST mode (isolated environment)[/yellow]")
-        target = Path("~/AI/tweek/test-environment/.claude").expanduser()
-    elif install_global:
-        target = Path("~/.claude").expanduser()
-        console.print(f"[cyan]Scope: global[/cyan] — Hooks will protect all projects")
-    else:  # project (default)
-        target = Path.cwd() / ".claude"
-        console.print(f"[cyan]Scope: project[/cyan] — Hooks will protect this project only")
-
-    # ─────────────────────────────────────────────────────────────
-    # Scope conflict detection
-    # ─────────────────────────────────────────────────────────────
-    if not dev_test:
-        try:
-            if install_global:
-                # Installing globally — check if project-level hooks exist here
-                project_settings = Path.cwd() / ".claude" / "settings.json"
-                if project_settings.exists():
-                    with open(project_settings) as f:
-                        project_config = json.load(f)
-                    if _has_tweek_hooks(project_config):
-                        console.print("[dim]Note: Tweek is also installed in this project.[/dim]")
-                        console.print("[dim]Project-level settings take precedence over global.[/dim]")
-                        console.print()
-            else:
-                # Installing per-project — check if global hooks exist
-                global_settings = Path("~/.claude/settings.json").expanduser()
-                if global_settings.exists():
-                    with open(global_settings) as f:
-                        global_config = json.load(f)
-                    if _has_tweek_hooks(global_config):
-                        console.print("[dim]Note: Tweek is also installed globally.[/dim]")
-                        console.print("[dim]Project-level settings will take precedence in this directory.[/dim]")
-                        console.print()
-        except (json.JSONDecodeError, IOError):
-            pass
-
     hook_script = Path(__file__).parent / "hooks" / "pre_tool_use.py"
     post_hook_script = Path(__file__).parent / "hooks" / "post_tool_use.py"
 
@@ -386,6 +428,11 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
     # Add Tweek hooks
     settings["hooks"] = settings.get("hooks", {})
 
+    # Use the exact Python that ran `tweek install` so hooks work even when
+    # /usr/bin/env python3 resolves to a different interpreter (e.g., system
+    # Python 3.9 while Tweek was installed via pyenv/Homebrew Python 3.12).
+    python_exe = sys.executable
+
     # PreToolUse: screen tool requests before execution
     # Match ALL security-relevant tools, not just Bash — Write/Edit/Read/WebFetch
     # all have screening logic in pre_tool_use.py that must be reachable
@@ -395,7 +442,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             "hooks": [
                 {
                     "type": "command",
-                    "command": f"/usr/bin/env python3 {hook_script.resolve()}"
+                    "command": f"{python_exe} {hook_script.resolve()}"
                 }
             ]
         }
@@ -409,7 +456,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             "hooks": [
                 {
                     "type": "command",
-                    "command": f"/usr/bin/env python3 {post_hook_script.resolve()}"
+                    "command": f"{python_exe} {post_hook_script.resolve()}"
                 }
             ]
         }
@@ -427,7 +474,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
     console.print(f"[green]✓[/green] Tweek data directory: {tweek_dir}")
 
     # ─────────────────────────────────────────────────────────────
-    # Install Tweek skill for Claude Code
+    # Step 6: Install Tweek skill for Claude Code
     # ─────────────────────────────────────────────────────────────
     skill_source = Path(__file__).resolve().parent / "skill_template"
     skill_target = target / "skills" / "tweek"
@@ -481,7 +528,142 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
         console.print(f"[dim]Tweek skill source not found — skill not installed[/dim]")
         console.print(f"  [dim]Skill can be installed manually from the tweek repository[/dim]")
 
-    # Scan for .env files
+    # ─────────────────────────────────────────────────────────────
+    # Step 7: Security Configuration
+    # ─────────────────────────────────────────────────────────────
+    cfg = ConfigManager()
+
+    if preset:
+        # Apply preset directly
+        cfg.apply_preset(preset)
+        console.print(f"\n[green]✓[/green] Applied [bold]{preset}[/bold] security preset")
+        install_summary["preset"] = preset
+
+    elif ai_defaults:
+        # AI-assisted defaults: detect skills and suggest tiers
+        console.print("\n[cyan]Detecting installed skills...[/cyan]")
+
+        # Try to detect skills from Claude Code config
+        detected_skills = []
+        claude_settings = Path("~/.claude/settings.json").expanduser()
+        if claude_settings.exists():
+            try:
+                with open(claude_settings) as f:
+                    claude_config = json.load(f)
+                # Look for plugins, skills, or custom hooks
+                plugins = claude_config.get("enabledPlugins", {})
+                detected_skills.extend(plugins.keys())
+            except Exception:
+                pass
+
+        # Also check for common skill directories
+        skill_dirs = [
+            Path("~/.claude/skills").expanduser(),
+            Path("~/.claude/commands").expanduser(),
+        ]
+        for skill_dir in skill_dirs:
+            if skill_dir.exists():
+                for item in skill_dir.iterdir():
+                    if item.is_dir() or item.suffix == ".md":
+                        detected_skills.append(item.stem)
+
+        # Find unknown skills
+        unknown_skills = cfg.get_unknown_skills(detected_skills)
+
+        if unknown_skills:
+            console.print(f"\n[yellow]Found {len(unknown_skills)} new skills not in config:[/yellow]")
+            for skill in unknown_skills[:10]:  # Limit display
+                console.print(f"  • {skill}")
+            if len(unknown_skills) > 10:
+                console.print(f"  ... and {len(unknown_skills) - 10} more")
+
+            # Suggest defaults based on skill names
+            console.print("\n[cyan]Applying AI-suggested defaults:[/cyan]")
+            for skill in unknown_skills:
+                # Simple heuristics for tier suggestion
+                skill_lower = skill.lower()
+                if any(x in skill_lower for x in ["deploy", "publish", "release", "prod"]):
+                    suggested = SecurityTier.DANGEROUS
+                elif any(x in skill_lower for x in ["web", "fetch", "api", "external", "browser"]):
+                    suggested = SecurityTier.RISKY
+                elif any(x in skill_lower for x in ["review", "read", "explore", "search", "list"]):
+                    suggested = SecurityTier.SAFE
+                else:
+                    suggested = SecurityTier.DEFAULT
+
+                cfg.set_skill_tier(skill, suggested)
+                console.print(f"  {skill}: {suggested.value}")
+
+            console.print(f"\n[green]✓[/green] Configured {len(unknown_skills)} skills")
+        else:
+            console.print("[dim]All detected skills already configured[/dim]")
+
+        # Apply cautious preset as base
+        cfg.apply_preset("cautious")
+        console.print("[green]✓[/green] Applied [bold]cautious[/bold] base preset")
+        install_summary["preset"] = "cautious (ai-defaults)"
+
+    elif interactive:
+        # Full interactive configuration
+        console.print("\n[bold]Security Configuration[/bold]")
+        console.print("Choose how to configure security settings:\n")
+        console.print("  [cyan]1.[/cyan] Paranoid - Maximum security")
+        console.print("  [cyan]2.[/cyan] Cautious - Balanced (recommended)")
+        console.print("  [cyan]3.[/cyan] Trusted  - Minimal prompts")
+        console.print("  [cyan]4.[/cyan] Custom   - Configure individually")
+        console.print()
+
+        choice = click.prompt("Select", type=click.IntRange(1, 4), default=2)
+
+        if choice == 1:
+            cfg.apply_preset("paranoid")
+            console.print("[green]✓[/green] Applied paranoid preset")
+            install_summary["preset"] = "paranoid"
+        elif choice == 2:
+            cfg.apply_preset("cautious")
+            console.print("[green]✓[/green] Applied cautious preset")
+            install_summary["preset"] = "cautious"
+        elif choice == 3:
+            cfg.apply_preset("trusted")
+            console.print("[green]✓[/green] Applied trusted preset")
+            install_summary["preset"] = "trusted"
+        else:
+            # Custom: ask about key tools
+            console.print("\n[bold]Configure key tools:[/bold]")
+            console.print("[dim](safe/default/risky/dangerous)[/dim]\n")
+
+            for tool in ["Bash", "WebFetch", "Edit"]:
+                current = cfg.get_tool_tier(tool)
+                new_tier = click.prompt(
+                    f"  {tool}",
+                    default=current.value,
+                    type=click.Choice(["safe", "default", "risky", "dangerous"])
+                )
+                cfg.set_tool_tier(tool, SecurityTier.from_string(new_tier))
+
+            console.print("[green]✓[/green] Custom configuration saved")
+            install_summary["preset"] = "custom"
+
+    else:
+        # Default: apply cautious preset silently
+        if not cfg.export_config("user"):
+            cfg.apply_preset("cautious")
+            console.print("\n[green]✓[/green] Applied default [bold]cautious[/bold] security preset")
+            console.print("[dim]Run 'tweek config interactive' to customize[/dim]")
+            install_summary["preset"] = "cautious"
+        else:
+            install_summary["preset"] = "existing"
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 8: LLM Review Provider Selection
+    # ─────────────────────────────────────────────────────────────
+    llm_config = _configure_llm_provider(tweek_dir, interactive, quick)
+    install_summary["llm_provider"] = llm_config.get("provider_display", "auto-detect")
+    install_summary["llm_model"] = llm_config.get("model_display")
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 9: Scan for .env files (moved after security config)
+    # ─────────────────────────────────────────────────────────────
     if not skip_env_scan:
         console.print("\n[cyan]Scanning for .env files with credentials...[/cyan]\n")
 
@@ -548,129 +730,12 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             console.print("[dim]No .env files with credentials found[/dim]")
 
     # ─────────────────────────────────────────────────────────────
-    # Security Configuration
-    # ─────────────────────────────────────────────────────────────
-    cfg = ConfigManager()
-
-    if preset:
-        # Apply preset directly
-        cfg.apply_preset(preset)
-        console.print(f"\n[green]✓[/green] Applied [bold]{preset}[/bold] security preset")
-
-    elif ai_defaults:
-        # AI-assisted defaults: detect skills and suggest tiers
-        console.print("\n[cyan]Detecting installed skills...[/cyan]")
-
-        # Try to detect skills from Claude Code config
-        detected_skills = []
-        claude_settings = Path("~/.claude/settings.json").expanduser()
-        if claude_settings.exists():
-            try:
-                with open(claude_settings) as f:
-                    claude_config = json.load(f)
-                # Look for plugins, skills, or custom hooks
-                plugins = claude_config.get("enabledPlugins", {})
-                detected_skills.extend(plugins.keys())
-            except Exception:
-                pass
-
-        # Also check for common skill directories
-        skill_dirs = [
-            Path("~/.claude/skills").expanduser(),
-            Path("~/.claude/commands").expanduser(),
-        ]
-        for skill_dir in skill_dirs:
-            if skill_dir.exists():
-                for item in skill_dir.iterdir():
-                    if item.is_dir() or item.suffix == ".md":
-                        detected_skills.append(item.stem)
-
-        # Find unknown skills
-        unknown_skills = cfg.get_unknown_skills(detected_skills)
-
-        if unknown_skills:
-            console.print(f"\n[yellow]Found {len(unknown_skills)} new skills not in config:[/yellow]")
-            for skill in unknown_skills[:10]:  # Limit display
-                console.print(f"  • {skill}")
-            if len(unknown_skills) > 10:
-                console.print(f"  ... and {len(unknown_skills) - 10} more")
-
-            # Suggest defaults based on skill names
-            console.print("\n[cyan]Applying AI-suggested defaults:[/cyan]")
-            for skill in unknown_skills:
-                # Simple heuristics for tier suggestion
-                skill_lower = skill.lower()
-                if any(x in skill_lower for x in ["deploy", "publish", "release", "prod"]):
-                    suggested = SecurityTier.DANGEROUS
-                elif any(x in skill_lower for x in ["web", "fetch", "api", "external", "browser"]):
-                    suggested = SecurityTier.RISKY
-                elif any(x in skill_lower for x in ["review", "read", "explore", "search", "list"]):
-                    suggested = SecurityTier.SAFE
-                else:
-                    suggested = SecurityTier.DEFAULT
-
-                cfg.set_skill_tier(skill, suggested)
-                console.print(f"  {skill}: {suggested.value}")
-
-            console.print(f"\n[green]✓[/green] Configured {len(unknown_skills)} skills")
-        else:
-            console.print("[dim]All detected skills already configured[/dim]")
-
-        # Apply cautious preset as base
-        cfg.apply_preset("cautious")
-        console.print("[green]✓[/green] Applied [bold]cautious[/bold] base preset")
-
-    elif interactive:
-        # Full interactive configuration
-        console.print("\n[bold]Security Configuration[/bold]")
-        console.print("Choose how to configure security settings:\n")
-        console.print("  [cyan]1.[/cyan] Paranoid - Maximum security")
-        console.print("  [cyan]2.[/cyan] Cautious - Balanced (recommended)")
-        console.print("  [cyan]3.[/cyan] Trusted  - Minimal prompts")
-        console.print("  [cyan]4.[/cyan] Custom   - Configure individually")
-        console.print()
-
-        choice = click.prompt("Select", type=click.IntRange(1, 4), default=2)
-
-        if choice == 1:
-            cfg.apply_preset("paranoid")
-            console.print("[green]✓[/green] Applied paranoid preset")
-        elif choice == 2:
-            cfg.apply_preset("cautious")
-            console.print("[green]✓[/green] Applied cautious preset")
-        elif choice == 3:
-            cfg.apply_preset("trusted")
-            console.print("[green]✓[/green] Applied trusted preset")
-        else:
-            # Custom: ask about key tools
-            console.print("\n[bold]Configure key tools:[/bold]")
-            console.print("[dim](safe/default/risky/dangerous)[/dim]\n")
-
-            for tool in ["Bash", "WebFetch", "Edit"]:
-                current = cfg.get_tool_tier(tool)
-                new_tier = click.prompt(
-                    f"  {tool}",
-                    default=current.value,
-                    type=click.Choice(["safe", "default", "risky", "dangerous"])
-                )
-                cfg.set_tool_tier(tool, SecurityTier.from_string(new_tier))
-
-            console.print("[green]✓[/green] Custom configuration saved")
-
-    else:
-        # Default: apply cautious preset silently
-        if not cfg.export_config("user"):
-            cfg.apply_preset("cautious")
-            console.print("\n[green]✓[/green] Applied default [bold]cautious[/bold] security preset")
-            console.print("[dim]Run 'tweek config interactive' to customize[/dim]")
-
-    # ─────────────────────────────────────────────────────────────
-    # Linux: Prompt for firejail installation
+    # Step 10: Linux: Prompt for firejail installation
     # ─────────────────────────────────────────────────────────────
     if IS_LINUX:
         caps = get_capabilities()
         if not caps.sandbox_available:
-            if with_sandbox or interactive:
+            if with_sandbox or (interactive and not quick):
                 from tweek.sandbox.linux import prompt_install_firejail
                 prompt_install_firejail(console)
             else:
@@ -679,7 +744,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                 console.print("[dim]Or run 'tweek install --with-sandbox' to install now[/dim]")
 
     # ─────────────────────────────────────────────────────────────
-    # Configure Tweek proxy if override was enabled
+    # Step 11: Configure Tweek proxy if override was enabled
     # ─────────────────────────────────────────────────────────────
     if proxy_override_enabled:
         try:
@@ -708,15 +773,468 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             console.print("\n[green]✓[/green] Proxy override configured")
             console.print(f"  [dim]Config saved to: {proxy_config_path}[/dim]")
             console.print("  [yellow]Run 'tweek proxy start' to begin intercepting API calls[/yellow]")
+            install_summary["proxy"] = True
         except Exception as e:
             console.print(f"\n[yellow]Warning: Could not save proxy config: {e}[/yellow]")
 
-    console.print("\n[green]Installation complete![/green]")
-    console.print("[dim]Run 'tweek status' to verify installation[/dim]")
-    console.print("[dim]Run 'tweek update' to get latest attack patterns[/dim]")
-    console.print("[dim]Run 'tweek config list' to see security settings[/dim]")
+    # ─────────────────────────────────────────────────────────────
+    # Step 12: Post-install verification and summary
+    # ─────────────────────────────────────────────────────────────
+    _print_install_summary(install_summary, target, tweek_dir, proxy_override_enabled)
+
+
+def _check_python_version(console: Console, quick: bool) -> None:
+    """Check Python version and warn about potential issues.
+
+    Verifies:
+    1. Current Python meets minimum version (3.11+)
+    2. System `python3` matches the install Python (hook compatibility)
+    """
+    import platform as plat
+
+    min_version = (3, 11)
+    current = sys.version_info[:2]
+
+    # Check 1: Current Python version
+    if current < min_version:
+        console.print(f"[red]ERROR: Python {min_version[0]}.{min_version[1]}+ required, "
+                       f"but running {current[0]}.{current[1]}[/red]")
+        console.print()
+        console.print("[bold]How to install a supported Python version:[/bold]")
+        console.print()
+
+        system = plat.system()
+        if system == "Darwin":
+            console.print("  [cyan]Option 1: Homebrew (recommended)[/cyan]")
+            console.print("    brew install python@3.12")
+            console.print("    brew link python@3.12")
+            console.print()
+            console.print("  [cyan]Option 2: pyenv[/cyan]")
+            console.print("    brew install pyenv")
+            console.print("    pyenv install 3.12.10")
+            console.print("    pyenv global 3.12.10")
+            console.print()
+            console.print("  [cyan]Option 3: python.org installer[/cyan]")
+            console.print("    https://www.python.org/downloads/")
+        elif system == "Linux":
+            console.print("  [cyan]Option 1: System package manager[/cyan]")
+            if shutil.which("apt"):
+                console.print("    sudo apt update && sudo apt install python3.12 python3.12-venv")
+            elif shutil.which("dnf"):
+                console.print("    sudo dnf install python3.12")
+            elif shutil.which("pacman"):
+                console.print("    sudo pacman -S python")
+            else:
+                console.print("    Install python3.12 via your package manager")
+            console.print()
+            console.print("  [cyan]Option 2: pyenv[/cyan]")
+            console.print("    curl https://pyenv.run | bash")
+            console.print("    pyenv install 3.12.10")
+            console.print("    pyenv global 3.12.10")
+        elif system == "Windows":
+            console.print("  [cyan]Option 1: python.org installer[/cyan]")
+            console.print("    https://www.python.org/downloads/")
+            console.print()
+            console.print("  [cyan]Option 2: winget[/cyan]")
+            console.print("    winget install Python.Python.3.12")
+        else:
+            console.print("  https://www.python.org/downloads/")
+
+        console.print()
+        console.print("[dim]After installing, run: pip install tweek && tweek install[/dim]")
+        raise SystemExit(1)
+
+    console.print(f"[green]✓[/green] Python {current[0]}.{current[1]} ({sys.executable})")
+
+    # Check 2: Warn if system python3 differs from install Python
+    # This matters because hooks run via the Python path stored in settings.json
+    system_python3 = shutil.which("python3")
+    if system_python3:
+        try:
+            resolved_install = Path(sys.executable).resolve()
+            resolved_system = Path(system_python3).resolve()
+
+            if resolved_install != resolved_system:
+                console.print(f"[dim]  Note: system python3 is {resolved_system}[/dim]")
+                console.print(f"[dim]  Hooks will use {resolved_install} (the Python running this install)[/dim]")
+        except (OSError, ValueError):
+            pass
+    else:
+        if not quick:
+            console.print("[yellow]  Note: python3 not found on PATH[/yellow]")
+            console.print(f"[dim]  Hooks will use {sys.executable} directly[/dim]")
+
+
+def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> dict:
+    """Configure LLM review provider during installation.
+
+    Returns a dict with provider configuration details for the install summary.
+    """
+    import os
+    import yaml
+
+    result = {
+        "provider": "auto",
+        "model": "auto",
+        "base_url": None,
+        "api_key_env": None,
+        "provider_display": None,
+        "model_display": None,
+    }
+
+    # Provider display names and default models
+    provider_defaults = {
+        "anthropic": ("Anthropic", "claude-3-5-haiku-latest", "ANTHROPIC_API_KEY"),
+        "openai": ("OpenAI", "gpt-4o-mini", "OPENAI_API_KEY"),
+        "google": ("Google", "gemini-2.0-flash", "GOOGLE_API_KEY"),
+    }
+
+    if not quick:
+        console.print()
+        console.print("[bold]LLM Review Provider[/bold] (Layer 3 — semantic analysis)")
+        console.print()
+        console.print("  Tweek can use an LLM to analyze suspicious commands for deeper")
+        console.print("  security screening. This is optional and requires an API key.")
+        console.print()
+        console.print("  [cyan]1.[/cyan] Auto-detect (recommended)")
+        console.print("     [dim]Uses first available: Anthropic > OpenAI > Google[/dim]")
+        console.print("  [cyan]2.[/cyan] Anthropic (Claude Haiku)")
+        console.print("  [cyan]3.[/cyan] OpenAI (GPT-4o-mini)")
+        console.print("  [cyan]4.[/cyan] Google (Gemini 2.0 Flash)")
+        console.print("  [cyan]5.[/cyan] Custom endpoint (Ollama, LM Studio, Together, Groq, etc.)")
+        console.print("  [cyan]6.[/cyan] Disable LLM review")
+        console.print()
+
+        choice = click.prompt("Select", type=click.IntRange(1, 6), default=1)
+
+        if choice == 1:
+            result["provider"] = "auto"
+        elif choice == 2:
+            result["provider"] = "anthropic"
+            result["model"] = "claude-3-5-haiku-latest"
+        elif choice == 3:
+            result["provider"] = "openai"
+            result["model"] = "gpt-4o-mini"
+        elif choice == 4:
+            result["provider"] = "google"
+            result["model"] = "gemini-2.0-flash"
+        elif choice == 5:
+            # Custom endpoint configuration
+            console.print()
+            console.print("[bold]Custom Endpoint Configuration[/bold]")
+            console.print("[dim]Most local servers (Ollama, LM Studio, vLLM) and cloud providers[/dim]")
+            console.print("[dim](Together, Groq, Mistral) expose an OpenAI-compatible API.[/dim]")
+            console.print()
+
+            result["provider"] = "openai"
+            result["base_url"] = click.prompt(
+                "  Base URL",
+                default="http://localhost:11434/v1",
+            )
+            result["model"] = click.prompt(
+                "  Model name",
+                default="llama3.2",
+            )
+            api_key_env = click.prompt(
+                "  API key env var (blank for local/no auth)",
+                default="",
+            )
+            if api_key_env:
+                result["api_key_env"] = api_key_env
+            console.print()
+        elif choice == 6:
+            result["provider"] = "disabled"
+            console.print("[dim]LLM review disabled. Other screening layers remain active.[/dim]")
+    # else: quick mode — leave as auto
+
+    # Resolve display names for summary
+    if result["provider"] == "auto":
+        # Run auto-detection to show what was actually selected
+        detected = _detect_llm_provider()
+        if detected:
+            result["provider_display"] = detected["name"]
+            result["model_display"] = detected["model"]
+        else:
+            result["provider_display"] = "disabled (no API key found)"
+            result["model_display"] = None
+    elif result["provider"] == "disabled":
+        result["provider_display"] = "disabled"
+        result["model_display"] = None
+    elif result["provider"] in provider_defaults:
+        display_name, default_model, _ = provider_defaults[result["provider"]]
+        result["provider_display"] = display_name
+        result["model_display"] = result["model"] if result["model"] != "auto" else default_model
+    else:
+        result["provider_display"] = result["provider"]
+        result["model_display"] = result["model"]
+
+    # If custom endpoint, show base_url in display
+    if result.get("base_url"):
+        result["provider_display"] = f"OpenAI-compatible ({result['base_url']})"
+
+    # Validate connectivity if provider was explicitly selected (not auto, not disabled)
+    if result["provider"] not in ("auto", "disabled") and not quick:
+        _validate_llm_provider(result)
+
+    # Save LLM config to ~/.tweek/config.yaml
+    if result["provider"] != "auto" or result.get("base_url"):
+        try:
+            config_path = tweek_dir / "config.yaml"
+            if config_path.exists():
+                with open(config_path) as f:
+                    tweek_config = yaml.safe_load(f) or {}
+            else:
+                tweek_config = {}
+
+            llm_section = tweek_config.get("llm_review", {})
+
+            if result["provider"] == "disabled":
+                llm_section["enabled"] = False
+            else:
+                llm_section["enabled"] = True
+                llm_section["provider"] = result["provider"]
+                if result["model"] != "auto":
+                    llm_section["model"] = result["model"]
+                if result.get("base_url"):
+                    llm_section["base_url"] = result["base_url"]
+                if result.get("api_key_env"):
+                    llm_section["api_key_env"] = result["api_key_env"]
+
+            tweek_config["llm_review"] = llm_section
+
+            with open(config_path, "w") as f:
+                yaml.dump(tweek_config, f, default_flow_style=False, sort_keys=False)
+
+            if result["provider"] == "disabled":
+                console.print("[green]✓[/green] LLM review disabled in config")
+            else:
+                console.print(f"[green]✓[/green] LLM provider configured: {result['provider_display']}")
+        except Exception as e:
+            console.print(f"[dim]Warning: Could not save LLM config: {e}[/dim]")
+    else:
+        if result["provider_display"] and "disabled" not in (result["provider_display"] or ""):
+            console.print(f"[green]✓[/green] LLM provider: {result['provider_display']} ({result.get('model_display', 'auto')})")
+        elif result["provider"] == "auto":
+            console.print(f"[green]✓[/green] LLM provider: {result['provider_display']}")
+
+    return result
+
+
+def _detect_llm_provider() -> Optional[dict]:
+    """Detect which LLM provider is available based on environment.
+
+    Returns dict with 'name' and 'model', or None if none available.
+    """
+    import os
+
+    checks = [
+        ("ANTHROPIC_API_KEY", "Anthropic", "claude-3-5-haiku-latest"),
+        ("OPENAI_API_KEY", "OpenAI", "gpt-4o-mini"),
+        ("GOOGLE_API_KEY", "Google", "gemini-2.0-flash"),
+        ("GEMINI_API_KEY", "Google", "gemini-2.0-flash"),
+    ]
+
+    for env_var, name, model in checks:
+        if os.environ.get(env_var):
+            return {"name": name, "model": model, "env_var": env_var}
+
+    return None
+
+
+def _validate_llm_provider(llm_config: dict) -> None:
+    """Validate LLM provider connectivity after selection.
+
+    Checks if the required API key is available and attempts a quick
+    availability check. Offers fallback options if validation fails.
+    """
+    import os
+
+    provider = llm_config.get("provider", "auto")
+
+    # Map provider to expected env vars
+    env_var_map = {
+        "anthropic": ["ANTHROPIC_API_KEY"],
+        "openai": ["OPENAI_API_KEY"],
+        "google": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+    }
+
+    # For custom endpoints with api_key_env, check that env var
+    if llm_config.get("api_key_env"):
+        expected_vars = [llm_config["api_key_env"]]
+    elif llm_config.get("base_url"):
+        # Local endpoints (Ollama etc.) don't need an API key
+        console.print(f"  [dim]Checking endpoint: {llm_config['base_url']}[/dim]")
+        try:
+            from tweek.security.llm_reviewer import resolve_provider
+            test_provider = resolve_provider(
+                provider="openai",
+                model=llm_config.get("model", "auto"),
+                base_url=llm_config["base_url"],
+                timeout=3.0,
+            )
+            if test_provider and test_provider.is_available():
+                console.print(f"  [green]✓[/green] Endpoint reachable")
+            else:
+                console.print(f"  [yellow]⚠[/yellow] Could not verify endpoint")
+                console.print(f"  [dim]Tweek will try this endpoint at runtime[/dim]")
+        except Exception:
+            console.print(f"  [yellow]⚠[/yellow] Could not verify endpoint")
+            console.print(f"  [dim]Tweek will try this endpoint at runtime[/dim]")
+        return
+    else:
+        expected_vars = env_var_map.get(provider, [])
+
+    if not expected_vars:
+        return
+
+    # Check if any expected env var is set
+    found_key = False
+    for var in expected_vars:
+        if os.environ.get(var):
+            found_key = True
+            console.print(f"  [green]✓[/green] {var} found")
+            break
+
+    if not found_key:
+        var_list = " or ".join(expected_vars)
+        console.print(f"  [yellow]⚠[/yellow] {var_list} not set in environment")
+        console.print(f"  [dim]LLM review will be disabled until the key is available.[/dim]")
+        console.print(f"  [dim]Set it in your shell profile or .env file, then restart Claude Code.[/dim]")
+
+        # Offer fallback
+        console.print()
+        fallback = click.prompt(
+            "  Continue with this provider or switch to auto-detect?",
+            type=click.Choice(["continue", "auto"]),
+            default="continue",
+        )
+        if fallback == "auto":
+            llm_config["provider"] = "auto"
+            detected = _detect_llm_provider()
+            if detected:
+                llm_config["provider_display"] = detected["name"]
+                llm_config["model_display"] = detected["model"]
+                console.print(f"  [green]✓[/green] Switched to auto-detect: {detected['name']}")
+            else:
+                llm_config["provider_display"] = "disabled (no API key found)"
+                llm_config["model_display"] = None
+                console.print(f"  [dim]No API keys found — LLM review will be disabled[/dim]")
+
+
+def _print_install_summary(
+    summary: dict,
+    target: Path,
+    tweek_dir: Path,
+    proxy_override_enabled: bool,
+) -> None:
+    """Print post-install verification and summary."""
+    from tweek.platform import get_capabilities
+
+    console.print()
+    console.print("[green]Installation complete![/green]")
+    console.print()
+
+    # Verification checks
+    console.print("[bold]Verification[/bold]")
+
+    # Check hooks are installed and Python path is valid
+    settings_file = target / "settings.json"
+    hook_python = None
+    if settings_file.exists():
+        try:
+            import json
+            with open(settings_file) as f:
+                settings = json.load(f)
+            hooks = settings.get("hooks", {})
+            has_pre = "PreToolUse" in hooks
+            has_post = "PostToolUse" in hooks
+            if has_pre and has_post:
+                console.print("  [green]✓[/green] PreToolUse + PostToolUse hooks active")
+                # Extract Python path from hook command to verify it exists
+                try:
+                    cmd = hooks["PreToolUse"][0]["hooks"][0]["command"]
+                    hook_python = cmd.split()[0]
+                    if Path(hook_python).exists():
+                        console.print(f"  [green]✓[/green] Hook Python: {hook_python}")
+                    else:
+                        console.print(f"  [yellow]⚠[/yellow] Hook Python not found: {hook_python}")
+                        console.print(f"    [dim]Run 'tweek install' again if Python was reinstalled[/dim]")
+                except (IndexError, KeyError):
+                    pass
+            elif has_pre:
+                console.print("  [green]✓[/green] PreToolUse hook active")
+                console.print("  [yellow]⚠[/yellow] PostToolUse hook missing")
+            else:
+                console.print("  [yellow]⚠[/yellow] Hooks may not be installed correctly")
+        except Exception:
+            console.print("  [yellow]⚠[/yellow] Could not verify hook installation")
+    else:
+        console.print("  [yellow]⚠[/yellow] Settings file not found")
+
+    # Check pattern database
+    patterns_file = Path(__file__).parent / "config" / "patterns.yaml"
+    pattern_count = 0
+    if patterns_file.exists():
+        try:
+            import yaml
+            with open(patterns_file) as f:
+                pdata = yaml.safe_load(f) or {}
+            pattern_count = len(pdata.get("patterns", []))
+            console.print(f"  [green]✓[/green] Pattern database loaded ({pattern_count} patterns)")
+        except Exception:
+            console.print("  [yellow]⚠[/yellow] Could not load pattern database")
+    else:
+        console.print("  [yellow]⚠[/yellow] Pattern database not found")
+
+    # LLM reviewer status
+    llm_display = summary.get("llm_provider", "auto-detect")
+    llm_model = summary.get("llm_model")
+    if llm_model:
+        console.print(f"  [green]✓[/green] LLM reviewer: {llm_display} ({llm_model})")
+    elif llm_display and "disabled" not in llm_display:
+        console.print(f"  [green]✓[/green] LLM reviewer: {llm_display}")
+    else:
+        console.print(f"  [dim]○[/dim] LLM reviewer: {llm_display}")
+
+    # Sandbox status
+    caps = get_capabilities()
+    if caps.sandbox_available:
+        console.print(f"  [green]✓[/green] Sandbox: {caps.sandbox_tool}")
+    else:
+        console.print(f"  [dim]○[/dim] Sandbox: not available ({caps.platform.value})")
+
+    # Summary table
+    console.print()
+    console.print("[bold]Summary[/bold]")
+
+    scope_display = summary.get("scope", "project")
+    if scope_display == "project":
+        scope_display = f"project ({target})"
+    elif scope_display == "global":
+        scope_display = f"global (~/.claude/)"
+
+    py_ver = f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
+    console.print(f"  Python:   {py_ver} ({sys.executable})")
+    console.print(f"  Scope:    {scope_display}")
+    console.print(f"  Preset:   {summary.get('preset', 'cautious')}")
+
+    llm_summary = llm_display
+    if llm_model:
+        llm_summary = f"{llm_display} ({llm_model})"
+    console.print(f"  LLM:      {llm_summary}")
+
+    console.print(f"  Patterns: {pattern_count}")
+    console.print(f"  Sandbox:  {'available' if caps.sandbox_available else 'not available'}")
+    console.print(f"  Proxy:    {'configured' if proxy_override_enabled else 'not configured'}")
+
+    # Next steps
+    console.print()
+    console.print("[dim]Next steps:[/dim]")
+    console.print("[dim]  tweek status       — Verify installation[/dim]")
+    console.print("[dim]  tweek update       — Get latest attack patterns[/dim]")
+    console.print("[dim]  tweek config list  — See security settings[/dim]")
     if proxy_override_enabled:
-        console.print("[dim]Run 'tweek proxy start' to enable API interception[/dim]")
+        console.print("[dim]  tweek proxy start  — Enable API interception[/dim]")
 
 
 @main.command(
@@ -2380,6 +2898,123 @@ def config_diff(preset_name: str):
     console.print()
     console.print(f"  {len(changes)} change{'s' if len(changes) != 1 else ''} would be made. "
                   f"Apply with: [cyan]tweek config preset {preset_name}[/cyan]")
+    console.print()
+
+
+@config.command("llm",
+    epilog="""\b
+Examples:
+  tweek config llm                        Show current LLM provider status
+  tweek config llm --verbose              Show detailed provider information
+  tweek config llm --validate             Re-run local model validation suite
+"""
+)
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed provider info")
+@click.option("--validate", is_flag=True, help="Re-run local model validation suite")
+def config_llm(verbose: bool, validate: bool):
+    """Show LLM review configuration and provider status.
+
+    Displays the current LLM review provider, model, and availability.
+    With --verbose, shows local server detection and fallback chain details.
+    With --validate, re-runs the validation suite against local models.
+    """
+    from tweek.security.llm_reviewer import (
+        get_llm_reviewer,
+        _detect_local_server,
+        _validate_local_model,
+        FallbackReviewProvider,
+        LOCAL_MODEL_PREFERENCES,
+    )
+
+    console.print()
+    console.print("[bold]LLM Review Configuration[/bold]")
+    console.print("\u2500" * 45)
+
+    reviewer = get_llm_reviewer()
+
+    if not reviewer.enabled:
+        console.print()
+        console.print("  [yellow]Status:[/yellow] Disabled (no provider available)")
+        console.print()
+        console.print("  [dim]To enable, set one of:[/dim]")
+        console.print("    ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY")
+        console.print("    Or install Ollama: [cyan]https://ollama.ai[/cyan]")
+        console.print()
+        return
+
+    console.print()
+    console.print(f"  [green]Status:[/green]   Enabled")
+    console.print(f"  [cyan]Provider:[/cyan] {reviewer.provider_name}")
+    console.print(f"  [cyan]Model:[/cyan]    {reviewer.model}")
+
+    # Check for fallback chain
+    provider = reviewer._provider_instance
+    if isinstance(provider, FallbackReviewProvider):
+        console.print(f"  [cyan]Chain:[/cyan]    {provider.provider_count} providers in fallback chain")
+        if provider.active_provider:
+            console.print(f"  [cyan]Active:[/cyan]   {provider.active_provider.name}")
+
+    # Local server detection
+    if verbose:
+        console.print()
+        console.print("[bold]Local LLM Servers[/bold]")
+        console.print("\u2500" * 45)
+
+        try:
+            server = _detect_local_server()
+            if server:
+                console.print(f"  [green]Detected:[/green] {server.server_type}")
+                console.print(f"  [cyan]URL:[/cyan]      {server.base_url}")
+                console.print(f"  [cyan]Model:[/cyan]    {server.model}")
+                console.print(f"  [cyan]Available:[/cyan] {len(server.all_models)} model{'s' if len(server.all_models) != 1 else ''}")
+                if len(server.all_models) <= 10:
+                    for m in server.all_models:
+                        console.print(f"    - {m}")
+            else:
+                console.print("  [dim]No local LLM server detected[/dim]")
+                console.print("  [dim]Checked: Ollama (localhost:11434), LM Studio (localhost:1234)[/dim]")
+        except Exception as e:
+            console.print(f"  [yellow]Detection error: {e}[/yellow]")
+
+        console.print()
+        console.print("[bold]Recommended Local Models[/bold]")
+        console.print("\u2500" * 45)
+        for i, model_name in enumerate(LOCAL_MODEL_PREFERENCES[:5], 1):
+            console.print(f"  {i}. {model_name}")
+
+    # Validation mode
+    if validate:
+        console.print()
+        console.print("[bold]Model Validation[/bold]")
+        console.print("\u2500" * 45)
+
+        try:
+            server = _detect_local_server()
+            if not server:
+                console.print("  [yellow]No local server detected. Nothing to validate.[/yellow]")
+                console.print()
+                return
+
+            from tweek.security.llm_reviewer import OpenAIReviewProvider
+            local_prov = OpenAIReviewProvider(
+                model=server.model,
+                api_key="not-needed",
+                timeout=10.0,
+                base_url=server.base_url,
+            )
+
+            console.print(f"  Validating [cyan]{server.model}[/cyan] on {server.server_type}...")
+            passed, score = _validate_local_model(local_prov, server.model)
+
+            if passed:
+                console.print(f"  [green]PASSED[/green] ({score:.0%})")
+            else:
+                console.print(f"  [red]FAILED[/red] ({score:.0%}, minimum: 60%)")
+                console.print("  [dim]This model may not reliably classify security threats.[/dim]")
+                console.print("  [dim]Try a larger model: ollama pull qwen2.5:7b-instruct[/dim]")
+        except Exception as e:
+            console.print(f"  [red]Validation error: {e}[/red]")
+
     console.print()
 
 
@@ -5480,6 +6115,14 @@ def memory_decay():
     console.print("[bold]Decay applied:[/bold]")
     for table, count in results.items():
         console.print(f"  {table}: {count} entries updated")
+
+
+# Register model management command group
+try:
+    from tweek.cli_model import model as model_group
+    main.add_command(model_group)
+except ImportError:
+    pass
 
 
 if __name__ == "__main__":
