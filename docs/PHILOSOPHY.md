@@ -285,6 +285,7 @@ interception layers using a unified `ScreeningContext` (see [ARCHITECTURE.md](AR
 
 ## Further Reading
 
+- [COMPARISON.md](COMPARISON.md) - Tweek vs. Claude Code native security
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and module map
 - [DEFENSE_LAYERS.md](DEFENSE_LAYERS.md) - Detailed documentation of each screening layer
 - [CONFIGURATION.md](CONFIGURATION.md) - Configuration system and security tiers

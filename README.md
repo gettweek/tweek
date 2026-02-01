@@ -453,6 +453,7 @@ Teams and Enterprise tiers are coming soon. Join the waitlist at [gettweek.com](
 
 | Guide | Description |
 |-------|-------------|
+| [Tweek vs. Claude Code](docs/COMPARISON.md) | Feature comparison with native Claude Code security |
 | [Architecture](docs/ARCHITECTURE.md) | System design and interception layers |
 | [Defense Layers](docs/DEFENSE_LAYERS.md) | Screening pipeline deep dive |
 | [Attack Patterns](docs/ATTACK_PATTERNS.md) | Full 259-pattern library reference |
