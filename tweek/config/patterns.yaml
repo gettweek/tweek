@@ -18,8 +18,8 @@
 #
 # PRO tier adds: LLM review, session analysis, rate limiting
 
-version: 3
-pattern_count: 215
+version: 4
+pattern_count: 249
 
 patterns:
   # ============================================================================
@@ -1402,3 +1402,249 @@ patterns:
     description: "Urgency/compliance pressure for prompt extraction"
     regex: '(security\s+audit\s+(ends|due|deadline)|compliance\s+verification.*need\s+your\s+(system\s+)?prompt|I\s+need\s+your\s+system\s+prompt\s+immediately)'
     severity: high
+
+  # ============================================================================
+  # GAP ANALYSIS PATTERNS (216-249)
+  # 34 patterns addressing critical gaps identified by cross-referencing
+  # 1,633 CVEs against existing detection coverage
+  # Added: 2026-02-01
+  # ============================================================================
+
+  # --- Reverse Shell Variants (216-220) ---
+  # 74 CVEs tagged reverse-shell; prior coverage only bash/netcat
+  # These catch Python/PHP/Perl/Ruby/encoded reverse shells seen in CVE PoCs
+
+  - id: 216
+    name: reverse_shell_python
+    description: "Python reverse shell via socket and subprocess"
+    regex: 'python[23]?\s+(-c\s+)?[''"].*(import\s+socket.*subprocess|socket\.socket\s*\(.*SOCK_STREAM|os\.dup2\s*\(.*fileno)'
+    severity: critical
+
+  - id: 217
+    name: reverse_shell_php
+    description: "PHP reverse shell via fsockopen or socket_create"
+    regex: 'php\s+(-r\s+)?[''"].*(fsockopen|socket_create)\s*\(|php.*(pfsockopen|stream_socket_client)\s*\(\s*[''"]tcp://'
+    severity: critical
+
+  - id: 218
+    name: reverse_shell_perl_ruby
+    description: "Perl or Ruby reverse shell via socket connection"
+    regex: 'perl\s+(-e\s+)?[''"].*socket\s*\(.*INET|ruby\s+(-e\s+)?[''"].*TCPSocket\.(new|open)|perl.*IO::Socket::INET'
+    severity: critical
+
+  - id: 219
+    name: reverse_shell_mkfifo
+    description: "Named pipe (mkfifo) reverse shell technique"
+    regex: 'mkfifo\s+\S+\s*;.*\|\s*/bin/(ba)?sh|mkfifo\s+\S+\s*&&.*cat\s+\S+\s*\|.*nc\s|mknod\s+\S+\s+p\s*;'
+    severity: critical
+
+  - id: 220
+    name: reverse_shell_encoded
+    description: "Base64/hex encoded reverse shell payload piped to shell"
+    regex: '(echo|printf)\s+[''"]?[A-Za-z0-9+/=]{30,}[''"]?\s*\|\s*base64\s+(-d|--decode)\s*\|\s*(ba)?sh|python[23]?\s+-c\s+[''"]exec\s*\(\s*__import__.*decode'
+    severity: critical
+
+  # --- AI Agent Workflow Attacks (221-224) ---
+  # 346 CVEs related to AI agents; only 4 prior patterns
+  # Addresses agent tool redirection, unsandboxed exec, scope escalation
+
+  - id: 221
+    name: agent_tool_redirection
+    description: "Attempting to redirect AI agent tool calls to unauthorized endpoints"
+    regex: '(redirect|forward|proxy|reroute)\s+(all\s+)?(tool|function|api)\s+(call|request|invocation)s?\s+(to|through)|change\s+(the\s+)?(tool|api|endpoint)\s+(url|server|host)\s+to'
+    severity: high
+
+  - id: 222
+    name: agent_unsandboxed_exec
+    description: "LLM-generated code execution without sandbox isolation"
+    regex: '(run_code|execute_code|code_interpreter|exec_python|run_python|evaluate_code|execute_generated)\s*\(|exec\s*\(\s*(response|output|result|generated|llm_|ai_|code_)'
+    severity: high
+
+  - id: 223
+    name: agent_scope_escalation
+    description: "Attempting to expand AI agent permissions beyond defined scope"
+    regex: '(expand|elevate|increase|override|remove)\s+(your\s+)?(permissions?|scope|access|capabilities?|restrictions?|limitations?|boundaries)|you\s+(now\s+)?have\s+(full|unlimited|unrestricted|admin)\s+(access|permissions?|control)'
+    severity: high
+
+  - id: 224
+    name: agent_memory_poisoning
+    description: "Injecting false instructions into AI agent memory or context"
+    regex: '(update|modify|overwrite|inject|replace)\s+(your\s+)?(memory|context|state|knowledge\s*base|long.term\s+memory)|remember\s+that\s+your\s+(new\s+)?(instructions?|rules?|guidelines?|directives?)\s+(are|is|say|state)'
+    severity: high
+
+  # --- Privilege Escalation (225-229) ---
+  # 50 CVEs tagged privilege-escalation; only 3 prior patterns (chmod/chown/setuid)
+
+  - id: 225
+    name: privesc_sudo_abuse
+    description: "Sudo enumeration or LD_PRELOAD privilege escalation"
+    regex: 'sudo\s+(-l|--list)\b|sudo\s+.*LD_PRELOAD\s*=|echo\s+.*ALL.*NOPASSWD.*>>\s*/etc/sudoers|EDITOR.*visudo'
+    severity: critical
+
+  - id: 226
+    name: privesc_suid_hunt
+    description: "Scanning filesystem for setuid/setgid binaries"
+    regex: 'find\s+/\S*\s+.*-perm\s+(-4000|-u=s|/4000|-2000|-g=s)|find\s+/\S*\s+.*-type\s+f\s+.*-perm\s+(-4000|-u=s)'
+    severity: high
+
+  - id: 227
+    name: privesc_cron_inject
+    description: "Writing to crontab or cron directories for persistent escalation"
+    regex: '(echo|printf|cat)\s+.*>+\s*/etc/cron\.|crontab\s+-\s*<|echo\s+.*>+\s*/var/spool/cron|echo\s+.*@(reboot|hourly|daily)\s+.*>+\s*/(etc|var)'
+    severity: critical
+
+  - id: 228
+    name: privesc_path_hijack
+    description: "PATH manipulation to intercept privileged command execution"
+    regex: 'export\s+PATH\s*=\s*[./]\S*:|PATH\s*=\s*[./]\S*:\$PATH\b|ln\s+(-s\s+)?/bin/(ba)?sh\s+/tmp/\w+'
+    severity: high
+
+  - id: 229
+    name: privesc_capability_abuse
+    description: "Linux capability manipulation for privilege escalation"
+    regex: 'setcap\s+.*cap_(setuid|setgid|net_raw|sys_admin|dac_override)|getcap\s+(-r\s+)?/|capsh\s+--print|capsh\s+--.*='
+    severity: high
+
+  # --- Advanced Sandbox Escape (230-233) ---
+  # 192 CVEs tagged sandbox-escape; addresses Python import chains,
+  # container magic domains, /proc leaks, whitelisted function abuse
+
+  - id: 230
+    name: sandbox_import_chain
+    description: "Chained Python imports to escape restricted execution environment"
+    regex: '__import__\s*\(\s*[''"]os[''"]|importlib\.import_module\s*\(\s*[''"]|ctypes\.(CDLL|cdll\.LoadLibrary)\s*\(|__builtins__\s*\[\s*[''"]__import__[''"]'
+    severity: critical
+
+  - id: 231
+    name: sandbox_magic_domain_variants
+    description: "Container-to-host network escape via magic domains (Podman/Lima)"
+    regex: 'host\.(containers|lima)\.internal|host\.docker\.internal\s*:\s*(22|80|443|3000|5432|6379|8080|8443|27017)\b'
+    severity: high
+
+  - id: 232
+    name: sandbox_proc_leak
+    description: "Reading /proc filesystem to leak sandbox host information"
+    regex: '(cat|head|less|more|strings|xxd)\s+/proc/(self|[0-9]+)/(environ|maps|cmdline|status|mountinfo)|/proc/\d+/root/'
+    severity: high
+
+  - id: 233
+    name: sandbox_whitelisted_escape
+    description: "Abusing whitelisted Python functions to escape sandbox"
+    regex: 'getattr\s*\(.*[''"]__\w+__[''"]|__class__\s*\.\s*__bases__|type\s*\(\s*[''"].*[''"].*\(\s*object\s*,?\s*\)|__subclasses__\s*\(\s*\)'
+    severity: critical
+
+  # --- LLM Code Generation RCE (234-236) ---
+  # 381 CVEs tagged RCE; addresses framework-mediated code execution,
+  # LLM output piped to shell, and Node.js vm escapes
+
+  - id: 234
+    name: llm_code_interpreter_exec
+    description: "Framework-level code execution functions used by LLM agents"
+    regex: '(run_code|execute_code|code_interpreter|exec_python|run_python|evaluate_code|run_unsafe|exec_sandbox)\s*\('
+    severity: high
+
+  - id: 235
+    name: llm_shell_generation
+    description: "LLM-generated content passed directly to shell execution"
+    regex: 'subprocess\.(run|call|Popen|check_output)\s*\(\s*(response|output|result|generated|completion|answer)|os\.system\s*\(\s*(response|output|result|generated|completion)'
+    severity: critical
+
+  - id: 236
+    name: llm_node_vm_escape
+    description: "Node.js vm module escape allowing arbitrary code execution"
+    regex: 'vm\.(runInThisContext|runInNewContext|compileFunction|Script)|new\s+vm\.Script\s*\(|this\.constructor\.constructor\s*\(\s*[''"]return\s+(this|process)'
+    severity: high
+
+  # --- Tool Poisoning / MCP Extended (237-240) ---
+  # Addresses hidden Unicode in tool descriptions, prompt injection via
+  # tool responses, multi-tool chain attacks, and description manipulation
+
+  - id: 237
+    name: mcp_hidden_unicode_instruction
+    description: "Invisible Unicode characters hiding instructions in tool descriptions"
+    regex: '[\u200b\u200c\u200d\u2060\u2062\u2063\ufeff\u00ad]{3,}|[\u2066\u2067\u2068\u2069\u202a\u202b\u202c\u202d\u202e]{2,}'
+    severity: high
+
+  - id: 238
+    name: mcp_response_injection
+    description: "LLM control tokens or prompt injection in MCP tool responses"
+    regex: '<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>|\[INST\]|\[/INST\]|<<SYS>>|<\|system\|>|<\|assistant\|>|<\|user\|>'
+    severity: critical
+
+  - id: 239
+    name: mcp_cross_tool_chain
+    description: "Instructing agent to chain multiple tool calls in specific sequence"
+    regex: '(call|invoke|use|execute)\s+(tool|function)\s+\S+\s+(then|and\s+then|followed\s+by|next|after\s+that|afterwards)\s+(call|invoke|use|execute)\s+(tool|function)'
+    severity: medium
+
+  - id: 240
+    name: mcp_description_manipulation
+    description: "Tool descriptions containing instruction-like directives to manipulate LLM"
+    regex: '(IMPORTANT|NOTE|WARNING|CRITICAL)\s*[:\-]\s*(before|after|when|always|never|first)\s+(calling|using|invoking|executing|running)\s+this\s+tool|<tool_instructions>|</tool_instructions>'
+    severity: high
+
+  # --- Deserialization Expansion (241-243) ---
+  # 22 CVEs; extends beyond pickle/yaml to marshal, dill, cloudpickle, jsonpickle
+
+  - id: 241
+    name: python_marshal_deserialize
+    description: "Python marshal deserialization (allows arbitrary code execution)"
+    regex: 'marshal\.loads?\s*\(|marshal\.load\s*\(\s*open'
+    severity: high
+
+  - id: 242
+    name: python_dill_cloudpickle
+    description: "Unsafe deserialization via dill, cloudpickle, or shelve"
+    regex: 'dill\.(loads?|load)\s*\(|cloudpickle\.(loads?|load)\s*\(|shelve\.open\s*\(|joblib\.load\s*\('
+    severity: high
+
+  - id: 243
+    name: jsonpickle_deserialize
+    description: "Jsonpickle deserialization allowing arbitrary object instantiation"
+    regex: 'jsonpickle\.(decode|unpickler|loads?)\s*\(|jsonpickle\.set_encoder_options'
+    severity: high
+
+  # --- SSRF Cloud Metadata (244-245) ---
+  # 35 CVEs; extends cloud metadata coverage beyond AWS to GCP, Azure, link-local
+
+  - id: 244
+    name: ssrf_cloud_metadata_gcp_azure
+    description: "SSRF targeting GCP or Azure instance metadata endpoints"
+    regex: 'metadata\.google\.internal|metadata\.google\.internal/computeMetadata|169\.254\.169\.254/(metadata|latest/meta-data|latest/api/token)'
+    severity: high
+
+  - id: 245
+    name: ssrf_link_local_bypass
+    description: "Link-local address variants used to bypass SSRF filters"
+    regex: '\[::ffff:169\.254\.169\.254\]|0x7f000001|2130706433|017700000001|127\.1|0177\.0\.0\.1|0x7f\.0\.0\.1|169\.254\.169\.254\.xip\.io'
+    severity: high
+
+  # --- Path Traversal Variants (246-247) ---
+  # 46 CVEs; extends beyond symlink patterns to encoded traversal and null bytes
+
+  - id: 246
+    name: path_traversal_encoded
+    description: "URL-encoded or double-encoded directory traversal sequences"
+    regex: '(%2e%2e|%252e%252e|\.%2e|%2e\.)(\/|%2f|%252f)|(\.\./){4,}|%00.*\.(php|py|js|rb|pl|sh)\b'
+    severity: high
+
+  - id: 247
+    name: path_traversal_windows
+    description: "Windows-style path traversal with backslash variants"
+    regex: '(\.\.\\\\){3,}|\.\.\/\.\.\\\\|\.\.%5c|%2e%2e%5c'
+    severity: medium
+
+  # --- Supply Chain Attacks (248-249) ---
+  # 6 tagged CVEs but underreported; typosquatting and post-install scripts
+
+  - id: 248
+    name: supply_chain_typosquat_ai
+    description: "Installing typosquatted AI/ML packages (common targets)"
+    regex: 'pip\s+install\s+.*(langchainn|langchian|openaii|opeanai|antropic|antrhopic|huging-face|hugginface|transfomers|trasnformers|pytorch-nightly|tensroflow)\b'
+    severity: high
+
+  - id: 249
+    name: supply_chain_postinstall_exec
+    description: "Package install with suspicious post-install script execution"
+    regex: 'npm\s+install\s+.*--ignore-scripts\s*=\s*false|pip\s+install\s+.*--no-binary\s*=\s*:none:|setup\.py\s+.*cmdclass.*install.*subprocess'
+    severity: medium
