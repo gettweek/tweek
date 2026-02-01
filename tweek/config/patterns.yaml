@@ -1,5 +1,5 @@
 # Tweek Attack Pattern Definitions v3
-# All 116 patterns included FREE
+# All 215 patterns included FREE
 #
 # Update via: tweek update (pulls from github.com/gettweek/tweek-patterns)
 #
@@ -19,7 +19,7 @@
 # PRO tier adds: LLM review, session analysis, rate limiting
 
 version: 3
-pattern_count: 213
+pattern_count: 215
 
 patterns:
   # ============================================================================
@@ -663,13 +663,13 @@ patterns:
     regex: '\beval\s+.*\$|\beval\s*\('
     severity: high
 
-  - id: 130
+  - id: 214
     name: exec_dynamic
     description: "Exec executing dynamic or user-controlled code"
     regex: '\bexec\s*\([^)]*(?:input|request|user|arg|param|response|output|result)'
     severity: high
 
-  - id: 131
+  - id: 215
     name: compile_dynamic
     description: "Compile with dynamic code strings"
     regex: '\bcompile\s*\([^)]*(?:input|request|user|arg|param|response|output|result)[^)]*,\s*[''"]<'
@@ -1116,7 +1116,7 @@ patterns:
     severity: high
 
   # ============================================================================
-  # PROMPT INJECTION - BROAD STRUCTURAL DETECTION (169-213)
+  # PROMPT INJECTION - BROAD STRUCTURAL DETECTION (169-215)
   # 45 patterns detecting encoding attacks, direct extraction, social engineering,
   # technical exploitation, crescendo, CoT hijack, many-shot, and ASCII art
   # Added: 2026-01-31
@@ -1329,7 +1329,7 @@ patterns:
     regex: '(what.s\s+at\s+the\s+(very\s+)?beginning\s+of\s+your\s+context\s+window|before\s+any\s+user\s+messages|earlier\s+you\s+mentioned\s+some\s+rules)'
     severity: medium
 
-  # --- Crescendo, CoT Hijack, Many-Shot, ASCII Art, Advanced (202-213) ---
+  # --- Crescendo, CoT Hijack, Many-Shot, ASCII Art, Advanced (202-215) ---
 
   - id: 202
     name: crescendo_guidelines_probe

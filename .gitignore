@@ -71,3 +71,6 @@ test-mcp-sandbox/
 
 # Tweek local data (user-specific security events, config)
 .tweek/
+
+# Red-team testing (local only, never committed)
+redteam/

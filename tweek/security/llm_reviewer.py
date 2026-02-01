@@ -311,7 +311,7 @@ Do not include any other text or explanation."""
         Translate text to English for security pattern analysis.
 
         Used during skill audit to translate non-English skill files before
-        running the full 116-pattern regex analysis. Translation preserves
+        running the full 215-pattern regex analysis. Translation preserves
         suspicious content exactly as-is for accurate detection.
 
         Args:

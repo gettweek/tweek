@@ -9,7 +9,7 @@
 #
 # Security Layers:
 #   1. Rate Limiting  - Detect resource theft and burst attacks
-#   2. Pattern Match  - Regex patterns for known attack vectors (100+ patterns)
+#   2. Pattern Match  - Regex patterns for known attack vectors (215 patterns)
 #   3. LLM Review     - Semantic analysis using Claude Haiku
 #   4. Session Scan   - Cross-turn anomaly detection
 #   5. Sandbox        - Speculative execution in isolated environment

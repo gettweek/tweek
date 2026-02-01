@@ -58,7 +58,7 @@ Tweek screens **every tool call** through five layers of defense -- both before 
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
   ┃ 2. Language Detection  Non-English escalation            ┃
   ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-  ┃ 1. Pattern Matching   116 attack signatures             ┃
+  ┃ 1. Pattern Matching   215 attack signatures             ┃
   ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
                            ▼
   ┌─────────────────────────────────────────────────────────┐
@@ -155,7 +155,7 @@ Tweek Health Check
 --------------------------------------------------
   OK      Hook Installation      Installed globally (~/.claude)
   OK      Configuration          Config valid (11 tools, 6 skills)
-  OK      Attack Patterns        116 patterns loaded (bundled)
+  OK      Attack Patterns        215 patterns loaded (bundled)
   OK      Security Database      Active (0.2MB)
   OK      Credential Vault       macOS Keychain available
   OK      Sandbox                sandbox-exec available
@@ -184,7 +184,7 @@ Every tool call passes through the screening pipeline -- **all free and open sou
 
 | Stage | What It Does |
 |-------|-------------|
-| Pattern Matching | 116 regex patterns across 22 attack categories |
+| Pattern Matching | 215 regex patterns across 22 attack categories |
 | Language Detection | Non-English content detection with configurable escalation |
 | Rate Limiting | Burst detection, velocity anomaly, circuit breaker |
 | LLM Review | Claude Haiku semantic analysis of suspicious commands (BYOK) |
@@ -265,7 +265,7 @@ Full pattern library: [Attack Patterns Reference](docs/ATTACK_PATTERNS.md)
 
 ### Security (all free)
 
-- **116 attack patterns** across 22 categories (credential theft, prompt injection, data exfiltration, MCP CVEs, social engineering, RAG poisoning, multi-agent attacks, and more)
+- **215 attack patterns** across 22 categories (credential theft, prompt injection, data exfiltration, MCP CVEs, social engineering, RAG poisoning, multi-agent attacks, encoding/obfuscation detection, and more)
 - **Bidirectional screening** -- PreToolUse hooks screen requests, PostToolUse hooks screen responses
 - **Non-English content detection** -- Unicode script analysis for CJK, Cyrillic, Arabic, Hebrew, Thai, Devanagari, and Latin-script European language keyword matching (French, German, Spanish, Portuguese, Italian, Dutch)
 - **Configurable non-English handling** -- escalate to LLM review (default), translate, both, or none
@@ -341,7 +341,7 @@ Full pattern library: [Attack Patterns Reference](docs/ATTACK_PATTERNS.md)
 |---|:---:|:---:|:---:|
 | **Cost** | $0 forever | Per seat/month | Custom |
 | **Target** | Individual developers | 2-50 developers | Regulated organizations |
-| 116 attack patterns (all categories) | Yes | Yes | Yes |
+| 215 attack patterns (all categories) | Yes | Yes | Yes |
 | LLM semantic review (BYOK) | Yes | Yes | Yes |
 | Cross-turn session analysis | Yes | Yes | Yes |
 | Rate limiting & circuit breaker | Yes | Yes | Yes |
@@ -375,7 +375,7 @@ Teams and Enterprise tiers are coming soon. Join the waitlist at [gettweek.com](
 |-------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design and interception layers |
 | [Defense Layers](docs/DEFENSE_LAYERS.md) | Screening pipeline deep dive |
-| [Attack Patterns](docs/ATTACK_PATTERNS.md) | Full 116-pattern library reference |
+| [Attack Patterns](docs/ATTACK_PATTERNS.md) | Full 215-pattern library reference |
 | [Configuration](docs/CONFIGURATION.md) | Config files, tiers, and presets |
 | [CLI Reference](docs/CLI_REFERENCE.md) | All commands, flags, and examples |
 | [MCP Integration](docs/MCP_INTEGRATION.md) | MCP proxy and gateway setup |

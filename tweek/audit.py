@@ -2,7 +2,7 @@
 Tweek Skill Audit — Security analysis for skill files and tool descriptions.
 
 Reads skill content, detects language, translates non-English content,
-and runs the full 116-pattern regex analysis + LLM semantic review.
+and runs the full 215-pattern regex analysis + LLM semantic review.
 Designed for one-time evaluation of skills before installation.
 """
 
@@ -174,7 +174,7 @@ def audit_content(
         except Exception:
             pass
 
-    # Step 3: Pattern matching (all 116 patterns against English content)
+    # Step 3: Pattern matching (all 215 patterns against English content)
     try:
         from tweek.hooks.pre_tool_use import PatternMatcher
 

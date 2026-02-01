@@ -7,15 +7,15 @@ prompt injection, MCP vulnerabilities, and more.
 
 ## Overview
 
-Tweek ships with **116 attack patterns** across 6 categories, all included
+Tweek ships with **215 attack patterns** across 9 categories, all included
 free in every tier. Patterns are defined in `tweek/config/patterns.yaml` and
 are updated via `tweek update`.
 
 | Metric            | Value                                      |
 |-------------------|--------------------------------------------|
-| Total patterns    | 116                                        |
+| Total patterns    | 215                                        |
 | Pattern version   | 3                                          |
-| Categories        | 6                                          |
+| Categories        | 9                                          |
 | Severity levels   | 4 (critical, high, medium, low)            |
 | Update source     | `github.com/gettweek/tweek-patterns`       |
 | Available in      | All users (free and open source)           |
@@ -36,7 +36,7 @@ Each pattern in `patterns.yaml` has the following fields:
 
 | Field         | Type   | Description                                       |
 |---------------|--------|---------------------------------------------------|
-| `id`          | int    | Sequential pattern number (1-116)                 |
+| `id`          | int    | Sequential pattern number (1-215)                 |
 | `name`        | string | Unique identifier (snake_case)                    |
 | `description` | string | Human-readable explanation                        |
 | `regex`       | string | Python-compatible regular expression               |
@@ -327,6 +327,132 @@ ecosystem.
 
 ---
 
+## Category 7: CVE Gap Coverage (Patterns 127-168)
+
+42 patterns covering 320+ CVEs across LLM framework code injection, IDE config manipulation,
+MCP OAuth/auth attacks, container/network bypass, symlink traversal, rendering RCE chains,
+unsafe deserialization, SSRF, SQL/NoSQL injection, supply chain attacks, and WebSocket attacks.
+
+See `tweek/config/patterns.yaml` for full regex definitions and CVE references.
+
+| ID Range | Subcategory | Count | Key CVEs |
+|----------|-------------|-------|----------|
+| 127-133 | LLM Framework Code Injection | 7 | CVE-2025-46724, CVE-2024-46946, CVE-2023-29374 |
+| 134-139 | IDE/Editor Config Manipulation | 6 | CVE-2025-54135, CVE-2025-59944, CVE-2025-53098 |
+| 140-142 | MCP OAuth/Auth Attacks | 3 | CVE-2025-61591, CVE-2025-54074, CVE-2025-66416 |
+| 143-145 | Container/Network Bypass | 3 | GHSA-gpx9-96j6-pp87, cloud metadata SSRF |
+| 146-148 | Symlink Path Traversal | 3 | CVE-2025-59829, CVE-2025-53110, CVE-2025-53109 |
+| 149-152 | Markdown/Rendering RCE | 4 | CVE-2026-22793, CVE-2025-66222, CVE-2025-59417 |
+| 153-157 | Unsafe Deserialization | 5 | CVE-2024-23730, CVE-2025-6985, CVE-2025-59340 |
+| 158-160 | SSRF/Request Forgery | 3 | CVE-2024-6587, CVE-2024-27565, CVE-2025-34072 |
+| 161-164 | SQL/NoSQL Injection | 4 | CVE-2024-7042, CVE-2024-8309, CVE-2025-67509 |
+| 165-167 | Supply Chain Attacks | 3 | CVE-2025-59333, CVE-2025-59046, CVE-2026-24056 |
+| 168 | WebSocket/Local API | 1 | CVE-2025-52882, CVE-2025-59956 |
+
+---
+
+## Category 8: Prompt Injection — Broad Structural Detection (Patterns 169-215)
+
+45 patterns using **broad structural detection** to catch encoding attacks, direct prompt
+extraction, social engineering, technical exploitation, crescendo attacks, chain-of-thought
+hijacking, many-shot priming, ASCII art obfuscation, and advanced jailbreaks.
+
+These patterns detect *attack pattern classes* rather than specific payloads — catching
+novel attacks that haven't been seen before.
+
+### Encoding & Obfuscation Detection (169-178)
+
+Detects the structural anomalies that encoding attacks produce, not specific encoded strings.
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 169 | `decode_execute_instruction` | high | Instruction to decode content and follow/execute it |
+| 170 | `base64_in_conversation` | medium | Base64-encoded content in conversational context |
+| 171 | `hex_string_in_conversation` | medium | Long hex-encoded string in conversational context |
+| 172 | `encoded_payload_with_instruction` | medium | Opaque payload blob with decode instruction |
+| 173 | `reversed_text_with_instruction` | high | Instruction to reverse or read text backwards |
+| 174 | `leetspeak_instruction_bypass` | medium | Heavy character substitution of security words |
+| 175 | `output_base64_exfil` | high | Suspicious Base64 blob in LLM output |
+| 176 | `output_hex_exfil` | high | Suspicious hex-encoded output |
+| 177 | `decode_follow_message_combo` | high | Composite: decode + follow + message noun |
+| 178 | `encoded_message_then_instruction` | high | Encoded blob first, then decode instruction |
+
+### Direct Prompt Extraction (179-186)
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 179 | `prompt_completion_bait` | medium | Baiting prompt completion or confirmation |
+| 180 | `prompt_format_request` | medium | Requesting system prompt in JSON/YAML/XML format |
+| 181 | `prompt_translate_request` | medium | Requesting system prompt translation |
+| 182 | `prompt_meta_discussion` | medium | Meta-discussion about prompt engineering |
+| 183 | `prompt_contrast_query` | medium | Probing via contrast with default behavior |
+| 184 | `prompt_first_word_extraction` | medium | Extracting specific words from system prompt |
+| 185 | `prompt_blunt_output` | high | Blunt request to output everything above |
+| 186 | `prompt_educational_pretext` | medium | Educational pretext for prompt extraction |
+
+### Social Engineering (187-193)
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 187 | `social_admin_display` | high | Fake admin override or audit display request |
+| 188 | `social_developer_wrote` | high | Claiming to be the developer who wrote the prompt |
+| 189 | `social_gaslight_already` | high | Gaslighting that prompt was already shared |
+| 190 | `social_memory_probe` | medium | Probing for context from before user messages |
+| 191 | `social_proof_sharing` | medium | Claiming other AIs have shared their prompts |
+| 192 | `social_friendship_trust` | medium | Friendship/trust manipulation |
+| 193 | `social_double_bind` | medium | Double bind or reverse psychology extraction |
+
+### Technical Exploitation (194-201)
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 194 | `tech_system_debug_mode` | high | Fake system debug/diagnostic mode activation |
+| 195 | `tech_priority_supersede` | high | Claiming new instructions supersede all previous |
+| 196 | `tech_function_simulate` | high | Simulating function calls to extract config |
+| 197 | `tech_xml_config_dump` | high | XML/tag injection for config extraction |
+| 198 | `tech_negative_space_probe` | medium | Probing restrictions to infer system prompt |
+| 199 | `tech_permission_probe` | medium | Probing permission boundaries |
+| 200 | `tech_error_dump_context` | high | Triggering error dumps to leak context |
+| 201 | `tech_context_window_probe` | medium | Probing context window for system prompt |
+
+### Crescendo, CoT Hijack, Many-Shot, ASCII Art, Advanced (202-215)
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 202 | `crescendo_guidelines_probe` | medium | Gradual trust-building to extract guidelines |
+| 203 | `crescendo_ai_documentation` | medium | Requesting AI documentation as pretext |
+| 204 | `cot_step_extract` | high | Chain-of-thought step extraction |
+| 205 | `cot_schema_exploit` | high | Schema-based reasoning exploit |
+| 206 | `many_shot_compliance` | high | Many-shot compliance priming |
+| 207 | `many_shot_roleplay_comply` | high | Many-shot roleplay priming |
+| 208 | `ascii_art_instruction` | high | ASCII art/box-drawing embedding instructions |
+| 209 | `advanced_godmode` | critical | Advanced jailbreak godmode activation |
+| 210 | `advanced_policy_puppetry` | high | Policy puppetry via structured data schema |
+| 211 | `advanced_dual_output` | high | Requesting filtered/unfiltered dual outputs |
+| 212 | `social_cognitive_overload` | medium | Cognitive overload to slip in extraction |
+| 213 | `social_urgency_compliance` | high | Urgency/compliance pressure for extraction |
+| 214 | `exec_dynamic` | high | Exec executing dynamic or user-controlled code |
+| 215 | `compile_dynamic` | high | Compile with dynamic code strings |
+
+---
+
+## Category 9: Evasion Techniques (Patterns 117-126)
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 117 | `python_file_read` | high | Python one-liner reading sensitive files |
+| 118 | `curl_write_sensitive` | critical | Curl writing to sensitive paths |
+| 119 | `tar_sensitive_dirs` | critical | Archiving sensitive directories |
+| 120 | `cp_credentials_to_temp` | high | Copying credentials to world-readable locations |
+| 121 | `symlink_credential_access` | high | Symbolic link to sensitive files |
+| 122 | `find_exec_credentials` | high | find -exec to read credential files |
+| 123 | `perl_ruby_file_read` | high | Perl/Ruby one-liners reading sensitive files |
+| 124 | `tee_exfil` | critical | Using tee for simultaneous exfiltration |
+| 125 | `importlib_evasion` | high | Python importlib bypassing import restrictions |
+| 126 | `variable_indirection` | medium | Variable-based command construction |
+
+---
+
 ## Pattern Update Mechanism
 
 Patterns are updated via the CLI:
@@ -378,7 +504,7 @@ See [LICENSING.md](./LICENSING.md) for feature availability by tier.
    command content
 2. **Tier lookup** -- The tool's security tier determines which screening
    layers apply (all tiers include regex pattern matching)
-3. **Pattern scan** -- Each of the 116 patterns is tested against the command
+3. **Pattern scan** -- Each of the 215 patterns is tested against the command
 4. **Severity evaluation** -- Matched patterns are ranked by severity
 5. **Decision** -- Critical/high matches block or prompt; medium matches
    prompt; low matches are logged
@@ -391,14 +517,14 @@ See [LICENSING.md](./LICENSING.md) for feature availability by tier.
 
 | Severity | Count | Percentage |
 |----------|-------|------------|
-| Critical | 30    | 26%        |
-| High     | 52    | 45%        |
-| Medium   | 24    | 21%        |
-| Low      | 4     | 3%         |
-| **Total**| **116** | **100%** |
+| Critical | 56    | 26%        |
+| High     | 111   | 52%        |
+| Medium   | 44    | 20%        |
+| Low      | 4     | 2%         |
+| **Total**| **215** | **100%** |
 
-*Note: 6 IDs (85-91 range) are not explicitly categorized under the macOS heading
-in the YAML but serve as cross-cutting covert channel detections.*
+*Note: Percentages do not sum to 100% due to rounding. Some IDs (85-91 range)
+serve as cross-cutting covert channel detections across categories.*
 
 ---
 

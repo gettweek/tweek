@@ -1,6 +1,6 @@
 ---
 name: tweek-security
-description: Defense-in-depth security screening for all Moltbot tool calls. Screens every command through 5 layers — pattern matching, rate limiting, LLM review, session analysis, and sandbox preview. Blocks credential theft, prompt injection, data exfiltration, and multi-step attacks. 116 attack patterns. 100% local. Apache 2.0.
+description: Defense-in-depth security screening for all Moltbot tool calls. Screens every command through 5 layers — pattern matching, rate limiting, LLM review, session analysis, and sandbox preview. Blocks credential theft, prompt injection, data exfiltration, and multi-step attacks. 215 attack patterns. 100% local. Apache 2.0.
 homepage: https://github.com/gettweek/tweek
 user-invocable: true
 metadata: {"moltbot": {"requires": {"bins": ["tweek"]}, "install": [{"id": "uv", "kind": "uv", "package": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Python)"}, {"id": "brew", "kind": "brew", "formula": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Homebrew)", "os": ["darwin"]}], "config": {"stateDirs": [".tweek"], "example": "pip install tweek && tweek protect moltbot"}}}
@@ -29,7 +29,7 @@ That's it. Tweek auto-detects your Moltbot gateway and starts screening all tool
 
 Tweek wraps your Moltbot gateway and screens every tool call through:
 
-1. **Pattern Matching** — 116 regex patterns catch credential theft, reverse shells, data exfiltration, prompt injection, keychain access, and encoded payloads
+1. **Pattern Matching** — 215 regex patterns catch credential theft, reverse shells, data exfiltration, prompt injection, keychain access, encoded payloads, and encoding/obfuscation attacks
 2. **Rate Limiting** — Burst detection, velocity anomaly analysis, and circuit breaker protection
 3. **LLM Review** — Claude Haiku semantic analysis of suspicious commands (optional, bring your own API key)
 4. **Session Analysis** — Cross-turn anomaly detection catches multi-step social engineering attacks across conversation turns
