@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures for Tweek tests."""
 
 import pytest
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,6 +15,28 @@ def _set_test_license_secret():
     with patch("tweek.licensing.LICENSE_SECRET", TEST_LICENSE_SECRET), \
          patch("tweek._keygen.LICENSE_SECRET", TEST_LICENSE_SECRET):
         yield
+
+
+@pytest.fixture(autouse=True)
+def _isolate_memory_store(tmp_path):
+    """Isolate memory store so tests never read/write the real ~/.tweek/memory.db.
+
+    This prevents test data from accumulating in the global memory DB and
+    prevents real memory data from affecting test outcomes.
+    """
+    from tweek.memory.store import reset_memory_store, MemoryStore, GLOBAL_MEMORY_PATH
+
+    # Reset any existing singleton
+    reset_memory_store()
+
+    # Patch the global path so any new MemoryStore created during tests
+    # uses an isolated temporary DB
+    isolated_path = tmp_path / "test_memory.db"
+    with patch("tweek.memory.store.GLOBAL_MEMORY_PATH", isolated_path):
+        yield
+
+    # Clean up after test
+    reset_memory_store()
 
 
 @pytest.fixture

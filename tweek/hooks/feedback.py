@@ -115,6 +115,28 @@ def report_false_positive(pattern_name: str, context: str = "") -> Dict:
     _check_auto_demotion(entry)
     _save_state(state)
 
+    # Bridge to agentic memory: record the FP as an "approved" decision
+    try:
+        from tweek.memory.schemas import PatternDecisionEntry
+        from tweek.memory.store import get_memory_store
+
+        store = get_memory_store()
+        fp_entry = PatternDecisionEntry(
+            pattern_name=pattern_name,
+            pattern_id=None,
+            original_severity=entry.get("original_severity", "unknown"),
+            original_confidence="heuristic",
+            decision="ask",
+            user_response="approved",  # FP = user approved (it was safe)
+            tool_name="feedback",
+            content_hash=None,
+            path_prefix=None,
+            project_hash=None,
+        )
+        store.record_decision(fp_entry)
+    except Exception:
+        pass  # Memory bridge is best-effort
+
     return dict(entry)
 
 

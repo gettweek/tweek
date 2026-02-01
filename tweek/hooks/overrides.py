@@ -32,6 +32,7 @@ PROTECTED_CONFIG_FILES = [
     OVERRIDES_PATH,
     Path.home() / ".tweek" / "skills",  # Entire skills management directory
     Path.home() / ".tweek" / "projects",  # Project registry
+    Path.home() / ".tweek" / "memory.db",  # Agentic memory database
 ]
 
 

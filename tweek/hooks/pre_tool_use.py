@@ -231,6 +231,7 @@ def _resolve_enforcement(
     pattern_match: Optional[Dict],
     enforcement_policy: Optional[EnforcementPolicy],
     has_non_pattern_trigger: bool = False,
+    memory_adjustment: Optional[Dict] = None,
 ) -> str:
     """Determine the enforcement decision based on severity + confidence.
 
@@ -238,6 +239,7 @@ def _resolve_enforcement(
         pattern_match: The highest-severity pattern match dict, or None.
         enforcement_policy: The active EnforcementPolicy (from overrides config).
         has_non_pattern_trigger: True if LLM/session/sandbox/compliance triggered.
+        memory_adjustment: Optional memory-based adjustment suggestion.
 
     Returns:
         Decision string: "deny", "ask", or "log".
@@ -286,6 +288,22 @@ def _resolve_enforcement(
                 decision = "ask"  # Downgrade deny → ask (user still sees prompt)
         except ImportError:
             pass  # Break-glass module not available
+
+    # Memory-based adjustment: only touches "ask" decisions
+    if memory_adjustment and decision == "ask":
+        try:
+            from tweek.memory.safety import validate_memory_adjustment
+            suggested = memory_adjustment.get("adjusted_decision")
+            if suggested:
+                decision = validate_memory_adjustment(
+                    pattern_name=pattern_match.get("name", "") if pattern_match else "",
+                    original_severity=pattern_match.get("severity", "medium") if pattern_match else "medium",
+                    original_confidence=pattern_match.get("confidence", "heuristic") if pattern_match else "heuristic",
+                    suggested_decision=suggested,
+                    current_decision=decision,
+                )
+        except Exception:
+            pass  # Memory is best-effort
 
     return decision
 
@@ -1218,6 +1236,31 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             )
 
     # =========================================================================
+    # MEMORY: Read pattern history for confidence adjustment
+    # =========================================================================
+    memory_adjustment = None
+    if pattern_match:
+        try:
+            from tweek.memory.queries import memory_read_for_pattern
+            from tweek.memory.store import hash_project, normalize_path_prefix
+            _mem_path = (
+                tool_input.get("file_path", "")
+                or tool_input.get("url", "")
+                or working_dir
+                or ""
+            )
+            memory_adjustment = memory_read_for_pattern(
+                pattern_name=pattern_match.get("name", ""),
+                pattern_severity=pattern_match.get("severity", "medium"),
+                pattern_confidence=pattern_match.get("confidence", "heuristic"),
+                tool_name=tool_name,
+                path_prefix=_mem_path,
+                project_hash=hash_project(working_dir) if working_dir else None,
+            )
+        except Exception:
+            pass  # Memory is best-effort
+
+    # =========================================================================
     # LAYER 3: LLM Review (for risky/dangerous tiers)
     # =========================================================================
     llm_msg = None
@@ -1390,7 +1433,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     if pattern_match or llm_triggered or session_triggered or sandbox_triggered or compliance_triggered:
         # Determine graduated enforcement decision
         has_non_pattern = llm_triggered or session_triggered or sandbox_triggered or compliance_triggered
-        decision = _resolve_enforcement(pattern_match, enforcement_policy, has_non_pattern)
+        decision = _resolve_enforcement(pattern_match, enforcement_policy, has_non_pattern, memory_adjustment)
 
         # Build the warning message for ask/deny decisions
         final_msg = format_prompt_message(
@@ -1427,6 +1470,27 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     "enforcement_decision": "deny",
                 }
             )
+            # Memory: record denied decision
+            try:
+                from tweek.memory.queries import memory_write_after_decision, memory_update_workflow
+                from tweek.memory.store import hash_project, normalize_path_prefix
+                if pattern_match:
+                    memory_write_after_decision(
+                        pattern_name=pattern_match.get("name", ""),
+                        pattern_id=pattern_match.get("id"),
+                        original_severity=pattern_match.get("severity", "medium"),
+                        original_confidence=pattern_match.get("confidence", "heuristic"),
+                        decision="deny", user_response="denied",
+                        tool_name=tool_name, content=content,
+                        path_prefix=tool_input.get("file_path", "") or tool_input.get("url", "") or working_dir or "",
+                        project_hash=hash_project(working_dir) if working_dir else None,
+                    )
+                memory_update_workflow(
+                    project_hash=hash_project(working_dir) if working_dir else "global",
+                    tool_name=tool_name, was_denied=True,
+                )
+            except Exception:
+                pass
             return {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
@@ -1450,8 +1514,30 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     "pattern_triggered": pattern_match is not None,
                     "pattern_confidence": pattern_match.get("confidence") if pattern_match else None,
                     "enforcement_decision": "log",
+                    "memory_adjusted": memory_adjustment is not None,
                 }
             )
+            # Memory: record logged decision
+            try:
+                from tweek.memory.queries import memory_write_after_decision, memory_update_workflow
+                from tweek.memory.store import hash_project
+                if pattern_match:
+                    memory_write_after_decision(
+                        pattern_name=pattern_match.get("name", ""),
+                        pattern_id=pattern_match.get("id"),
+                        original_severity=pattern_match.get("severity", "medium"),
+                        original_confidence=pattern_match.get("confidence", "heuristic"),
+                        decision="log", user_response=None,
+                        tool_name=tool_name, content=content,
+                        path_prefix=tool_input.get("file_path", "") or tool_input.get("url", "") or working_dir or "",
+                        project_hash=hash_project(working_dir) if working_dir else None,
+                    )
+                memory_update_workflow(
+                    project_hash=hash_project(working_dir) if working_dir else "global",
+                    tool_name=tool_name, was_denied=False,
+                )
+            except Exception:
+                pass
             return {}
 
         else:
@@ -1476,6 +1562,27 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     "enforcement_decision": "ask",
                 }
             )
+            # Memory: record ask decision (user_response set to None until feedback)
+            try:
+                from tweek.memory.queries import memory_write_after_decision, memory_update_workflow
+                from tweek.memory.store import hash_project
+                if pattern_match:
+                    memory_write_after_decision(
+                        pattern_name=pattern_match.get("name", ""),
+                        pattern_id=pattern_match.get("id"),
+                        original_severity=pattern_match.get("severity", "medium"),
+                        original_confidence=pattern_match.get("confidence", "heuristic"),
+                        decision="ask", user_response=None,
+                        tool_name=tool_name, content=content,
+                        path_prefix=tool_input.get("file_path", "") or tool_input.get("url", "") or working_dir or "",
+                        project_hash=hash_project(working_dir) if working_dir else None,
+                    )
+                memory_update_workflow(
+                    project_hash=hash_project(working_dir) if working_dir else "global",
+                    tool_name=tool_name, was_denied=False,
+                )
+            except Exception:
+                pass
             return {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
@@ -1493,6 +1600,18 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         decision="allow",
         decision_reason="Passed all screening layers",
     )
+
+    # Memory: record clean pass and update workflow baseline
+    try:
+        from tweek.memory.queries import memory_update_workflow
+        from tweek.memory.store import hash_project
+        memory_update_workflow(
+            project_hash=hash_project(working_dir) if working_dir else "global",
+            tool_name=tool_name,
+            was_denied=False,
+        )
+    except Exception:
+        pass
 
     return {}
 

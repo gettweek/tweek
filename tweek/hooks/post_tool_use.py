@@ -111,6 +111,18 @@ def screen_content(
     if not content or len(content.strip()) < 3:
         return {}
 
+    # Memory: read source trust before screening
+    source_trust = None
+    source = tool_input.get("file_path") or tool_input.get("url") or ""
+    source_type = ""
+    if source:
+        try:
+            from tweek.memory.queries import memory_read_source_trust
+            source_type = "url" if source.startswith("http") else "file"
+            source_trust = memory_read_source_trust(source_type, source)
+        except Exception:
+            pass
+
     findings = []
     non_english_info = None
 
@@ -259,6 +271,18 @@ def screen_content(
             )
     except Exception:
         pass  # Logging errors should not block the response
+
+    # Memory: write source scan result
+    if source and source_type:
+        try:
+            from tweek.memory.queries import memory_write_source_scan
+            memory_write_source_scan(
+                source_type=source_type,
+                source_key=source,
+                had_injection=bool(findings or llm_finding),
+            )
+        except Exception:
+            pass
 
     # Step 5: Content redaction for critical deterministic matches
     # Replace matched content with [REDACTED] to prevent AI from acting on it

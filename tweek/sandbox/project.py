@@ -99,6 +99,7 @@ class ProjectSandbox:
         self._logger = None
         self._overrides = None
         self._fingerprints = None
+        self._memory_store = None
 
     def _load_config(self) -> SandboxConfig:
         """Load sandbox config from project .tweek/sandbox.yaml."""
@@ -269,6 +270,26 @@ class ProjectSandbox:
         )
         return self._overrides
 
+    def get_memory_store(self):
+        """Return project-scoped MemoryStore.
+
+        Uses the project's .tweek/memory.db for project-scoped memory.
+        Falls back to global memory for layers below PROJECT.
+        """
+        if self._memory_store is not None:
+            return self._memory_store
+
+        from tweek.memory.store import MemoryStore, get_memory_store
+
+        if self.layer.value < IsolationLayer.PROJECT.value:
+            self._memory_store = get_memory_store()
+            return self._memory_store
+
+        self._memory_store = MemoryStore(
+            db_path=self.tweek_dir / "memory.db"
+        )
+        return self._memory_store
+
     def get_fingerprints(self):
         """Return project-scoped fingerprint cache."""
         if self._fingerprints is not None:
@@ -299,6 +320,9 @@ class ProjectSandbox:
         self._logger = None
         self._overrides = None
         self._fingerprints = None
+        if self._memory_store is not None:
+            self._memory_store.close()
+        self._memory_store = None
 
 
 class MergedOverrides:

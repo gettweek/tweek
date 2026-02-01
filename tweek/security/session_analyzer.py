@@ -475,6 +475,28 @@ class SessionAnalyzer:
                     anomalies.append(AnomalyType.CAPABILITY_AGGREGATION)
                 all_details["capability_aggregation"] = aggregation_details
 
+                # Memory: read cross-session workflow baselines
+                try:
+                    from tweek.memory.queries import memory_get_workflow_baseline
+                    from tweek.memory.store import hash_project
+                    # Use session_id as a proxy for project context
+                    baseline = memory_get_workflow_baseline(session_id)
+                    if baseline:
+                        all_details["memory_baseline"] = baseline
+                        # Flag if current denial ratio significantly exceeds baseline
+                        current_denial_ratio = len(
+                            [e for e in events if e.get("decision") in ("block", "ask")]
+                        ) / max(len(events), 1)
+                        baseline_ratio = baseline.get("denial_ratio", 0)
+                        if (
+                            current_denial_ratio > baseline_ratio * 2
+                            and current_denial_ratio > 0.2
+                            and baseline.get("total_invocations", 0) >= 20
+                        ):
+                            all_details["memory_baseline_exceeded"] = True
+                except Exception:
+                    pass  # Memory is best-effort
+
                 # Calculate risk score
                 risk_score = self._calculate_risk_score(anomalies, events, all_details)
 
