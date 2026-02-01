@@ -82,6 +82,7 @@ check_python() {
                     if [[ ! "$reply" =~ ^[Nn]$ ]]; then
                         step "Installing Python 3.12 via Homebrew..."
                         brew install python@3.12
+                        brew link --overwrite python@3.12 2>/dev/null || true
                         # Retry detection after install
                         for cmd in python3 python; do
                             if command -v "$cmd" &>/dev/null; then
