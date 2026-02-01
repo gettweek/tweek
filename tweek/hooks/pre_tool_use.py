@@ -46,6 +46,11 @@ from tweek.hooks.overrides import (
     get_overrides, get_trust_mode, is_protected_config_file,
     bash_targets_protected_config, filter_by_severity, SEVERITY_RANK,
 )
+from tweek.skills.guard import (
+    get_skill_guard_reason,
+    get_skill_download_prompt,
+)
+from tweek.skills.fingerprints import get_fingerprints
 
 
 # =============================================================================
@@ -453,6 +458,80 @@ def format_prompt_message(
     return "\n".join(lines)
 
 
+def _check_project_skill_fingerprints(working_dir: Optional[str], _log) -> None:
+    """
+    Check project skills for new/modified SKILL.md files via fingerprint cache.
+
+    If a new or modified skill is detected (e.g. from git pull/clone), it is
+    routed through the isolation chamber for security scanning. Results:
+    - PASS: skill stays in place, fingerprint recorded
+    - FAIL: skill removed from project dir, jailed, user warned
+    - MANUAL_REVIEW: skill moved to chamber, user warned
+    """
+    if not working_dir:
+        return
+
+    from tweek.skills.config import load_isolation_config
+
+    config = load_isolation_config()
+    if not config.enabled:
+        return
+
+    fingerprints = get_fingerprints()
+    changed = fingerprints.check_project_skills(Path(working_dir))
+
+    if not changed:
+        return
+
+    # Import chamber lazily to avoid circular imports and overhead on clean runs
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber(config=config)
+
+    for skill_path, status in changed:
+        skill_name = skill_path.parent.name
+        _log(
+            EventType.TOOL_INVOKED,
+            "SkillFingerprint",
+            tier="skill_guard",
+            decision="scan",
+            decision_reason=f"Git-arrived skill detected: {skill_name} ({status})",
+        )
+
+        report, msg = chamber.accept_and_scan(
+            skill_path.parent,
+            skill_name=f"git-{skill_name}",
+            target="project",
+        )
+
+        if report.verdict == "pass":
+            # Record the fingerprint so we don't re-scan
+            fingerprints.register(
+                skill_path,
+                verdict="pass",
+                report_path=msg,
+            )
+        elif report.verdict == "fail":
+            # Remove from project dir — it's now in jail
+            import shutil
+
+            try:
+                shutil.rmtree(skill_path.parent)
+            except OSError:
+                pass
+            print(
+                f"TWEEK SECURITY: Skill '{skill_name}' FAILED security scan "
+                f"and was removed from project. See: tweek skills jail list",
+                file=sys.stderr,
+            )
+        elif report.verdict == "manual_review":
+            print(
+                f"TWEEK SECURITY: Skill '{skill_name}' requires manual review. "
+                f"Run: tweek skills chamber approve git-{skill_name}",
+                file=sys.stderr,
+            )
+
+
 def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     """Main hook logic with tiered security screening.
 
@@ -486,6 +565,16 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             session_id=session_id,
             **kwargs
         )
+
+    # =========================================================================
+    # SKILL FINGERPRINT CHECK: Detect new/modified git-arrived skills
+    # Lightweight SHA-256 check; full scan only on first encounter or change
+    # =========================================================================
+    try:
+        _check_project_skill_fingerprints(working_dir, _log)
+    except Exception:
+        # Fingerprint check is best-effort — never break the hook
+        pass
 
     # =========================================================================
     # SELF-PROTECTION: Block AI from modifying security override config
@@ -532,6 +621,68 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                         "TWEEK SELF-PROTECTION: Cannot modify security override config via shell.\n"
                         "Security overrides can only be edited by a human directly."
                     ),
+                }
+            }
+
+        # Block AI from running tweek trust/untrust — trust decisions are human-only
+        command_stripped = command.strip()
+        if re.match(r"tweek\s+(trust|untrust)\b", command_stripped):
+            _log(
+                EventType.BLOCKED,
+                tool_name,
+                tier="self_protection",
+                decision="deny",
+                decision_reason="BLOCKED: AI cannot modify trust settings",
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        "TWEEK SELF-PROTECTION: Trust decisions must be made by a human.\n"
+                        "Run this command directly in your terminal:\n"
+                        f"  {command_stripped}\n"
+                        "Trust settings control which projects are exempt from security screening."
+                    ),
+                }
+            }
+
+    # =========================================================================
+    # SKILL GUARD: Block direct skill installation bypassing isolation chamber
+    # =========================================================================
+    skill_block_reason = get_skill_guard_reason(tool_name, tool_input)
+    if skill_block_reason:
+        _log(
+            EventType.BLOCKED,
+            tool_name,
+            tier="skill_guard",
+            decision="deny",
+            decision_reason=skill_block_reason,
+        )
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": skill_block_reason,
+            }
+        }
+
+    # Skill download detection: prompt user instead of blocking
+    if tool_name == "Bash":
+        download_prompt = get_skill_download_prompt(tool_input.get("command", ""))
+        if download_prompt:
+            _log(
+                EventType.TOOL_INVOKED,
+                tool_name,
+                tier="skill_guard",
+                decision="ask",
+                decision_reason="Potential skill download detected",
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "ask",
+                    "permissionDecisionReason": download_prompt,
                 }
             }
 

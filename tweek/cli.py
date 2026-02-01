@@ -13,6 +13,11 @@ Usage:
     tweek logs [--limit N] [--type TYPE]
     tweek logs stats [--days N]
     tweek logs export [--days N] [--output FILE]
+    tweek skills chamber list|import|scan|approve|reject
+    tweek skills jail list|rescan|release|purge
+    tweek skills report NAME
+    tweek skills status
+    tweek skills config [--mode auto|manual]
 """
 
 import click
@@ -133,19 +138,30 @@ def main():
     pass
 
 
+def _has_tweek_hooks(settings: dict) -> bool:
+    """Check if a settings dict contains Tweek hooks."""
+    hooks = settings.get("hooks", {})
+    for hook_type in ("PreToolUse", "PostToolUse"):
+        for hook_config in hooks.get(hook_type, []):
+            for hook in hook_config.get("hooks", []):
+                if "tweek" in hook.get("command", "").lower():
+                    return True
+    return False
+
+
 @main.command(
     epilog="""\b
 Examples:
-  tweek install                          Install globally with default settings
-  tweek install --scope project          Install for current project only
+  tweek install                          Install for current project
+  tweek install --global                 Install globally (all projects)
   tweek install --interactive            Walk through configuration prompts
   tweek install --preset paranoid        Apply paranoid security preset
   tweek install --with-sandbox           Install sandbox tool if needed (Linux)
   tweek install --force-proxy            Override existing proxy configurations
 """
 )
-@click.option("--scope", type=click.Choice(["global", "project"]), default="global",
-              help="Installation scope: global (~/.claude) or project (./.claude)")
+@click.option("--global", "install_global", is_flag=True, default=False,
+              help="Install globally to ~/.claude/ (protects all projects)")
 @click.option("--dev-test", is_flag=True, hidden=True,
               help="Install to test environment (for Tweek development only)")
 @click.option("--backup/--no-backup", default=True,
@@ -164,12 +180,11 @@ Examples:
               help="Force Tweek proxy to override existing proxy configurations (e.g., moltbot)")
 @click.option("--skip-proxy-check", is_flag=True,
               help="Skip checking for existing proxy configurations")
-def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool):
+def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool):
     """Install Tweek hooks into Claude Code.
 
-    Scope options:
-        --scope global  : Install to ~/.claude/ (protects all projects)
-        --scope project : Install to ./.claude/ (protects this project only)
+    By default, installs to the current project (./.claude/).
+    Use --global to install system-wide (~/.claude/).
 
     Configuration options:
         --interactive  : Walk through configuration prompts
@@ -287,16 +302,60 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
         except Exception as e:
             console.print(f"[dim]Warning: Could not check for proxy conflicts: {e}[/dim]")
 
+    # ─────────────────────────────────────────────────────────────
+    # Interactive scope selection (if --interactive and no --global)
+    # ─────────────────────────────────────────────────────────────
+    if interactive and not install_global and not dev_test:
+        console.print("[bold]Installation Scope[/bold]")
+        console.print()
+        console.print("  [cyan]1.[/cyan] This project only (./.claude/)")
+        console.print("     [dim]Protects only the current project[/dim]")
+        console.print("  [cyan]2.[/cyan] All projects globally (~/.claude/)")
+        console.print("     [dim]Protects every project on this machine[/dim]")
+        console.print()
+        scope_choice = click.prompt("Select", type=click.IntRange(1, 2), default=1)
+        if scope_choice == 2:
+            install_global = True
+        console.print()
+
     # Determine target directory based on scope
     if dev_test:
         console.print("[yellow]Installing in DEV TEST mode (isolated environment)[/yellow]")
         target = Path("~/AI/tweek/test-environment/.claude").expanduser()
-    elif scope == "global":
+    elif install_global:
         target = Path("~/.claude").expanduser()
-        console.print(f"[cyan]Scope: global[/cyan] - Hooks will protect all projects")
-    else:  # project
+        console.print(f"[cyan]Scope: global[/cyan] — Hooks will protect all projects")
+    else:  # project (default)
         target = Path.cwd() / ".claude"
-        console.print(f"[cyan]Scope: project[/cyan] - Hooks will protect this project only")
+        console.print(f"[cyan]Scope: project[/cyan] — Hooks will protect this project only")
+
+    # ─────────────────────────────────────────────────────────────
+    # Scope conflict detection
+    # ─────────────────────────────────────────────────────────────
+    if not dev_test:
+        try:
+            if install_global:
+                # Installing globally — check if project-level hooks exist here
+                project_settings = Path.cwd() / ".claude" / "settings.json"
+                if project_settings.exists():
+                    with open(project_settings) as f:
+                        project_config = json.load(f)
+                    if _has_tweek_hooks(project_config):
+                        console.print("[dim]Note: Tweek is also installed in this project.[/dim]")
+                        console.print("[dim]Project-level settings take precedence over global.[/dim]")
+                        console.print()
+            else:
+                # Installing per-project — check if global hooks exist
+                global_settings = Path("~/.claude/settings.json").expanduser()
+                if global_settings.exists():
+                    with open(global_settings) as f:
+                        global_config = json.load(f)
+                    if _has_tweek_hooks(global_config):
+                        console.print("[dim]Note: Tweek is also installed globally.[/dim]")
+                        console.print("[dim]Project-level settings will take precedence in this directory.[/dim]")
+                        console.print()
+        except (json.JSONDecodeError, IOError):
+            pass
 
     hook_script = Path(__file__).parent / "hooks" / "pre_tool_use.py"
     post_hook_script = Path(__file__).parent / "hooks" / "post_tool_use.py"
@@ -364,6 +423,61 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
     tweek_dir = Path("~/.tweek").expanduser()
     tweek_dir.mkdir(parents=True, exist_ok=True)
     console.print(f"[green]✓[/green] Tweek data directory: {tweek_dir}")
+
+    # ─────────────────────────────────────────────────────────────
+    # Install Tweek skill for Claude Code
+    # ─────────────────────────────────────────────────────────────
+    skill_source = Path(__file__).resolve().parent / "skill_template"
+    skill_target = target / "skills" / "tweek"
+
+    if skill_source.is_dir() and (skill_source / "SKILL.md").exists():
+        # Copy skill files to target (overwrite if exists)
+        if skill_target.exists():
+            shutil.rmtree(skill_target)
+        shutil.copytree(skill_source, skill_target)
+        console.print(f"[green]✓[/green] Tweek skill installed to: {skill_target}")
+        console.print(f"  [dim]Claude now understands Tweek warnings and commands[/dim]")
+
+        # Add whitelist entry for the skill directory in overrides
+        try:
+            import yaml
+
+            overrides_path = tweek_dir / "overrides.yaml"
+            overrides = {}
+            if overrides_path.exists():
+                with open(overrides_path) as f:
+                    overrides = yaml.safe_load(f) or {}
+
+            whitelist = overrides.get("whitelist", [])
+
+            # Check if skill path is already whitelisted
+            skill_target_str = str(skill_target)
+            already_whitelisted = any(
+                entry.get("path", "").rstrip("/") == skill_target_str.rstrip("/")
+                for entry in whitelist
+                if isinstance(entry, dict)
+            )
+
+            if not already_whitelisted:
+                whitelist.append({
+                    "path": skill_target_str,
+                    "tools": ["Read", "Grep"],
+                    "reason": "Tweek skill files shipped with package",
+                })
+                overrides["whitelist"] = whitelist
+
+                with open(overrides_path, "w") as f:
+                    yaml.dump(overrides, f, default_flow_style=False, sort_keys=False)
+
+                console.print(f"[green]✓[/green] Skill directory whitelisted in overrides")
+
+        except ImportError:
+            console.print(f"[dim]Note: PyYAML not available — skill whitelist not added to overrides[/dim]")
+        except Exception as e:
+            console.print(f"[dim]Warning: Could not update overrides whitelist: {e}[/dim]")
+    else:
+        console.print(f"[dim]Tweek skill source not found — skill not installed[/dim]")
+        console.print(f"  [dim]Skill can be installed manually from the tweek repository[/dim]")
 
     # Scan for .env files
     if not skip_env_scan:
@@ -606,29 +720,28 @@ def install(scope: str, dev_test: bool, backup: bool, skip_env_scan: bool, inter
 @main.command(
     epilog="""\b
 Examples:
-  tweek uninstall                        Remove from global installation
-  tweek uninstall --scope project        Remove from current project only
+  tweek uninstall                        Remove from current project
+  tweek uninstall --global               Remove global installation
   tweek uninstall --confirm              Skip confirmation prompt
 """
 )
-@click.option("--scope", type=click.Choice(["global", "project"]), default="global",
-              help="Uninstall scope: global (~/.claude) or project (./.claude)")
+@click.option("--global", "uninstall_global", is_flag=True, default=False,
+              help="Uninstall from ~/.claude/ (global installation)")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
-def uninstall(scope: str, confirm: bool):
+def uninstall(uninstall_global: bool, confirm: bool):
     """Remove Tweek hooks from Claude Code.
 
-    Scope options:
-        --scope global  : Remove from ~/.claude/ (affects all projects)
-        --scope project : Remove from ./.claude/ (this project only)
+    By default, removes from the current project (./.claude/).
+    Use --global to remove from ~/.claude/.
     """
     import json
 
     console.print(TWEEK_BANNER, style="cyan")
 
     # Determine target directory based on scope
-    if scope == "global":
+    if uninstall_global:
         target = Path("~/.claude").expanduser()
-    else:  # project
+    else:  # project (default)
         target = Path.cwd() / ".claude"
 
     # Check if Tweek is installed at target
@@ -639,12 +752,7 @@ def uninstall(scope: str, confirm: bool):
         try:
             with open(settings_file) as f:
                 settings = json.load(f)
-            if "hooks" in settings and "PreToolUse" in settings.get("hooks", {}):
-                for hook_config in settings["hooks"]["PreToolUse"]:
-                    for hook in hook_config.get("hooks", []):
-                        if "tweek" in hook.get("command", "").lower():
-                            tweek_installed = True
-                            break
+            tweek_installed = _has_tweek_hooks(settings)
         except (json.JSONDecodeError, IOError):
             pass
 
@@ -699,6 +807,214 @@ def uninstall(scope: str, confirm: bool):
 
     console.print("\n[green]Uninstall complete![/green]")
     console.print("[dim]Tweek data directory (~/.tweek) was preserved. Remove manually if desired.[/dim]")
+
+
+def _load_overrides_yaml() -> tuple:
+    """Load ~/.tweek/overrides.yaml. Returns (data_dict, file_path)."""
+    import yaml
+
+    overrides_path = Path("~/.tweek/overrides.yaml").expanduser()
+    if overrides_path.exists():
+        with open(overrides_path) as f:
+            data = yaml.safe_load(f) or {}
+    else:
+        data = {}
+    return data, overrides_path
+
+
+def _save_overrides_yaml(data: dict, overrides_path: Path):
+    """Write data to ~/.tweek/overrides.yaml."""
+    import yaml
+
+    overrides_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(overrides_path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+@main.command(
+    epilog="""\b
+Examples:
+  tweek trust                            Trust the current project
+  tweek trust /path/to/project           Trust a specific directory
+  tweek trust --list                     Show all trusted paths
+  tweek trust . --reason "My safe repo"  Trust with an explanation
+"""
+)
+@click.argument("path", default=".", type=click.Path(exists=True), required=False)
+@click.option("--reason", "-r", default=None, help="Why this path is trusted")
+@click.option("--list", "list_trusted", is_flag=True, help="List all trusted paths")
+def trust(path: str, reason: str, list_trusted: bool):
+    """Trust a project directory — skip all screening for files in this path.
+
+    Adds the directory to the whitelist in ~/.tweek/overrides.yaml.
+    All tool calls operating on files within this path will be allowed
+    without screening.
+
+    This is useful for temporarily pausing Tweek in a specific project,
+    or for permanently trusting a known-safe directory.
+
+    To resume screening, use: tweek untrust
+    """
+    try:
+        overrides, overrides_path = _load_overrides_yaml()
+    except ImportError:
+        console.print("[red]✗[/red] PyYAML is required. Install with: pip install pyyaml")
+        return
+    except Exception as e:
+        console.print(f"[red]✗[/red] Could not load overrides: {e}")
+        return
+
+    whitelist = overrides.get("whitelist", [])
+
+    # --list mode: show all trusted paths
+    if list_trusted:
+        trusted_entries = [
+            entry for entry in whitelist
+            if isinstance(entry, dict) and "path" in entry and not entry.get("tools")
+        ]
+        tool_scoped = [
+            entry for entry in whitelist
+            if isinstance(entry, dict) and "path" in entry and entry.get("tools")
+        ]
+        other_entries = [
+            entry for entry in whitelist
+            if isinstance(entry, dict) and "path" not in entry
+        ]
+
+        if not whitelist:
+            console.print("[dim]No trusted paths configured.[/dim]")
+            console.print("[dim]Use 'tweek trust' to trust the current project.[/dim]")
+            return
+
+        if trusted_entries:
+            console.print("[bold]Trusted project directories[/bold] (all tools exempt):\n")
+            for entry in trusted_entries:
+                entry_reason = entry.get("reason", "")
+                console.print(f"  [green]✓[/green] {entry['path']}")
+                if entry_reason:
+                    console.print(f"    [dim]{entry_reason}[/dim]")
+
+        if tool_scoped:
+            console.print("\n[bold]Tool-scoped whitelist entries:[/bold]\n")
+            for entry in tool_scoped:
+                tools = ", ".join(entry.get("tools", []))
+                entry_reason = entry.get("reason", "")
+                console.print(f"  [cyan]○[/cyan] {entry['path']}  [dim]({tools})[/dim]")
+                if entry_reason:
+                    console.print(f"    [dim]{entry_reason}[/dim]")
+
+        if other_entries:
+            console.print("\n[bold]Other whitelist entries:[/bold]\n")
+            for entry in other_entries:
+                if entry.get("url_prefix"):
+                    console.print(f"  [cyan]○[/cyan] URL: {entry['url_prefix']}")
+                elif entry.get("command_prefix"):
+                    console.print(f"  [cyan]○[/cyan] Command: {entry['command_prefix']}")
+                entry_reason = entry.get("reason", "")
+                if entry_reason:
+                    console.print(f"    [dim]{entry_reason}[/dim]")
+
+        console.print(f"\n[dim]Config: {overrides_path}[/dim]")
+        return
+
+    # Resolve path to absolute
+    resolved = Path(path).resolve()
+    resolved_str = str(resolved)
+
+    # Check if already whitelisted
+    already_trusted = any(
+        isinstance(entry, dict)
+        and entry.get("path", "").rstrip("/") == resolved_str.rstrip("/")
+        and not entry.get("tools")  # full trust, not tool-scoped
+        for entry in whitelist
+    )
+
+    if already_trusted:
+        console.print(f"[green]✓[/green] Already trusted: {resolved}")
+        console.print("[dim]Use 'tweek untrust' to remove.[/dim]")
+        return
+
+    # Add whitelist entry (no tools restriction = all tools exempt)
+    entry = {
+        "path": resolved_str,
+        "reason": reason or f"Trusted via tweek trust",
+    }
+    whitelist.append(entry)
+    overrides["whitelist"] = whitelist
+
+    try:
+        _save_overrides_yaml(overrides, overrides_path)
+    except Exception as e:
+        console.print(f"[red]✗[/red] Could not save overrides: {e}")
+        return
+
+    console.print(f"[green]✓[/green] Trusted: {resolved}")
+    console.print(f"  [dim]All screening is now skipped for files in this directory.[/dim]")
+    console.print(f"  [dim]To resume screening: tweek untrust {path}[/dim]")
+
+
+@main.command(
+    epilog="""\b
+Examples:
+  tweek untrust                          Untrust the current project
+  tweek untrust /path/to/project         Untrust a specific directory
+"""
+)
+@click.argument("path", default=".", type=click.Path(exists=True), required=False)
+def untrust(path: str):
+    """Remove trust from a project directory — resume screening.
+
+    Removes the directory from the whitelist in ~/.tweek/overrides.yaml.
+    Tweek will resume screening tool calls for files in this path.
+    """
+    try:
+        overrides, overrides_path = _load_overrides_yaml()
+    except ImportError:
+        console.print("[red]✗[/red] PyYAML is required. Install with: pip install pyyaml")
+        return
+    except Exception as e:
+        console.print(f"[red]✗[/red] Could not load overrides: {e}")
+        return
+
+    whitelist = overrides.get("whitelist", [])
+    if not whitelist:
+        console.print(f"[yellow]This path is not currently trusted.[/yellow]")
+        return
+
+    # Resolve path to absolute
+    resolved = Path(path).resolve()
+    resolved_str = str(resolved)
+
+    # Find and remove matching entry (full trust only, not tool-scoped)
+    original_len = len(whitelist)
+    whitelist = [
+        entry for entry in whitelist
+        if not (
+            isinstance(entry, dict)
+            and entry.get("path", "").rstrip("/") == resolved_str.rstrip("/")
+            and not entry.get("tools")  # only remove full trust, not tool-scoped entries
+        )
+    ]
+
+    if len(whitelist) == original_len:
+        console.print(f"[yellow]This path is not currently trusted:[/yellow] {resolved}")
+        console.print("[dim]Use 'tweek trust --list' to see all trusted paths.[/dim]")
+        return
+
+    overrides["whitelist"] = whitelist
+
+    # Clean up empty whitelist
+    if not whitelist:
+        del overrides["whitelist"]
+
+    try:
+        _save_overrides_yaml(overrides, overrides_path)
+    except Exception as e:
+        console.print(f"[red]✗[/red] Could not save overrides: {e}")
+        return
+
+    console.print(f"[green]✓[/green] Removed trust: {resolved}")
+    console.print(f"  [dim]Tweek will now screen tool calls for files in this directory.[/dim]")
 
 
 @main.command(
@@ -3638,6 +3954,280 @@ def mcp_decide(request_id, decision, notes):
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
+
+# ============================================================
+# SKILLS - Isolation Chamber Management
+# ============================================================
+
+@main.group()
+def skills():
+    """Manage skill isolation chamber, jail, and security scanning."""
+    pass
+
+
+@skills.group("chamber")
+def skills_chamber():
+    """Manage the skill isolation chamber."""
+    pass
+
+
+@skills_chamber.command("list")
+def chamber_list():
+    """List skills currently in the isolation chamber."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    items = chamber.list_chamber()
+
+    if not items:
+        console.print("[dim]Chamber is empty.[/dim]")
+        return
+
+    table = Table(title="Isolation Chamber")
+    table.add_column("Name", style="cyan")
+    table.add_column("Has SKILL.md", style="green")
+    table.add_column("Path", style="dim")
+
+    for item in items:
+        has_md = "Yes" if item["has_skill_md"] else "[red]No[/red]"
+        table.add_row(item["name"], has_md, item["path"])
+
+    console.print(table)
+
+
+@skills_chamber.command("import")
+@click.argument("source")
+@click.option("--name", default=None, help="Override skill name")
+@click.option("--target", type=click.Choice(["global", "project"]), default="global",
+              help="Install target if scan passes")
+def chamber_import(source: str, name: Optional[str], target: str):
+    """Import a skill into the isolation chamber and scan it.
+
+    SOURCE is a path to a skill directory or SKILL.md file.
+    """
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    source_path = Path(source).resolve()
+    if not source_path.exists():
+        console.print(f"[red]Source not found: {source_path}[/red]")
+        return
+
+    chamber = SkillIsolationChamber()
+    report, msg = chamber.accept_and_scan(source_path, skill_name=name, target=target)
+
+    if report.verdict == "pass":
+        console.print(f"[green]PASS[/green] {msg}")
+    elif report.verdict == "fail":
+        console.print(f"[red]FAIL[/red] {msg}")
+    elif report.verdict == "manual_review":
+        console.print(f"[yellow]MANUAL REVIEW[/yellow] {msg}")
+    else:
+        console.print(msg)
+
+
+@skills_chamber.command("scan")
+@click.argument("name")
+def chamber_scan(name: str):
+    """Manually trigger a scan on a skill in the chamber."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    report, msg = chamber.scan_skill(name)
+    console.print(msg)
+
+
+@skills_chamber.command("approve")
+@click.argument("name")
+@click.option("--target", type=click.Choice(["global", "project"]), default="global",
+              help="Install target directory")
+def chamber_approve(name: str, target: str):
+    """Approve a skill in the chamber and install it."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    ok, msg = chamber.approve_skill(name, target=target)
+    if ok:
+        console.print(f"[green]{msg}[/green]")
+    else:
+        console.print(f"[red]{msg}[/red]")
+
+
+@skills_chamber.command("reject")
+@click.argument("name")
+def chamber_reject(name: str):
+    """Reject a skill in the chamber and move it to jail."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    ok, msg = chamber.jail_skill(name)
+    if ok:
+        console.print(f"[yellow]{msg}[/yellow]")
+    else:
+        console.print(f"[red]{msg}[/red]")
+
+
+@skills.group("jail")
+def skills_jail():
+    """Manage quarantined (jailed) skills."""
+    pass
+
+
+@skills_jail.command("list")
+def jail_list():
+    """List skills currently in the jail."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    items = chamber.list_jail()
+
+    if not items:
+        console.print("[dim]Jail is empty.[/dim]")
+        return
+
+    table = Table(title="Skill Jail")
+    table.add_column("Name", style="cyan")
+    table.add_column("Verdict", style="red")
+    table.add_column("Risk", style="yellow")
+    table.add_column("Critical", style="red")
+    table.add_column("High", style="yellow")
+
+    for item in items:
+        table.add_row(
+            item["name"],
+            item.get("verdict", "?"),
+            item.get("risk_level", "?"),
+            str(item.get("critical", "?")),
+            str(item.get("high", "?")),
+        )
+
+    console.print(table)
+
+
+@skills_jail.command("rescan")
+@click.argument("name")
+def jail_rescan(name: str):
+    """Re-scan a jailed skill (useful after pattern updates)."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    ok, msg = chamber.release_from_jail(name, force=False)
+    if ok:
+        console.print(f"[green]{msg}[/green]")
+    else:
+        console.print(f"[red]{msg}[/red]")
+
+
+@skills_jail.command("release")
+@click.argument("name")
+@click.confirmation_option(prompt="Force-release bypasses security scanning. Are you sure?")
+def jail_release(name: str):
+    """Force-release a skill from jail (dangerous — bypasses scanning)."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    ok, msg = chamber.release_from_jail(name, force=True)
+    if ok:
+        console.print(f"[yellow]{msg}[/yellow]")
+    else:
+        console.print(f"[red]{msg}[/red]")
+
+
+@skills_jail.command("purge")
+@click.confirmation_option(prompt="Delete all jailed skills permanently?")
+def jail_purge():
+    """Delete all jailed skills permanently."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    count, msg = chamber.purge_jail()
+    console.print(msg)
+
+
+@skills.command("report")
+@click.argument("name")
+def skills_report(name: str):
+    """View the latest scan report for a skill."""
+    from tweek.skills.isolation import SkillIsolationChamber
+
+    chamber = SkillIsolationChamber()
+    report_data = chamber.get_report(name)
+
+    if not report_data:
+        console.print(f"[dim]No report found for '{name}'.[/dim]")
+        return
+
+    console.print(Panel(
+        json.dumps(report_data, indent=2),
+        title=f"Scan Report: {name}",
+        border_style="cyan",
+    ))
+
+
+@skills.command("status")
+def skills_status():
+    """Show overview of chamber, jail, and installed skills."""
+    from tweek.skills.isolation import SkillIsolationChamber
+    from tweek.skills import CLAUDE_GLOBAL_SKILLS
+
+    chamber = SkillIsolationChamber()
+    chamber_items = chamber.list_chamber()
+    jail_items = chamber.list_jail()
+
+    # Count installed skills
+    installed_count = 0
+    if CLAUDE_GLOBAL_SKILLS.exists():
+        installed_count = sum(
+            1 for d in CLAUDE_GLOBAL_SKILLS.iterdir()
+            if d.is_dir() and (d / "SKILL.md").exists()
+        )
+
+    table = Table(title="Skill Isolation Status")
+    table.add_column("Location", style="cyan")
+    table.add_column("Count", style="green")
+
+    table.add_row("Installed (global)", str(installed_count))
+    table.add_row("In Chamber", str(len(chamber_items)))
+    table.add_row("In Jail", str(len(jail_items)))
+
+    console.print(table)
+
+    if chamber_items:
+        console.print(f"\n[yellow]Chamber:[/yellow] {', '.join(i['name'] for i in chamber_items)}")
+    if jail_items:
+        console.print(f"[red]Jail:[/red] {', '.join(i['name'] for i in jail_items)}")
+
+
+@skills.command("config")
+@click.option("--mode", type=click.Choice(["auto", "manual"]), default=None,
+              help="Set isolation mode")
+def skills_config(mode: Optional[str]):
+    """Show or update isolation chamber configuration."""
+    from tweek.skills.config import load_isolation_config, save_isolation_config
+
+    config = load_isolation_config()
+
+    if mode:
+        config.mode = mode
+        save_isolation_config(config)
+        console.print(f"[green]Isolation mode set to: {mode}[/green]")
+        return
+
+    table = Table(title="Isolation Chamber Config")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Enabled", str(config.enabled))
+    table.add_row("Mode", config.mode)
+    table.add_row("Scan Timeout", f"{config.scan_timeout_seconds}s")
+    table.add_row("LLM Review", str(config.llm_review_enabled))
+    table.add_row("Max Skill Size", f"{config.max_skill_size_bytes:,} bytes")
+    table.add_row("Max File Count", str(config.max_file_count))
+    table.add_row("Fail on Critical", str(config.fail_on_critical))
+    table.add_row("Fail on HIGH Count", str(config.fail_on_high_count))
+    table.add_row("Review on HIGH Count", str(config.review_on_high_count))
+
+    console.print(table)
+
 
 if __name__ == "__main__":
     main()

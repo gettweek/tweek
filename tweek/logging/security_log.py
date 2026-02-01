@@ -275,6 +275,14 @@ class EventType(Enum):
     # Proxy events
     PROXY_EVENT = "proxy_event"             # HTTP proxy request screening
 
+    # Skill isolation chamber events
+    SKILL_CHAMBER_INTAKE = "skill_chamber_intake"       # Skill placed in chamber
+    SKILL_SCAN_COMPLETE = "skill_scan_complete"         # Scan pipeline finished
+    SKILL_APPROVED = "skill_approved"                   # Skill approved and installed
+    SKILL_JAILED = "skill_jailed"                       # Skill quarantined to jail
+    SKILL_MANUAL_REVIEW = "skill_manual_review"         # Skill requires human review
+    SKILL_INSTALL_BLOCKED = "skill_install_blocked"     # Direct install attempt blocked
+
     # System events
     HEALTH_CHECK = "health_check"           # Diagnostic check results
     STARTUP = "startup"                     # System initialization
