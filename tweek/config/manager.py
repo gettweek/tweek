@@ -170,7 +170,7 @@ class ConfigManager:
     # Valid top-level config keys
     VALID_TOP_LEVEL_KEYS = {
         "tools", "skills", "default_tier", "escalations",
-        "plugins", "mcp", "proxy",
+        "plugins", "mcp", "proxy", "sandbox", "isolation_chamber",
     }
 
     def __init__(

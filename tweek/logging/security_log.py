@@ -283,6 +283,11 @@ class EventType(Enum):
     SKILL_MANUAL_REVIEW = "skill_manual_review"         # Skill requires human review
     SKILL_INSTALL_BLOCKED = "skill_install_blocked"     # Direct install attempt blocked
 
+    # Project sandbox events
+    SANDBOX_PROJECT_INIT = "sandbox_project_init"       # Project .tweek/ created
+    SANDBOX_LAYER_CHANGE = "sandbox_layer_change"       # Project isolation layer changed
+    SANDBOX_MERGE_VIOLATION = "sandbox_merge_violation"  # Project tried to weaken global
+
     # System events
     HEALTH_CHECK = "health_check"           # Diagnostic check results
     STARTUP = "startup"                     # System initialization

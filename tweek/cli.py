@@ -24,6 +24,8 @@ import click
 import json
 import os
 import re
+import shutil
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
@@ -722,91 +724,415 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
 Examples:
   tweek uninstall                        Remove from current project
   tweek uninstall --global               Remove global installation
+  tweek uninstall --everything           Remove ALL Tweek data system-wide
   tweek uninstall --confirm              Skip confirmation prompt
 """
 )
 @click.option("--global", "uninstall_global", is_flag=True, default=False,
               help="Uninstall from ~/.claude/ (global installation)")
+@click.option("--everything", is_flag=True, default=False,
+              help="Remove ALL Tweek data: hooks, skills, config, patterns, logs, MCP integrations")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
-def uninstall(uninstall_global: bool, confirm: bool):
-    """Remove Tweek hooks from Claude Code.
+def uninstall(uninstall_global: bool, everything: bool, confirm: bool):
+    """Remove Tweek hooks and data from Claude Code.
 
     By default, removes from the current project (./.claude/).
     Use --global to remove from ~/.claude/.
+    Use --everything to remove ALL Tweek data system-wide.
+
+    This command can only be run from an interactive terminal.
+    AI agents are blocked from running it.
     """
     import json
 
+    # ─────────────────────────────────────────────────────────────
+    # HUMAN-ONLY GATE: Block non-interactive execution
+    # This is Layer 2 of protection (Layer 1 is the PreToolUse hook)
+    # ─────────────────────────────────────────────────────────────
+    if not confirm and not sys.stdin.isatty():
+        console.print("[red]ERROR: tweek uninstall must be run from an interactive terminal.[/red]")
+        console.print("[dim]This command cannot be run by AI agents or automated scripts.[/dim]")
+        console.print("[dim]Open a terminal and run the command directly.[/dim]")
+        raise SystemExit(1)
+
     console.print(TWEEK_BANNER, style="cyan")
 
-    # Determine target directory based on scope
-    if uninstall_global:
-        target = Path("~/.claude").expanduser()
-    else:  # project (default)
-        target = Path.cwd() / ".claude"
+    tweek_dir = Path("~/.tweek").expanduser()
+    global_target = Path("~/.claude").expanduser()
+    project_target = Path.cwd() / ".claude"
 
-    # Check if Tweek is installed at target
+    if everything:
+        _uninstall_everything(global_target, project_target, tweek_dir, confirm)
+    elif uninstall_global:
+        _uninstall_scope(global_target, tweek_dir, confirm, scope_label="global")
+    else:
+        _uninstall_scope(project_target, tweek_dir, confirm, scope_label="project")
+
+
+# ─────────────────────────────────────────────────────────────
+# Uninstall Helpers
+# ─────────────────────────────────────────────────────────────
+
+
+def _remove_hooks_from_settings(settings_file: Path) -> list:
+    """Remove Tweek hooks from a settings.json file.
+
+    Returns list of hook types removed (e.g. ['PreToolUse', 'PostToolUse']).
+    """
+    import json
+
+    removed = []
+
+    if not settings_file.exists():
+        return removed
+
+    try:
+        with open(settings_file) as f:
+            settings = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return removed
+
+    if not _has_tweek_hooks(settings):
+        return removed
+
+    for hook_type in ("PreToolUse", "PostToolUse"):
+        if "hooks" not in settings or hook_type not in settings["hooks"]:
+            continue
+
+        tool_hooks = settings["hooks"][hook_type]
+        filtered_hooks = []
+        for hook_config in tool_hooks:
+            filtered_inner = []
+            for hook in hook_config.get("hooks", []):
+                if "tweek" not in hook.get("command", "").lower():
+                    filtered_inner.append(hook)
+            if filtered_inner:
+                hook_config["hooks"] = filtered_inner
+                filtered_hooks.append(hook_config)
+
+        if filtered_hooks:
+            settings["hooks"][hook_type] = filtered_hooks
+        else:
+            del settings["hooks"][hook_type]
+            removed.append(hook_type)
+
+    # Clean up empty hooks dict
+    if "hooks" in settings and not settings["hooks"]:
+        del settings["hooks"]
+
+    with open(settings_file, "w") as f:
+        json.dump(settings, f, indent=2)
+
+    return removed
+
+
+def _remove_skill_directory(target: Path) -> bool:
+    """Remove the Tweek skill directory from a .claude/ target. Returns True if removed."""
+    skill_dir = target / "skills" / "tweek"
+    if skill_dir.exists() and skill_dir.is_dir():
+        shutil.rmtree(skill_dir)
+        return True
+    return False
+
+
+def _remove_backup_file(target: Path) -> bool:
+    """Remove the settings.json.tweek-backup file. Returns True if removed."""
+    backup = target / "settings.json.tweek-backup"
+    if backup.exists():
+        backup.unlink()
+        return True
+    return False
+
+
+def _remove_whitelist_entries(target: Path, tweek_dir: Path) -> int:
+    """Remove whitelist entries for target path from overrides.yaml. Returns count removed."""
+    import yaml
+
+    overrides_path = tweek_dir / "overrides.yaml"
+    if not overrides_path.exists():
+        return 0
+
+    try:
+        with open(overrides_path) as f:
+            data = yaml.safe_load(f) or {}
+    except (yaml.YAMLError, IOError):
+        return 0
+
+    whitelist = data.get("whitelist", [])
+    if not whitelist:
+        return 0
+
+    target_str = str(target.resolve())
+    original_count = len(whitelist)
+
+    data["whitelist"] = [
+        entry for entry in whitelist
+        if not (isinstance(entry, dict) and
+                str(Path(entry.get("path", "")).resolve()).startswith(target_str))
+    ]
+
+    removed_count = original_count - len(data["whitelist"])
+    if removed_count > 0:
+        with open(overrides_path, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+    return removed_count
+
+
+def _remove_tweek_data_dir(tweek_dir: Path) -> list:
+    """Remove ~/.tweek/ directory and all contents. Returns list of items removed."""
+    removed = []
+
+    if not tweek_dir.exists():
+        return removed
+
+    # Remove known items with individual feedback
+    items = [
+        ("config.yaml", "configuration"),
+        ("overrides.yaml", "security overrides"),
+        ("security.db", "security log database"),
+    ]
+    for filename, label in items:
+        filepath = tweek_dir / filename
+        if filepath.exists():
+            filepath.unlink()
+            removed.append(label)
+
+    dirs = [
+        ("patterns", "pattern repository"),
+        ("chamber", "skill isolation chamber"),
+        ("jail", "skill jail"),
+        ("skills", "managed skills"),
+    ]
+    for dirname, label in dirs:
+        dirpath = tweek_dir / dirname
+        if dirpath.exists() and dirpath.is_dir():
+            shutil.rmtree(dirpath)
+            removed.append(label)
+
+    # Remove any remaining files
+    remaining = list(tweek_dir.iterdir()) if tweek_dir.exists() else []
+    for item in remaining:
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+    # Remove the directory itself
+    if tweek_dir.exists():
+        try:
+            tweek_dir.rmdir()
+            removed.append("data directory (~/.tweek/)")
+        except OSError:
+            # Not empty for some reason
+            shutil.rmtree(tweek_dir, ignore_errors=True)
+            removed.append("data directory (~/.tweek/)")
+
+    return removed
+
+
+def _remove_mcp_integrations() -> list:
+    """Remove MCP integrations for all known clients. Returns list of clients removed."""
+    removed = []
+    clients = {
+        "claude-desktop": Path("~/Library/Application Support/Claude/claude_desktop_config.json").expanduser(),
+        "chatgpt": Path("~/Library/Application Support/com.openai.chat/config.json").expanduser(),
+    }
+
+    for client_name, config_path in clients.items():
+        if not config_path.exists():
+            continue
+        try:
+            import json
+            with open(config_path) as f:
+                config = json.load(f)
+            mcp_servers = config.get("mcpServers", {})
+            tweek_keys = [k for k in mcp_servers if "tweek" in k.lower()]
+            if tweek_keys:
+                for key in tweek_keys:
+                    del mcp_servers[key]
+                with open(config_path, "w") as f:
+                    json.dump(config, f, indent=2)
+                removed.append(client_name)
+        except (json.JSONDecodeError, IOError, KeyError):
+            continue
+
+    return removed
+
+
+def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: str):
+    """Uninstall Tweek from a single scope (project or global)."""
+    import json
+
     settings_file = target / "settings.json"
-    tweek_installed = False
+    has_hooks = False
+    has_skills = (target / "skills" / "tweek").exists()
+    has_backup = (target / "settings.json.tweek-backup").exists()
 
     if settings_file.exists():
         try:
             with open(settings_file) as f:
                 settings = json.load(f)
-            tweek_installed = _has_tweek_hooks(settings)
+            has_hooks = _has_tweek_hooks(settings)
         except (json.JSONDecodeError, IOError):
             pass
 
-    if not tweek_installed:
+    if not has_hooks and not has_skills and not has_backup:
         console.print(f"[yellow]No Tweek installation found at {target}[/yellow]")
         return
 
     console.print(f"[bold]Found Tweek installation at:[/bold] {target}")
     console.print()
+    console.print("[bold]The following will be removed:[/bold]")
+    if has_hooks:
+        console.print("  [dim]•[/dim] PreToolUse and PostToolUse hooks from settings.json")
+    if has_skills:
+        console.print("  [dim]•[/dim] Tweek skill directory (skills/tweek/)")
+    if has_backup:
+        console.print("  [dim]•[/dim] Backup file (settings.json.tweek-backup)")
+    console.print("  [dim]•[/dim] Project whitelist entries from overrides")
+    console.print()
 
     if not confirm:
-        if not click.confirm("[yellow]Remove Tweek hooks?[/yellow]"):
+        if not click.confirm(f"[yellow]Remove Tweek from this {scope_label}?[/yellow]"):
             console.print("[dim]Cancelled[/dim]")
             return
 
-    # Remove hooks
-    try:
-        with open(settings_file) as f:
-            settings = json.load(f)
+    console.print()
 
-        # Remove Tweek PreToolUse and PostToolUse hooks
-        for hook_type in ("PreToolUse", "PostToolUse"):
-            if "hooks" in settings and hook_type in settings["hooks"]:
-                # Filter out Tweek hooks
-                tool_hooks = settings["hooks"][hook_type]
-                filtered_hooks = []
-                for hook_config in tool_hooks:
-                    filtered_inner = []
-                    for hook in hook_config.get("hooks", []):
-                        if "tweek" not in hook.get("command", "").lower():
-                            filtered_inner.append(hook)
-                    if filtered_inner:
-                        hook_config["hooks"] = filtered_inner
-                        filtered_hooks.append(hook_config)
+    # 1. Remove hooks
+    removed_hooks = _remove_hooks_from_settings(settings_file)
+    for hook_type in removed_hooks:
+        console.print(f"  [green]✓[/green] Removed {hook_type} hook from settings.json")
+    if has_hooks and not removed_hooks:
+        console.print(f"  [red]✗[/red] Failed to remove hooks from settings.json")
 
-                if filtered_hooks:
-                    settings["hooks"][hook_type] = filtered_hooks
-                else:
-                    del settings["hooks"][hook_type]
+    # 2. Remove skill directory
+    if _remove_skill_directory(target):
+        console.print(f"  [green]✓[/green] Removed Tweek skill directory (skills/tweek/)")
+    else:
+        console.print(f"  [dim]-[/dim] Skipped: Tweek skill directory not found")
 
-        # Clean up empty hooks dict
-        if "hooks" in settings and not settings["hooks"]:
-            del settings["hooks"]
+    # 3. Remove backup file
+    if _remove_backup_file(target):
+        console.print(f"  [green]✓[/green] Removed backup file (settings.json.tweek-backup)")
+    else:
+        console.print(f"  [dim]-[/dim] Skipped: no backup file found")
 
-        with open(settings_file, "w") as f:
-            json.dump(settings, f, indent=2)
+    # 4. Remove whitelist entries
+    wl_count = _remove_whitelist_entries(target, tweek_dir)
+    if wl_count > 0:
+        console.print(f"  [green]✓[/green] Removed {wl_count} whitelist entry(s) from overrides")
+    else:
+        console.print(f"  [dim]-[/dim] Skipped: no whitelist entries found for this {scope_label}")
 
-        console.print(f"[green]✓[/green] Removed Tweek hooks from: {target}")
+    console.print()
+    console.print(f"[green]Uninstall complete.[/green] Tweek is no longer active for this {scope_label}.")
+    if scope_label == "project":
+        console.print("[dim]Global installation (~/.claude/) was not affected.[/dim]")
+        console.print("[dim]Tweek data directory (~/.tweek/) was preserved.[/dim]")
+    else:
+        console.print("[dim]Project installations were not affected.[/dim]")
+        console.print("[dim]Tweek data directory (~/.tweek/) was preserved.[/dim]")
+    console.print("[dim]Use --everything to remove all Tweek data.[/dim]")
 
-    except Exception as e:
-        console.print(f"[red]✗[/red] Failed to update {target}: {e}")
 
-    console.print("\n[green]Uninstall complete![/green]")
-    console.print("[dim]Tweek data directory (~/.tweek) was preserved. Remove manually if desired.[/dim]")
+def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: Path, confirm: bool):
+    """Full system removal of all Tweek data."""
+    import json
+
+    console.print("[bold yellow]FULL REMOVAL[/bold yellow] — This will remove ALL Tweek data:\n")
+    console.print("  [dim]•[/dim] Hooks from current project (.claude/settings.json)")
+    console.print("  [dim]•[/dim] Hooks from global installation (~/.claude/settings.json)")
+    console.print("  [dim]•[/dim] Tweek skill directories (project + global)")
+    console.print("  [dim]•[/dim] All backup files")
+    console.print("  [dim]•[/dim] Tweek data directory (~/.tweek/)")
+
+    # Show what exists in ~/.tweek/
+    if tweek_dir.exists():
+        for item in sorted(tweek_dir.iterdir()):
+            if item.is_dir():
+                console.print(f"      [dim]├── {item.name}/ [/dim]")
+            else:
+                console.print(f"      [dim]├── {item.name}[/dim]")
+
+    console.print("  [dim]•[/dim] MCP integrations (Claude Desktop, ChatGPT)")
+    console.print()
+
+    if not confirm:
+        response = click.prompt(
+            "[bold red]Type 'yes' to confirm full removal[/bold red]",
+            default="",
+            show_default=False,
+        )
+        if response.strip().lower() != "yes":
+            console.print("[dim]Cancelled[/dim]")
+            return
+
+    console.print()
+
+    # ── Project scope ──
+    console.print("[bold]Project scope (.claude/):[/bold]")
+    removed_hooks = _remove_hooks_from_settings(project_target / "settings.json")
+    for hook_type in removed_hooks:
+        console.print(f"  [green]✓[/green] Removed {hook_type} hook from project settings.json")
+    if not removed_hooks:
+        console.print(f"  [dim]-[/dim] Skipped: no project hooks found")
+
+    if _remove_skill_directory(project_target):
+        console.print(f"  [green]✓[/green] Removed Tweek skill from project")
+    else:
+        console.print(f"  [dim]-[/dim] Skipped: no project skill directory")
+
+    if _remove_backup_file(project_target):
+        console.print(f"  [green]✓[/green] Removed project backup file")
+    else:
+        console.print(f"  [dim]-[/dim] Skipped: no project backup file")
+
+    console.print()
+
+    # ── Global scope ──
+    console.print("[bold]Global scope (~/.claude/):[/bold]")
+    removed_hooks = _remove_hooks_from_settings(global_target / "settings.json")
+    for hook_type in removed_hooks:
+        console.print(f"  [green]✓[/green] Removed {hook_type} hook from global settings.json")
+    if not removed_hooks:
+        console.print(f"  [dim]-[/dim] Skipped: no global hooks found")
+
+    if _remove_skill_directory(global_target):
+        console.print(f"  [green]✓[/green] Removed Tweek skill from global installation")
+    else:
+        console.print(f"  [dim]-[/dim] Skipped: no global skill directory")
+
+    if _remove_backup_file(global_target):
+        console.print(f"  [green]✓[/green] Removed global backup file")
+    else:
+        console.print(f"  [dim]-[/dim] Skipped: no global backup file")
+
+    console.print()
+
+    # ── Tweek data directory ──
+    console.print("[bold]Tweek data (~/.tweek/):[/bold]")
+    data_removed = _remove_tweek_data_dir(tweek_dir)
+    for item in data_removed:
+        console.print(f"  [green]✓[/green] Removed {item}")
+    if not data_removed:
+        console.print(f"  [dim]-[/dim] Skipped: no data directory found")
+
+    console.print()
+
+    # ── MCP integrations ──
+    console.print("[bold]MCP integrations:[/bold]")
+    mcp_removed = _remove_mcp_integrations()
+    for client in mcp_removed:
+        console.print(f"  [green]✓[/green] Removed {client} MCP integration")
+    if not mcp_removed:
+        console.print(f"  [dim]-[/dim] Skipped: no MCP integrations found")
+
+    console.print()
+    console.print("[green]All Tweek data has been removed.[/green]")
+    console.print("[dim]To reinstall: pipx install tweek && tweek install[/dim]")
+    console.print("[dim]To also remove the Python package: pipx uninstall tweek[/dim]")
 
 
 def _load_overrides_yaml() -> tuple:
@@ -1648,16 +1974,16 @@ def protect_moltbot(port, paranoid, preset):
     "claude",
     epilog="""\b
 Examples:
-  tweek protect claude                 Install Claude Code hooks (global)
-  tweek protect claude --scope project Install for current project only
+  tweek protect claude                 Install Claude Code hooks (current project)
+  tweek protect claude --global        Install globally (all projects)
 """
 )
-@click.option("--scope", type=click.Choice(["global", "project"]), default="global",
-              help="Installation scope: global (~/.claude) or project (./.claude)")
+@click.option("--global", "install_global", is_flag=True, default=False,
+              help="Install globally to ~/.claude/ (protects all projects)")
 @click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
               default=None, help="Security preset to apply")
 @click.pass_context
-def protect_claude(ctx, scope, preset):
+def protect_claude(ctx, install_global, preset):
     """Install Tweek hooks for Claude Code.
 
     This is equivalent to 'tweek install' -- installs PreToolUse
@@ -1668,7 +1994,7 @@ def protect_claude(ctx, scope, preset):
     install_cmd = main.commands['install']
     ctx.invoke(
         install_cmd,
-        scope=scope,
+        install_global=install_global,
         dev_test=False,
         backup=True,
         skip_env_scan=False,
@@ -4227,6 +4553,385 @@ def skills_config(mode: Optional[str]):
     table.add_row("Review on HIGH Count", str(config.review_on_high_count))
 
     console.print(table)
+
+
+# =========================================================================
+# SANDBOX COMMANDS
+# =========================================================================
+
+@main.group()
+def sandbox():
+    """Project-level sandbox isolation management.
+
+    Layer 2 provides per-project security state isolation:
+    - Separate security event logs per project
+    - Project-scoped pattern overrides (additive-only)
+    - Project-scoped skill fingerprints
+    - Project-scoped configuration
+
+    Project overrides can ADD security but NEVER weaken global settings.
+    """
+    pass
+
+
+@sandbox.command("status")
+def sandbox_status():
+    """Show current project's sandbox info."""
+    from tweek.sandbox.project import get_project_sandbox, _detect_project_dir
+    from tweek.sandbox.layers import get_layer_description, IsolationLayer
+
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[yellow]Not inside a project directory (no .git/ or .claude/ found).[/yellow]")
+        return
+
+    sandbox = get_project_sandbox(os.getcwd())
+    if sandbox:
+        console.print(f"[bold]Project:[/bold] {sandbox.project_dir}")
+        console.print(f"[bold]Layer:[/bold] {sandbox.layer.value} ({sandbox.layer.name})")
+        console.print(f"[bold]Description:[/bold] {get_layer_description(sandbox.layer)}")
+        console.print(f"[bold]Tweek dir:[/bold] {sandbox.tweek_dir}")
+        console.print(f"[bold]Initialized:[/bold] {sandbox.is_initialized}")
+
+        if sandbox.is_initialized:
+            db_path = sandbox.tweek_dir / "security.db"
+            if db_path.exists():
+                size_kb = db_path.stat().st_size / 1024
+                console.print(f"[bold]Security DB:[/bold] {size_kb:.1f} KB")
+    else:
+        console.print(f"[bold]Project:[/bold] {project_dir}")
+        console.print(f"[bold]Layer:[/bold] 0-1 (no project isolation)")
+        console.print("[dim]Run 'tweek sandbox init' to enable project isolation.[/dim]")
+
+
+@sandbox.command("init")
+@click.option("--layer", type=int, default=2, help="Isolation layer (0=bypass, 1=skills, 2=project)")
+def sandbox_init(layer: int):
+    """Initialize sandbox for current project."""
+    from tweek.sandbox.project import ProjectSandbox, _detect_project_dir
+    from tweek.sandbox.layers import IsolationLayer, get_layer_description
+    from tweek.logging.security_log import get_logger, EventType
+
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[red]Not inside a project directory (no .git/ or .claude/ found).[/red]")
+        raise SystemExit(1)
+
+    isolation_layer = IsolationLayer.from_value(layer)
+    sandbox = ProjectSandbox(project_dir)
+    sandbox.config.layer = isolation_layer.value
+    sandbox.layer = isolation_layer
+
+    sandbox.initialize()
+
+    console.print(f"[green]Sandbox initialized for {project_dir}[/green]")
+    console.print(f"[bold]Layer:[/bold] {isolation_layer.value} ({isolation_layer.name})")
+    console.print(f"[bold]Description:[/bold] {get_layer_description(isolation_layer)}")
+    console.print(f"[bold]State directory:[/bold] {sandbox.tweek_dir}")
+
+    try:
+        logger = get_logger()
+        from tweek.logging.security_log import SecurityEvent
+        logger.log(SecurityEvent(
+            event_type=EventType.SANDBOX_PROJECT_INIT,
+            tool_name="cli",
+            decision="allow",
+            decision_reason=f"Project sandbox initialized at layer {isolation_layer.value}",
+            working_directory=str(project_dir),
+        ))
+    except Exception:
+        pass
+
+
+@sandbox.command("layer")
+@click.argument("level", type=int)
+def sandbox_layer(level: int):
+    """Set isolation layer for current project (0=bypass, 1=skills, 2=project)."""
+    from tweek.sandbox.project import _detect_project_dir
+    from tweek.sandbox.layers import IsolationLayer, get_layer_description
+    from tweek.sandbox.registry import get_registry
+
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[red]Not inside a project directory.[/red]")
+        raise SystemExit(1)
+
+    new_layer = IsolationLayer.from_value(level)
+    registry = get_registry()
+    registry.set_layer(project_dir, new_layer)
+
+    console.print(f"[green]Layer set to {new_layer.value} ({new_layer.name})[/green]")
+    console.print(f"[bold]Description:[/bold] {get_layer_description(new_layer)}")
+
+
+@sandbox.command("list")
+def sandbox_list():
+    """List all registered projects and their layers."""
+    from tweek.sandbox.registry import get_registry
+    from tweek.sandbox.layers import IsolationLayer
+    from rich.table import Table
+
+    registry = get_registry()
+    projects = registry.list_projects()
+
+    if not projects:
+        console.print("[dim]No projects registered. Run 'tweek sandbox init' in a project.[/dim]")
+        return
+
+    table = Table(title="Registered Projects")
+    table.add_column("Project", style="cyan")
+    table.add_column("Layer", style="green")
+    table.add_column("Last Used")
+    table.add_column("Auto-Init")
+
+    for p in projects:
+        layer = p["layer"]
+        table.add_row(
+            p["path"],
+            f"{layer.value} ({layer.name})",
+            p.get("last_used", "")[:19],
+            "Yes" if p.get("auto_initialized") else "No",
+        )
+
+    console.print(table)
+
+
+@sandbox.command("config")
+def sandbox_config():
+    """Show effective merged config (global + project)."""
+    from tweek.sandbox.project import get_project_sandbox, _detect_project_dir
+
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[red]Not inside a project directory.[/red]")
+        raise SystemExit(1)
+
+    sandbox = get_project_sandbox(os.getcwd())
+    if not sandbox:
+        console.print("[yellow]Project sandbox not active (layer < 2).[/yellow]")
+        return
+
+    console.print("[bold]Effective Configuration (global + project merge):[/bold]")
+    console.print(f"  Layer: {sandbox.layer.value} ({sandbox.layer.name})")
+    console.print(f"  Additive only: {sandbox.config.additive_only}")
+    console.print(f"  Auto gitignore: {sandbox.config.auto_gitignore}")
+
+    overrides = sandbox.get_overrides()
+    if overrides:
+        console.print(f"  Overrides loaded: Yes")
+        if hasattr(overrides, 'global_ovr') and hasattr(overrides, 'project_ovr'):
+            console.print(f"  Merge type: Additive-only (global + project)")
+        else:
+            console.print(f"  Merge type: Global only (no project overrides)")
+
+
+@sandbox.command("logs")
+@click.option("--global", "show_global", is_flag=True, help="Show global security log instead")
+@click.option("--limit", default=20, help="Number of events to show")
+def sandbox_logs(show_global: bool, limit: int):
+    """View project-scoped or global security log."""
+    from tweek.logging.security_log import SecurityLogger, get_logger
+
+    if show_global:
+        logger = get_logger()
+        console.print("[bold]Global Security Log[/bold]")
+    else:
+        from tweek.sandbox.project import get_project_sandbox
+        sandbox = get_project_sandbox(os.getcwd())
+        if sandbox:
+            logger = sandbox.get_logger()
+            console.print(f"[bold]Project Security Log[/bold] ({sandbox.project_dir})")
+        else:
+            logger = get_logger()
+            console.print("[bold]Global Security Log[/bold] (no project sandbox active)")
+
+    events = logger.get_recent_events(limit=limit)
+    if not events:
+        console.print("[dim]No events found.[/dim]")
+        return
+
+    from rich.table import Table
+    table = Table()
+    table.add_column("Time", style="dim")
+    table.add_column("Type")
+    table.add_column("Tool")
+    table.add_column("Decision", style="green")
+    table.add_column("Reason")
+
+    for e in events:
+        table.add_row(
+            str(e.get("timestamp", ""))[:19],
+            e.get("event_type", ""),
+            e.get("tool_name", ""),
+            e.get("decision", ""),
+            (e.get("decision_reason", "") or "")[:60],
+        )
+
+    console.print(table)
+
+
+@sandbox.command("reset")
+@click.option("--confirm", is_flag=True, help="Skip confirmation")
+def sandbox_reset(confirm: bool):
+    """Remove project .tweek/ and deregister."""
+    from tweek.sandbox.project import get_project_sandbox, _detect_project_dir
+
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[red]Not inside a project directory.[/red]")
+        raise SystemExit(1)
+
+    tweek_dir = project_dir / ".tweek"
+    if not tweek_dir.exists():
+        console.print("[yellow]No .tweek/ directory found in this project.[/yellow]")
+        return
+
+    if not confirm:
+        console.print(f"[yellow]This will remove {tweek_dir} and all project-scoped security state.[/yellow]")
+        if not click.confirm("Continue?"):
+            return
+
+    sandbox = get_project_sandbox(os.getcwd())
+    if sandbox:
+        sandbox.reset()
+        console.print(f"[green]Project sandbox removed: {tweek_dir}[/green]")
+    else:
+        # Manual cleanup
+        shutil.rmtree(tweek_dir, ignore_errors=True)
+        from tweek.sandbox.registry import get_registry
+        get_registry().deregister(project_dir)
+        console.print(f"[green]Removed: {tweek_dir}[/green]")
+
+
+@sandbox.command("verify")
+def sandbox_verify():
+    """Test that project isolation is working."""
+    from tweek.sandbox.project import get_project_sandbox, _detect_project_dir
+    from tweek.sandbox.layers import IsolationLayer
+
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[red]Not inside a project directory.[/red]")
+        raise SystemExit(1)
+
+    sandbox = get_project_sandbox(os.getcwd())
+    checks_passed = 0
+    checks_total = 0
+
+    # Check 1: Project detected
+    checks_total += 1
+    console.print(f"  Project detected: {project_dir}", end="")
+    console.print(" [green]OK[/green]")
+    checks_passed += 1
+
+    # Check 2: Sandbox initialized
+    checks_total += 1
+    if sandbox and sandbox.is_initialized:
+        console.print(f"  Sandbox initialized: {sandbox.tweek_dir}", end="")
+        console.print(" [green]OK[/green]")
+        checks_passed += 1
+    else:
+        console.print("  Sandbox initialized: [red]NO[/red]")
+        console.print("  [dim]Run 'tweek sandbox init' to enable.[/dim]")
+
+    # Check 3: Layer
+    checks_total += 1
+    if sandbox and sandbox.layer >= IsolationLayer.PROJECT:
+        console.print(f"  Isolation layer: {sandbox.layer.value} ({sandbox.layer.name})", end="")
+        console.print(" [green]OK[/green]")
+        checks_passed += 1
+    else:
+        layer_val = sandbox.layer.value if sandbox else 0
+        console.print(f"  Isolation layer: {layer_val} [yellow]BELOW PROJECT[/yellow]")
+
+    # Check 4: Security DB exists
+    checks_total += 1
+    if sandbox and (sandbox.tweek_dir / "security.db").exists():
+        console.print("  Project security.db: exists", end="")
+        console.print(" [green]OK[/green]")
+        checks_passed += 1
+    elif sandbox:
+        console.print("  Project security.db: [yellow]NOT FOUND[/yellow]")
+    else:
+        console.print("  Project security.db: [dim]N/A (sandbox inactive)[/dim]")
+
+    # Check 5: .gitignore
+    checks_total += 1
+    gitignore = project_dir / ".gitignore"
+    if gitignore.exists() and ".tweek" in gitignore.read_text():
+        console.print("  .gitignore includes .tweek/:", end="")
+        console.print(" [green]OK[/green]")
+        checks_passed += 1
+    else:
+        console.print("  .gitignore includes .tweek/: [yellow]NO[/yellow]")
+
+    console.print(f"\n  [bold]{checks_passed}/{checks_total} checks passed[/bold]")
+
+
+# Docker bridge commands
+@sandbox.group("docker")
+def sandbox_docker():
+    """Docker integration for container-level isolation."""
+    pass
+
+
+@sandbox_docker.command("init")
+def docker_init():
+    """Generate Docker Sandbox config for this project."""
+    from tweek.sandbox.docker_bridge import DockerBridge
+
+    bridge = DockerBridge()
+    if not bridge.is_docker_available():
+        console.print("[red]Docker is not installed or not running.[/red]")
+        console.print("[dim]Install Docker Desktop from https://www.docker.com/products/docker-desktop/[/dim]")
+        raise SystemExit(1)
+
+    from tweek.sandbox.project import _detect_project_dir
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[red]Not inside a project directory.[/red]")
+        raise SystemExit(1)
+
+    compose_path = bridge.init(project_dir)
+    console.print(f"[green]Docker Sandbox config generated: {compose_path}[/green]")
+    console.print("[dim]Run 'tweek sandbox docker run' to start the container.[/dim]")
+
+
+@sandbox_docker.command("run")
+def docker_run():
+    """Launch container-isolated session (requires Docker)."""
+    from tweek.sandbox.docker_bridge import DockerBridge
+    from tweek.sandbox.project import _detect_project_dir
+
+    bridge = DockerBridge()
+    if not bridge.is_docker_available():
+        console.print("[red]Docker is not available.[/red]")
+        raise SystemExit(1)
+
+    project_dir = _detect_project_dir(os.getcwd())
+    if not project_dir:
+        console.print("[red]Not inside a project directory.[/red]")
+        raise SystemExit(1)
+
+    console.print("[bold]Launching Docker sandbox...[/bold]")
+    bridge.run(project_dir)
+
+
+@sandbox_docker.command("status")
+def docker_status():
+    """Check Docker integration status."""
+    from tweek.sandbox.docker_bridge import DockerBridge
+
+    bridge = DockerBridge()
+    console.print(f"[bold]Docker available:[/bold] {bridge.is_docker_available()}")
+
+    from tweek.sandbox.project import _detect_project_dir
+    project_dir = _detect_project_dir(os.getcwd())
+    if project_dir:
+        compose = project_dir / ".tweek" / "docker-compose.yaml"
+        console.print(f"[bold]Docker config:[/bold] {'exists' if compose.exists() else 'not generated'}")
+    else:
+        console.print("[dim]Not in a project directory.[/dim]")
 
 
 if __name__ == "__main__":

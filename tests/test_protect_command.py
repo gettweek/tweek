@@ -309,7 +309,7 @@ class TestProtectClaude:
         """Test protect claude --help."""
         result = runner.invoke(main, ["protect", "claude", "--help"])
         assert result.exit_code == 0
-        assert "--scope" in result.output
+        assert "--global" in result.output
         assert "--preset" in result.output
 
 

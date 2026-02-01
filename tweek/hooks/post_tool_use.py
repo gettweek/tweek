@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from tweek.hooks.overrides import (
     get_overrides, get_trust_mode, filter_by_severity, SEVERITY_RANK,
 )
+from tweek.sandbox.project import get_project_sandbox
 
 
 def extract_response_content(tool_name: str, tool_response: Any) -> str:
@@ -94,11 +95,17 @@ def screen_content(
     tool_name: str,
     tool_input: Dict[str, Any],
     session_id: Optional[str] = None,
+    overrides_override=None,
+    logger_override=None,
 ) -> Dict[str, Any]:
     """
     Screen tool response content for prompt injection and security threats.
 
     Returns a PostToolUse decision dict. Empty dict means proceed normally.
+
+    Args:
+        overrides_override: Project-scoped overrides to use instead of global
+        logger_override: Project-scoped logger to use instead of global
     """
     if not content or len(content.strip()) < 3:
         return {}
@@ -126,8 +133,8 @@ def screen_content(
         matcher = PatternMatcher()
         matches = matcher.check_all(content)
 
-        # Apply pattern toggles from overrides
-        overrides = get_overrides()
+        # Apply pattern toggles from overrides (project-scoped if available)
+        overrides = overrides_override or get_overrides()
         if overrides and matches:
             source_path = tool_input.get("file_path", "") or tool_input.get("url", "") or ""
             matches = overrides.filter_patterns(matches, source_path)
@@ -189,11 +196,11 @@ def screen_content(
         except Exception:
             pass
 
-    # Step 4: Log the screening
+    # Step 4: Log the screening (use project-scoped logger if available)
     try:
         from tweek.logging.security_log import get_logger, EventType
 
-        logger = get_logger()
+        logger = logger_override or get_logger()
         correlation_id = uuid.uuid4().hex[:16]
 
         # Determine the source path/URL for logging
@@ -286,14 +293,22 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     tool_input = input_data.get("tool_input", {})
     tool_response = input_data.get("tool_response")
     session_id = input_data.get("session_id")
+    working_dir = input_data.get("cwd")
 
     # Only screen tools that return content worth analyzing
     screened_tools = {"Read", "WebFetch", "Bash", "Grep", "WebSearch"}
     if tool_name not in screened_tools:
         return {}
 
+    # Project sandbox: use project-scoped overrides if available
+    _sandbox = None
+    try:
+        _sandbox = get_project_sandbox(working_dir)
+    except Exception:
+        pass
+
     # WHITELIST CHECK: Skip post-screening for whitelisted sources
-    overrides = get_overrides()
+    overrides = _sandbox.get_overrides() if _sandbox else get_overrides()
     if overrides:
         whitelist_match = overrides.check_whitelist(tool_name, tool_input, "")
         if whitelist_match:
@@ -329,6 +344,8 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
         tool_name=tool_name,
         tool_input=tool_input,
         session_id=session_id,
+        overrides_override=overrides,
+        logger_override=_sandbox.get_logger() if _sandbox else None,
     )
 
 

@@ -64,7 +64,18 @@ __all__ = [
     "SANDBOX_AVAILABLE",
     "SANDBOX_TOOL",
     "get_sandbox_status",
+    # Project sandbox (Layer 2)
+    "IsolationLayer",
+    "ProjectSandbox",
+    "get_project_sandbox",
+    "ProjectRegistry",
+    "get_registry",
 ]
+
+# Project sandbox imports (always available, no platform dependency)
+from .layers import IsolationLayer
+from .project import ProjectSandbox, get_project_sandbox
+from .registry import ProjectRegistry, get_registry
 
 # Add Linux-specific exports if available
 if IS_LINUX:

@@ -51,6 +51,7 @@ from tweek.skills.guard import (
     get_skill_download_prompt,
 )
 from tweek.skills.fingerprints import get_fingerprints
+from tweek.sandbox.project import get_project_sandbox
 
 
 # =============================================================================
@@ -280,33 +281,134 @@ class TierManager:
 
         return highest_match
 
+    def check_path_escalation(
+        self,
+        target_paths: List[str],
+        working_dir: Optional[str],
+    ) -> Optional[Dict]:
+        """Check if any target paths are outside the working directory.
+
+        Returns an escalation dict if an out-of-project path is detected,
+        or None. The dict has the same shape as content-based escalations
+        (escalate_to, description keys) plus path_boundary and target_path.
+        """
+        if not working_dir or not target_paths:
+            return None
+
+        try:
+            cwd_resolved = Path(working_dir).expanduser().resolve()
+        except (OSError, ValueError):
+            return None
+
+        path_config = self.config.get("path_boundary", {})
+        if not path_config.get("enabled", True):
+            return None
+
+        sensitive_dirs = path_config.get("sensitive_directories", [
+            {"pattern": ".ssh", "escalate_to": "dangerous", "description": "SSH directory access"},
+            {"pattern": ".aws", "escalate_to": "dangerous", "description": "AWS credentials directory"},
+            {"pattern": ".gnupg", "escalate_to": "dangerous", "description": "GPG keyring directory"},
+            {"pattern": ".kube", "escalate_to": "dangerous", "description": "Kubernetes config directory"},
+            {"pattern": "/etc/shadow", "escalate_to": "dangerous", "description": "System shadow file"},
+            {"pattern": "/etc/sudoers", "escalate_to": "dangerous", "description": "Sudoers file"},
+            {"pattern": "/etc/passwd", "escalate_to": "risky", "description": "System passwd file"},
+        ])
+
+        default_escalate_to = path_config.get("default_escalate_to", "risky")
+
+        tier_priority = {"safe": 0, "default": 1, "risky": 2, "dangerous": 3}
+        highest_escalation = None
+        highest_priority = -1
+
+        for target_path_str in target_paths:
+            try:
+                target_resolved = Path(target_path_str).expanduser().resolve()
+            except (OSError, ValueError):
+                continue
+
+            # Check if path is inside the project
+            try:
+                target_resolved.relative_to(cwd_resolved)
+                continue  # Inside project -- no escalation
+            except ValueError:
+                pass  # Outside project -- check further
+
+            # Path is outside project. Check sensitive directories.
+            target_str_lower = str(target_resolved).lower()
+
+            matched_sensitive = False
+            for sensitive in sensitive_dirs:
+                pattern = sensitive.get("pattern", "")
+                if pattern and pattern in target_str_lower:
+                    esc_to = sensitive.get("escalate_to", "dangerous")
+                    priority = tier_priority.get(esc_to, 2)
+                    if priority > highest_priority:
+                        highest_priority = priority
+                        highest_escalation = {
+                            "escalate_to": esc_to,
+                            "description": f"Out-of-project access: {sensitive.get('description', pattern)}",
+                            "path_boundary": True,
+                            "target_path": target_path_str,
+                        }
+                    matched_sensitive = True
+                    break
+
+            if not matched_sensitive:
+                priority = tier_priority.get(default_escalate_to, 2)
+                if priority > highest_priority:
+                    highest_priority = priority
+                    highest_escalation = {
+                        "escalate_to": default_escalate_to,
+                        "description": f"Out-of-project file access: {target_path_str}",
+                        "path_boundary": True,
+                        "target_path": target_path_str,
+                    }
+
+        return highest_escalation
+
     def get_effective_tier(
         self,
         tool_name: str,
         content: str,
-        skill_name: Optional[str] = None
+        skill_name: Optional[str] = None,
+        target_paths: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
     ) -> tuple[str, Optional[Dict]]:
-        """Get the effective tier after checking escalations.
+        """Get the effective tier after checking content and path escalations.
 
         Returns (tier, escalation_match) where escalation_match is None
-        if no escalation occurred.
+        if no escalation occurred. Takes the highest of base tier,
+        content-based escalation, and path-boundary escalation.
         """
-        base_tier = self.get_base_tier(tool_name, skill_name)
-        escalation = self.check_escalations(content)
-
-        if escalation is None:
-            return base_tier, None
-
         tier_priority = {"safe": 0, "default": 1, "risky": 2, "dangerous": 3}
-        base_priority = tier_priority.get(base_tier, 1)
-        escalated_tier = escalation.get("escalate_to", "default")
-        escalated_priority = tier_priority.get(escalated_tier, 1)
 
-        # Only escalate, never de-escalate
-        if escalated_priority > base_priority:
-            return escalated_tier, escalation
+        base_tier = self.get_base_tier(tool_name, skill_name)
+        content_escalation = self.check_escalations(content)
+        path_escalation = self.check_path_escalation(
+            target_paths or [], working_dir
+        )
 
-        return base_tier, None
+        best_tier = base_tier
+        best_priority = tier_priority.get(base_tier, 1)
+        best_escalation = None
+
+        if content_escalation:
+            esc_tier = content_escalation.get("escalate_to", "default")
+            esc_priority = tier_priority.get(esc_tier, 1)
+            if esc_priority > best_priority:
+                best_tier = esc_tier
+                best_priority = esc_priority
+                best_escalation = content_escalation
+
+        if path_escalation:
+            esc_tier = path_escalation.get("escalate_to", "default")
+            esc_priority = tier_priority.get(esc_tier, 1)
+            if esc_priority > best_priority:
+                best_tier = esc_tier
+                best_priority = esc_priority
+                best_escalation = path_escalation
+
+        return best_tier, best_escalation
 
     def get_screening_methods(self, tier: str) -> List[str]:
         """Get the screening methods for a tier."""
@@ -532,6 +634,76 @@ def _check_project_skill_fingerprints(working_dir: Optional[str], _log) -> None:
             )
 
 
+# =============================================================================
+# PATH EXTRACTION: Extract filesystem target paths from tool inputs
+# =============================================================================
+
+
+def _extract_paths_from_bash(command: str) -> List[str]:
+    """Best-effort extraction of filesystem paths from a bash command.
+
+    Catches obvious cases like:
+      cat /etc/passwd
+      cp ~/.ssh/id_rsa /tmp/key
+      python3 /home/user/script.py
+
+    Intentionally simple -- does NOT handle pipes, subshells, or variable
+    expansion. Content-based escalations (259 patterns) cover the rest.
+    """
+    import shlex
+
+    paths: List[str] = []
+    if not command:
+        return paths
+
+    # Only look at the first simple command (before |, &&, ||, ;)
+    first_cmd = re.split(r'[|;&]', command)[0].strip()
+
+    try:
+        tokens = shlex.split(first_cmd)
+    except ValueError:
+        # Malformed quotes -- fall back to simple split
+        tokens = first_cmd.split()
+
+    for token in tokens:
+        if token.startswith('-'):
+            continue
+        if token.startswith('/') or token.startswith('~'):
+            paths.append(token)
+
+    return paths
+
+
+def extract_target_paths(tool_name: str, tool_input: Dict[str, Any]) -> List[str]:
+    """Extract filesystem paths from a tool invocation for boundary checking.
+
+    Returns a list of path strings. For tools with no filesystem target
+    (WebFetch, WebSearch), returns an empty list.
+    """
+    paths: List[str] = []
+
+    if tool_name in ("Read", "Write", "Edit"):
+        fp = tool_input.get("file_path", "")
+        if fp:
+            paths.append(fp)
+    elif tool_name == "NotebookEdit":
+        np = tool_input.get("notebook_path", "")
+        if np:
+            paths.append(np)
+    elif tool_name == "Glob":
+        gp = tool_input.get("path", "")
+        if gp:
+            paths.append(gp)
+    elif tool_name == "Grep":
+        gp = tool_input.get("path", "")
+        if gp:
+            paths.append(gp)
+    elif tool_name == "Bash":
+        paths.extend(_extract_paths_from_bash(tool_input.get("command", "")))
+
+    return paths
+
+
 def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     """Main hook logic with tiered security screening.
 
@@ -565,6 +737,21 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             session_id=session_id,
             **kwargs
         )
+
+    # =========================================================================
+    # PROJECT SANDBOX: Initialize per-project security state isolation
+    # Provides project-scoped logger, overrides, and fingerprints (Layer 2)
+    # =========================================================================
+    _sandbox = None
+    try:
+        _sandbox = get_project_sandbox(working_dir)
+        if _sandbox:
+            # Replace logger with project-scoped one (Python closures are
+            # late-binding, so _log will use the new logger automatically)
+            logger = _sandbox.get_logger()
+    except Exception:
+        # Sandbox init is best-effort — fall back to global state
+        _sandbox = None
 
     # =========================================================================
     # SKILL FINGERPRINT CHECK: Detect new/modified git-arrived skills
@@ -624,26 +811,37 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                 }
             }
 
-        # Block AI from running tweek trust/untrust — trust decisions are human-only
+        # Block AI from running tweek trust/untrust/uninstall — human-only commands
         command_stripped = command.strip()
-        if re.match(r"tweek\s+(trust|untrust)\b", command_stripped):
+        if re.match(r"tweek\s+(trust|untrust|uninstall)\b", command_stripped):
+            if "uninstall" in command_stripped:
+                reason = (
+                    "TWEEK SELF-PROTECTION: Uninstall must be done by a human.\n"
+                    "Run this command directly in your terminal:\n"
+                    f"  {command_stripped}\n"
+                    "AI agents cannot remove security protections."
+                )
+                log_reason = "BLOCKED: AI cannot run tweek uninstall"
+            else:
+                reason = (
+                    "TWEEK SELF-PROTECTION: Trust decisions must be made by a human.\n"
+                    "Run this command directly in your terminal:\n"
+                    f"  {command_stripped}\n"
+                    "Trust settings control which projects are exempt from security screening."
+                )
+                log_reason = "BLOCKED: AI cannot modify trust settings"
             _log(
                 EventType.BLOCKED,
                 tool_name,
                 tier="self_protection",
                 decision="deny",
-                decision_reason="BLOCKED: AI cannot modify trust settings",
+                decision_reason=log_reason,
             )
             return {
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "permissionDecision": "deny",
-                    "permissionDecisionReason": (
-                        "TWEEK SELF-PROTECTION: Trust decisions must be made by a human.\n"
-                        "Run this command directly in your terminal:\n"
-                        f"  {command_stripped}\n"
-                        "Trust settings control which projects are exempt from security screening."
-                    ),
+                    "permissionDecisionReason": reason,
                 }
             }
 
@@ -686,6 +884,9 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                 }
             }
 
+    # Extract target filesystem paths for boundary checking
+    target_paths = extract_target_paths(tool_name, tool_input)
+
     # Extract content to analyze (command for Bash, path + payload for Write/Edit, etc.)
     if tool_name == "Bash":
         content = tool_input.get("command", "")
@@ -714,6 +915,16 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         content = f"{url}\n{prompt}" if prompt else url
     elif tool_name == "WebSearch":
         content = tool_input.get("query", "")
+    elif tool_name == "Glob":
+        content = tool_input.get("pattern", "")
+        glob_path = tool_input.get("path", "")
+        if glob_path:
+            content = f"{glob_path}\n{content}"
+    elif tool_name == "Grep":
+        content = tool_input.get("pattern", "")
+        grep_path = tool_input.get("path", "")
+        if grep_path:
+            content = f"{grep_path}\n{content}"
     else:
         content = json.dumps(tool_input)
 
@@ -722,9 +933,9 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
 
     # =========================================================================
     # WHITELIST CHECK: Skip screening for whitelisted tool+path combinations
-    # Loaded from ~/.tweek/overrides.yaml (human-only config)
+    # Uses project-scoped overrides (additive-only merge) if sandbox active
     # =========================================================================
-    overrides = get_overrides()
+    overrides = _sandbox.get_overrides() if _sandbox else get_overrides()
     if overrides:
         whitelist_match = overrides.check_whitelist(tool_name, tool_input, content)
         if whitelist_match:
@@ -765,7 +976,11 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     pattern_matcher = _get_pattern_matcher()
 
     # Determine effective tier
-    effective_tier, escalation = tier_mgr.get_effective_tier(tool_name, content)
+    effective_tier, escalation = tier_mgr.get_effective_tier(
+        tool_name, content,
+        target_paths=target_paths,
+        working_dir=working_dir,
+    )
     screening_methods = tier_mgr.get_screening_methods(effective_tier)
 
     # =========================================================================

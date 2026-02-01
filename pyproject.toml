@@ -94,7 +94,11 @@ include = ["tweek*"]
 exclude = ["website*", "tests*", "scripts*", "test-environment*", "docs*"]
 
 [tool.setuptools.package-data]
-tweek = ["config/*.yaml"]
+tweek = [
+    "config/*.yaml",
+    "skill_template/*.md",
+    "skill_template/scripts/*.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

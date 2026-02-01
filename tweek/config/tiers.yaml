@@ -201,5 +201,39 @@ escalations:
     description: "Chain-of-thought hijacking: request to trace internal processes"
     escalate_to: risky
 
+# Path boundary escalation
+# Escalates tier when tool targets files outside the project working directory.
+# Additive to content-based escalations -- both are evaluated, highest tier wins.
+path_boundary:
+  enabled: true
+
+  # Default escalation for generic out-of-project access
+  default_escalate_to: risky
+
+  # Sensitive system directories get higher escalation than generic
+  # out-of-project access. Uses substring matching on the resolved path.
+  sensitive_directories:
+    - pattern: ".ssh"
+      escalate_to: dangerous
+      description: "SSH directory access"
+    - pattern: ".aws"
+      escalate_to: dangerous
+      description: "AWS credentials directory"
+    - pattern: ".gnupg"
+      escalate_to: dangerous
+      description: "GPG keyring directory"
+    - pattern: ".kube"
+      escalate_to: dangerous
+      description: "Kubernetes config directory"
+    - pattern: "/etc/shadow"
+      escalate_to: dangerous
+      description: "System shadow file"
+    - pattern: "/etc/sudoers"
+      escalate_to: dangerous
+      description: "Sudoers file"
+    - pattern: "/etc/passwd"
+      escalate_to: risky
+      description: "System passwd file"
+
 # Default tier for unclassified tools/skills
 default_tier: default

@@ -242,7 +242,7 @@ class TestUninstallCommand:
                 }
             }))
 
-            result = runner.invoke(main, ['uninstall', '--scope', 'project', '--confirm'])
+            result = runner.invoke(main, ['uninstall', '--confirm'])
 
             # Check hooks were removed
             if settings_file.exists():
@@ -447,7 +447,7 @@ class TestCLIHelp:
         """Test install help message."""
         result = runner.invoke(main, ['install', '--help'])
         assert result.exit_code == 0
-        assert "scope" in result.output.lower()
+        assert "global" in result.output.lower()
 
     def test_license_help(self, runner):
         """Test license help message."""

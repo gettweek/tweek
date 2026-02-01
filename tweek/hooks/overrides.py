@@ -31,6 +31,7 @@ OVERRIDES_PATH = Path.home() / ".tweek" / "overrides.yaml"
 PROTECTED_CONFIG_FILES = [
     OVERRIDES_PATH,
     Path.home() / ".tweek" / "skills",  # Entire skills management directory
+    Path.home() / ".tweek" / "projects",  # Project registry
 ]
 
 
@@ -308,16 +309,32 @@ def is_protected_config_file(file_path: str) -> bool:
     """
     Check if a file path points to a human-only config file.
 
-    Used by PreToolUse to block Write/Edit targeting overrides.yaml.
+    Used by PreToolUse to block Write/Edit targeting overrides.yaml,
+    project sandbox config, and other protected paths.
     """
     if not file_path:
         return False
     try:
         resolved = Path(file_path).expanduser().resolve()
+
+        # Check explicit protected paths
         for protected in PROTECTED_CONFIG_FILES:
             protected_resolved = protected.resolve()
             if resolved == protected_resolved:
                 return True
+            # Check if target is inside a protected directory
+            try:
+                resolved.relative_to(protected_resolved)
+                return True
+            except ValueError:
+                pass
+
+        # Protect project-level .tweek/ directories (sandbox state)
+        # Any file inside a .tweek/ directory is protected
+        for part in resolved.parts:
+            if part == ".tweek":
+                return True
+
     except (OSError, ValueError):
         pass
     return False
@@ -361,6 +378,19 @@ def bash_targets_protected_config(command: str) -> bool:
         rf'tee\s+.*{re.escape(overrides_str)}',
     ]
     for pattern in full_path_patterns:
+        if re.search(pattern, command, re.IGNORECASE):
+            return True
+
+    # Protect project-level .tweek/ directories (sandbox state)
+    tweek_dir_patterns = [
+        r'(>|>>)\s*.*\.tweek/',
+        r'(cp|mv|rsync)\s+.*\.tweek/',
+        r'rm\s+(-rf?\s+)?.*\.tweek/',
+        r'tee\s+.*\.tweek/',
+        r'sed\s+-i.*\.tweek/',
+        r'(echo|cat|printf)\s+.*>\s*.*\.tweek/',
+    ]
+    for pattern in tweek_dir_patterns:
         if re.search(pattern, command, re.IGNORECASE):
             return True
 
