@@ -233,7 +233,7 @@ class TestCheckPythonVersion:
     """Tests for _check_python_version pre-flight check."""
 
     def test_passes_on_current_python(self, capsys):
-        """Should pass on the Python running these tests (>= 3.11)."""
+        """Should pass on the Python running these tests (>= 3.10)."""
         _check_python_version(Console(), quick=False)
         captured = capsys.readouterr()
         assert "Python" in captured.out
@@ -254,7 +254,7 @@ class TestCheckPythonVersion:
         except SystemExit:
             pass
         captured = capsys.readouterr()
-        assert "3.11" in captured.out
+        assert "3.10" in captured.out
         assert "install" in captured.out.lower()
 
     def test_warns_system_python_mismatch(self, monkeypatch, capsys):

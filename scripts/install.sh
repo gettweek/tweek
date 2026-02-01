@@ -51,18 +51,18 @@ cat << 'BANNER'
 BANNER
 echo -e "${NC}"
 
-# ── Check Python 3.11+ ─────────────────────────────────────────
+# ── Check Python 3.10+ ─────────────────────────────────────────
 check_python() {
     local py=""
+    local ver=""
 
     for cmd in python3 python; do
         if command -v "$cmd" &>/dev/null; then
-            local ver
             ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
             local major minor
             major=$(echo "$ver" | cut -d. -f1)
             minor=$(echo "$ver" | cut -d. -f2)
-            if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 11 ]; then
+            if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 10 ]; then
                 py="$cmd"
                 break
             fi
@@ -70,12 +70,79 @@ check_python() {
     done
 
     if [ -z "$py" ]; then
-        fail "Python 3.11+ required"
+        echo -e "${RED}✗${NC} Python 3.10+ required (found: ${ver:-none})"
         echo ""
-        echo "  macOS:   brew install python@3.12"
-        echo "  Ubuntu:  sudo apt install python3.12"
-        echo "  Other:   https://www.python.org/downloads/"
-        exit 1
+
+        # On macOS, offer to install via Homebrew
+        if [ "$(uname -s)" = "Darwin" ]; then
+            if command -v brew &>/dev/null; then
+                if [ "$INTERACTIVE" = true ]; then
+                    echo -ne "${CYAN}→${NC} Install Python 3.12 via Homebrew? ${DIM}[Y/n]${NC} "
+                    read -r reply </dev/tty
+                    if [[ ! "$reply" =~ ^[Nn]$ ]]; then
+                        step "Installing Python 3.12 via Homebrew..."
+                        brew install python@3.12
+                        # Retry detection after install
+                        for cmd in python3 python; do
+                            if command -v "$cmd" &>/dev/null; then
+                                ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
+                                major=$(echo "$ver" | cut -d. -f1)
+                                minor=$(echo "$ver" | cut -d. -f2)
+                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 10 ]; then
+                                    py="$cmd"
+                                    break
+                                fi
+                            fi
+                        done
+                        if [ -z "$py" ]; then
+                            echo ""
+                            warn "Python installed but not on PATH. Try:"
+                            echo "  brew link python@3.12"
+                            echo "  Then re-run this installer."
+                            exit 1
+                        fi
+                    else
+                        echo ""
+                        echo "  To install manually:"
+                        echo "    brew install python@3.12"
+                        echo "    brew link python@3.12"
+                        echo ""
+                        echo "  Or visit: https://www.python.org/downloads/"
+                        exit 1
+                    fi
+                else
+                    echo "  Install Python 3.12 via Homebrew:"
+                    echo "    brew install python@3.12"
+                    echo "    brew link python@3.12"
+                    echo ""
+                    echo "  Then re-run this installer."
+                    exit 1
+                fi
+            else
+                echo "  Install Python via one of:"
+                echo "    1. Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+                echo "       Then: brew install python@3.12"
+                echo "    2. python.org: https://www.python.org/downloads/"
+                echo "    3. pyenv: https://github.com/pyenv/pyenv#installation"
+                exit 1
+            fi
+        elif [ "$(uname -s)" = "Linux" ]; then
+            echo "  Install Python 3.10+:"
+            if command -v apt &>/dev/null; then
+                echo "    sudo apt update && sudo apt install python3.12 python3.12-venv"
+            elif command -v dnf &>/dev/null; then
+                echo "    sudo dnf install python3.12"
+            elif command -v pacman &>/dev/null; then
+                echo "    sudo pacman -S python"
+            else
+                echo "    Install python3.12 via your package manager"
+            fi
+            echo "  Or use pyenv: https://github.com/pyenv/pyenv#installation"
+            exit 1
+        else
+            echo "  Download Python 3.10+: https://www.python.org/downloads/"
+            exit 1
+        fi
     fi
 
     info "Python $ver found ($py)"
