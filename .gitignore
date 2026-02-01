@@ -72,5 +72,12 @@ test-mcp-sandbox/
 # Tweek local data (user-specific security events, config)
 .tweek/
 
+# Model files — large binaries, never commit
+*.onnx
+models/
+**/models/*.onnx
+**/models/tokenizer.json
+**/models/model_meta.yaml
+
 # Red-team testing (local only, never committed)
 redteam/
