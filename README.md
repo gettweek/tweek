@@ -108,6 +108,23 @@ See the full [Attack Patterns Reference](docs/ATTACK_PATTERNS.md) for all 259 pa
 
 ---
 
+## How It Works — 6 Defense Layers
+
+Every tool call passes through six independent screening layers. An attacker would have to beat all of them.
+
+| Layer | What It Does |
+|-------|-------------|
+| **1. Pattern Matching** | 259 regex signatures catch known credential theft, exfiltration, and injection attacks instantly |
+| **2. Rate Limiting** | Detects burst attacks, automated probing, and resource theft sequences |
+| **3. Local Prompt Injection AI** | Custom-trained AI models built specifically to classify and detect prompt injection. Run 100% on your machine — no API calls, no cloud, no latency. Small enough to be fast, accurate enough to catch what regex can't. |
+| **4. Session Tracking** | Behavioral analysis across turns detects multi-step attacks that look innocent individually |
+| **5. Sandbox Preview** | Executes suspicious commands in an isolated environment to observe what they *try* to do |
+| **6. Response Screening** | Scans tool outputs for hidden instructions, catching injection from web pages, emails, and MCP responses |
+
+See [Defense Layers](docs/DEFENSE_LAYERS.md) for the deep dive and [Architecture](docs/ARCHITECTURE.md) for the full system design.
+
+---
+
 ## Documentation
 
 | Guide | Description |
@@ -157,7 +174,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security
 
-Tweek runs **100% locally**. Your code never leaves your machine. All screening, pattern matching, and logging happens on-device. The only external calls are the optional LLM review layer, which sends only the suspicious command text — never your source code. You bring your own API key.
+Tweek runs **100% locally**. Your code never leaves your machine. All screening, pattern matching, logging, and AI-powered prompt injection detection happens on-device. The built-in classification models run entirely on your hardware — no API calls, no cloud, no data exfiltration risk from the security tool itself.
 
 To report a security vulnerability, email security@gettweek.com.
 
