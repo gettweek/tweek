@@ -156,7 +156,7 @@ rate_limiting:
 ## Layer 2: Pattern Matching
 
 **Source**: `tweek/config/patterns.yaml`, `tweek/hooks/pre_tool_use.py` -> `PatternMatcher`
-**License**: Free (all 215 patterns)
+**License**: Free (all 259 patterns)
 
 Regex-based detection of known attack vectors. Patterns are loaded from YAML and matched
 against extracted content (commands, file paths, or URLs).
@@ -187,8 +187,13 @@ against extracted content (commands, file paths, or URLs).
 | **Reconnaissance** | 108-110 | 3 | System profiling, network scanning, process enumeration |
 | **Encoding/Obfuscation** | 111-113 | 3 | Base64 encoding secrets, hex encoding, gzip obfuscation |
 | **Permission Changes** | 114-116 | 3 | chmod sensitive files, chown escalation, SUID/SGID modification |
+| **Evasion Techniques** | 117-126 | 10 | Python/Perl/Ruby file reads, curl writes, tar archives, symlinks, find -exec, importlib, variable indirection |
+| **CVE Gap Coverage** | 127-168 | 42 | LLM framework injection, IDE config manipulation, MCP OAuth attacks, container bypass, symlink traversal, rendering RCE, deserialization, SSRF, SQL/NoSQL injection, supply chain, WebSocket |
+| **Prompt Injection (Broad)** | 169-215 | 47 | Encoding attacks, direct extraction, social engineering, technical exploitation, crescendo, CoT hijack, many-shot, ASCII art, advanced jailbreaks |
+| **CVE Gap Analysis** | 216-249 | 34 | Reverse shell variants, AI agent attacks, privilege escalation, sandbox escape, LLM code gen RCE, MCP tool poisoning, deserialization expansion, SSRF cloud metadata, path traversal, supply chain |
+| **Red Team Hardening** | 250-259 | 10 | Indirect extraction, crescendo openers, self-descriptive leak detection |
 
-**Total**: 215 patterns across 4 severity levels.
+**Total**: 259 patterns across 4 severity levels.
 
 ### Severity Distribution
 

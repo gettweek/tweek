@@ -7,15 +7,15 @@ prompt injection, MCP vulnerabilities, and more.
 
 ## Overview
 
-Tweek ships with **215 attack patterns** across 9 categories, all included
+Tweek ships with **259 attack patterns** across 11 categories, all included
 free in every tier. Patterns are defined in `tweek/config/patterns.yaml` and
 are updated via `tweek update`.
 
 | Metric            | Value                                      |
 |-------------------|--------------------------------------------|
-| Total patterns    | 215                                        |
-| Pattern version   | 3                                          |
-| Categories        | 9                                          |
+| Total patterns    | 259                                        |
+| Pattern version   | 5                                          |
+| Categories        | 11                                         |
 | Severity levels   | 4 (critical, high, medium, low)            |
 | Update source     | `github.com/gettweek/tweek`                |
 | Available in      | All users (free and open source)           |
@@ -36,7 +36,7 @@ Each pattern in `patterns.yaml` has the following fields:
 
 | Field         | Type   | Description                                       |
 |---------------|--------|---------------------------------------------------|
-| `id`          | int    | Sequential pattern number (1-215)                 |
+| `id`          | int    | Sequential pattern number (1-259)                 |
 | `name`        | string | Unique identifier (snake_case)                    |
 | `description` | string | Human-readable explanation                        |
 | `regex`       | string | Python-compatible regular expression               |
@@ -453,6 +453,167 @@ Detects the structural anomalies that encoding attacks produce, not specific enc
 
 ---
 
+## Category 10: CVE Gap Analysis (Patterns 216-249)
+
+34 patterns addressing critical gaps identified by cross-referencing 1,633 CVEs against
+existing detection coverage. Covers reverse shell variants, AI agent workflow attacks,
+privilege escalation, sandbox escape, LLM code generation RCE, MCP tool poisoning,
+deserialization, SSRF, path traversal, and supply chain attacks.
+
+### Reverse Shell Variants (216-220)
+
+Extends reverse shell coverage beyond bash/netcat to Python, PHP, Perl, Ruby, mkfifo,
+and encoded payloads (74 CVEs tagged reverse-shell).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 216 | `reverse_shell_python` | critical | Python reverse shell via socket and subprocess |
+| 217 | `reverse_shell_php` | critical | PHP reverse shell via fsockopen or socket_create |
+| 218 | `reverse_shell_perl_ruby` | critical | Perl or Ruby reverse shell via socket |
+| 219 | `reverse_shell_mkfifo` | critical | Named pipe (mkfifo) reverse shell technique |
+| 220 | `reverse_shell_encoded` | critical | Base64/hex encoded reverse shell piped to shell |
+
+### AI Agent Workflow Attacks (221-224)
+
+Addresses agent tool redirection, unsandboxed execution, scope escalation, and memory
+poisoning (346 CVEs related to AI agents).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 221 | `agent_tool_redirection` | high | Redirecting AI agent tool calls to unauthorized endpoints |
+| 222 | `agent_unsandboxed_exec` | high | LLM-generated code execution without sandbox isolation |
+| 223 | `agent_scope_escalation` | high | Expanding AI agent permissions beyond defined scope |
+| 224 | `agent_memory_poisoning` | high | Injecting false instructions into AI agent memory |
+
+### Privilege Escalation (225-229)
+
+Extends beyond chmod/chown/setuid to sudo abuse, SUID hunting, cron injection,
+PATH hijacking, and capability manipulation (50 CVEs tagged privilege-escalation).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 225 | `privesc_sudo_abuse` | critical | Sudo enumeration or LD_PRELOAD privilege escalation |
+| 226 | `privesc_suid_hunt` | high | Scanning filesystem for setuid/setgid binaries |
+| 227 | `privesc_cron_inject` | critical | Writing to crontab or cron directories |
+| 228 | `privesc_path_hijack` | high | PATH manipulation to intercept privileged commands |
+| 229 | `privesc_capability_abuse` | high | Linux capability manipulation for privilege escalation |
+
+### Advanced Sandbox Escape (230-233)
+
+Addresses Python import chains, container magic domains, /proc leaks, and whitelisted
+function abuse (192 CVEs tagged sandbox-escape).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 230 | `sandbox_import_chain` | critical | Chained Python imports to escape restricted environment |
+| 231 | `sandbox_magic_domain_variants` | high | Container-to-host network escape via magic domains |
+| 232 | `sandbox_proc_leak` | high | Reading /proc filesystem to leak host information |
+| 233 | `sandbox_whitelisted_escape` | critical | Abusing whitelisted Python functions to escape sandbox |
+
+### LLM Code Generation RCE (234-236)
+
+Framework-mediated code execution, LLM output piped to shell, and Node.js vm
+escapes (381 CVEs tagged RCE).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 234 | `llm_code_interpreter_exec` | high | Framework-level code execution functions |
+| 235 | `llm_shell_generation` | critical | LLM-generated content passed to shell execution |
+| 236 | `llm_node_vm_escape` | high | Node.js vm module escape for arbitrary code execution |
+
+### Tool Poisoning / MCP Extended (237-240)
+
+Hidden Unicode in tool descriptions, prompt injection via tool responses,
+multi-tool chain attacks, and description manipulation.
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 237 | `mcp_hidden_unicode_instruction` | high | Invisible Unicode hiding instructions in tool descriptions |
+| 238 | `mcp_response_injection` | critical | LLM control tokens or injection in MCP tool responses |
+| 239 | `mcp_cross_tool_chain` | medium | Instructing agent to chain multiple tool calls in sequence |
+| 240 | `mcp_description_manipulation` | high | Tool descriptions containing instruction-like directives |
+
+### Deserialization Expansion (241-243)
+
+Extends beyond pickle/yaml to marshal, dill, cloudpickle, and jsonpickle (22 CVEs).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 241 | `python_marshal_deserialize` | high | Python marshal deserialization (arbitrary code execution) |
+| 242 | `python_dill_cloudpickle` | high | Unsafe deserialization via dill, cloudpickle, or shelve |
+| 243 | `jsonpickle_deserialize` | high | Jsonpickle deserialization allowing object instantiation |
+
+### SSRF Cloud Metadata (244-245)
+
+Extends cloud metadata coverage beyond AWS to GCP, Azure, and link-local bypasses (35 CVEs).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 244 | `ssrf_cloud_metadata_gcp_azure` | high | SSRF targeting GCP or Azure instance metadata |
+| 245 | `ssrf_link_local_bypass` | high | Link-local address variants to bypass SSRF filters |
+
+### Path Traversal Variants (246-247)
+
+Extends beyond symlink patterns to encoded traversal and null bytes (46 CVEs).
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 246 | `path_traversal_encoded` | high | URL-encoded or double-encoded directory traversal |
+| 247 | `path_traversal_windows` | medium | Windows-style path traversal with backslash variants |
+
+### Supply Chain Attacks (248-249)
+
+Typosquatting of popular AI/ML packages and suspicious post-install scripts.
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 248 | `supply_chain_typosquat_ai` | high | Installing typosquatted AI/ML packages |
+| 249 | `supply_chain_postinstall_exec` | medium | Package install with suspicious post-install execution |
+
+---
+
+## Category 11: Red Team Hardening (Patterns 250-259)
+
+10 patterns addressing bypasses found during multi-LLM TAP red team testing
+(165 attacks, 10 bypasses, 4 hint-level leaks). These patterns close gaps
+discovered through adversarial testing against the existing pattern set.
+
+### Indirect Extraction (250-253)
+
+Catches indirect framing that bypassed existing patterns: "what your creators told you",
+"purpose and rules", "authentication flow debugging".
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 250 | `indirect_creator_extraction` | medium | Indirect system prompt extraction via creator/purpose framing |
+| 251 | `verbatim_repeat_framing` | high | Request to repeat instructions verbatim or word-for-word |
+| 252 | `authentication_flow_extraction` | medium | Debugging framing to extract authentication tokens or keys |
+| 253 | `internal_architecture_probe` | medium | Probing internal response framework or foundational guidelines |
+
+### Crescendo Openers (254-256)
+
+Gradual escalation from benign curiosity about AI design — the most effective
+strategy with 3 bypasses in red team testing.
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 254 | `crescendo_design_philosophy` | medium | Philosophical framing about AI creation as crescendo opener |
+| 255 | `crescendo_ai_curiosity` | medium | "Curious about how AI systems are designed" opener |
+| 256 | `crescendo_helpfulness_probe` | medium | Probing what guides helpfulness as extraction vector |
+
+### PostToolUse Self-Descriptive Leak Detection (257-259)
+
+Detects self-descriptive leak indicators in LLM output — even when attacks
+bypassed screening, the target LLM sometimes paraphrased sensitive information.
+
+| ID  | Name | Severity | Description |
+|-----|------|----------|-------------|
+| 257 | `self_describe_purpose` | low | LLM output describing its own purpose or design intent |
+| 258 | `self_describe_protection` | low | LLM output describing its confidentiality protections |
+| 259 | `self_describe_instructions` | low | LLM output referencing its own instructions or guidelines |
+
+---
+
 ## Pattern Update Mechanism
 
 Patterns are updated via the CLI:
@@ -504,7 +665,7 @@ See [LICENSING.md](./LICENSING.md) for feature availability by tier.
    command content
 2. **Tier lookup** -- The tool's security tier determines which screening
    layers apply (all tiers include regex pattern matching)
-3. **Pattern scan** -- Each of the 215 patterns is tested against the command
+3. **Pattern scan** -- Each of the 259 patterns is tested against the command
 4. **Severity evaluation** -- Matched patterns are ranked by severity
 5. **Decision** -- Critical/high matches block or prompt; medium matches
    prompt; low matches are logged
@@ -517,14 +678,14 @@ See [LICENSING.md](./LICENSING.md) for feature availability by tier.
 
 | Severity | Count | Percentage |
 |----------|-------|------------|
-| Critical | 56    | 26%        |
-| High     | 111   | 52%        |
-| Medium   | 44    | 20%        |
-| Low      | 4     | 2%         |
-| **Total**| **215** | **100%** |
+| Critical | 68    | 26%        |
+| High     | 131   | 51%        |
+| Medium   | 53    | 20%        |
+| Low      | 7     | 3%         |
+| **Total**| **259** | **100%** |
 
-*Note: Percentages do not sum to 100% due to rounding. Some IDs (85-91 range)
-serve as cross-cutting covert channel detections across categories.*
+*Note: Some IDs (85-91 range) serve as cross-cutting covert channel
+detections across categories.*
 
 ---
 

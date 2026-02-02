@@ -1991,7 +1991,7 @@ def update(check: bool):
     Patterns are stored in ~/.tweek/patterns/ and can be updated
     independently of the Tweek application.
 
-    All 215 patterns are included free. PRO tier adds LLM review,
+    All 259 patterns are included free. PRO tier adds LLM review,
     session analysis, and rate limiting.
     """
     import subprocess
@@ -2267,7 +2267,7 @@ def audit(path, translate, llm_review, json_out):
     credential theft, data exfiltration, and other attack patterns.
 
     Non-English content is detected and translated to English before
-    running all 215 regex patterns. LLM semantic review provides
+    running all 259 regex patterns. LLM semantic review provides
     additional analysis for obfuscated attacks.
 
     \b
@@ -2695,7 +2695,7 @@ def protect_openclaw(port, paranoid, preset):
 
     # Show configuration
     console.print(f"  Scanner:    port {result.scanner_port} -> wrapping OpenClaw gateway")
-    console.print(f"  Preset:     {result.preset} (215 patterns + rate limiting)")
+    console.print(f"  Preset:     {result.preset} (259 patterns + rate limiting)")
 
     # Check for API key
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")

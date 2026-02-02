@@ -109,9 +109,9 @@ These are areas where Claude Code and Tweek overlap. We are transparent about th
 
 These capabilities have **no native equivalent** in Claude Code.
 
-### 1. Attack Pattern Library (259 patterns, 22 categories)
+### 1. Attack Pattern Library (259 patterns, 11 categories)
 
-Claude Code has a command blocklist that blocks curl and wget. Tweek has **259 categorized regex patterns** across 22 categories:
+Claude Code has a command blocklist that blocks curl and wget. Tweek has **259 categorized regex patterns** across 11 categories:
 
 - Credential theft (SSH keys, AWS creds, .env, keychains, cloud configs, shell history)
 - Network exfiltration (curl POST, paste sites, netcat, reverse shells, pipe-to-shell)

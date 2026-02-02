@@ -21,7 +21,7 @@ All individual security features ship open source:
 
 | Feature                | Available |
 |------------------------|-----------|
-| 215 attack patterns    | Yes       |
+| 259 attack patterns    | Yes       |
 | Custom pattern authoring | Yes     |
 | LLM semantic review (BYOK) | Yes   |
 | Session anomaly detection | Yes    |

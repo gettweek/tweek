@@ -110,7 +110,7 @@ Turn 3: cat ~/.ssh/id_rsa → BLOCKED: path_escalation anomaly
 
 **Response injection** — Malicious instructions hidden in tool responses are caught at ingestion.
 
-See the full [Attack Patterns Reference](docs/ATTACK_PATTERNS.md) for all 259 patterns across 22 categories.
+See the full [Attack Patterns Reference](docs/ATTACK_PATTERNS.md) for all 259 patterns across 11 categories.
 
 ---
 

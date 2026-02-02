@@ -11,7 +11,7 @@ web pages, documents, and other ingested content.
 
 Screening Pipeline:
 1. Language Detection — identify non-English content
-2. Pattern Matching — 215 regex patterns for known attack vectors
+2. Pattern Matching — 259 regex patterns for known attack vectors
 3. LLM Review — semantic analysis if non-English escalation triggers
 
 Claude Code PostToolUse Protocol:
