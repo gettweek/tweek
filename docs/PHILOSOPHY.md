@@ -104,7 +104,7 @@ failing open prevents a corrupted database from paralyzing the development workf
 
 All screening runs locally on the developer's machine:
 
-- **Pattern matching**: Local regex against a bundled pattern database (259 patterns)
+- **Pattern matching**: Local regex against a bundled pattern database (262 patterns)
 - **Rate limiting**: Local SQLite database (`~/.tweek/security.db`)
 - **Session analysis**: Local SQLite queries against event history
 - **Sandbox**: Local `sandbox-exec` (macOS) or `firejail` (Linux)
@@ -119,7 +119,7 @@ Each security layer operates independently with its own detection methodology:
 
 - **Compliance** (Layer 0): Domain-specific pattern matching (HIPAA, PCI, Gov, etc.)
 - **Rate Limiting** (Layer 1): Statistical anomaly detection with circuit breaker
-- **Pattern Matching** (Layer 2): Regex signatures for 259 known attack vectors
+- **Pattern Matching** (Layer 2): Regex signatures for 262 known attack vectors
 - **LLM Review** (Layer 3): Semantic analysis by Claude Haiku
 - **Session Analysis** (Layer 4): Cross-turn behavioral anomaly detection
 - **Sandbox Preview** (Layer 5): Speculative execution in a restricted environment

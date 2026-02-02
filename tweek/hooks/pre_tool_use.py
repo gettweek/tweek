@@ -762,7 +762,7 @@ def _extract_paths_from_bash(command: str) -> List[str]:
       python3 /home/user/script.py
 
     Intentionally simple -- does NOT handle pipes, subshells, or variable
-    expansion. Content-based escalations (259 patterns) cover the rest.
+    expansion. Content-based escalations (262 patterns) cover the rest.
     """
     import shlex
 

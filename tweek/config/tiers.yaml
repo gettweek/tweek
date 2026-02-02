@@ -9,7 +9,7 @@
 #
 # Security Layers:
 #   1. Rate Limiting    - Detect resource theft and burst attacks
-#   2. Pattern Match    - Regex patterns for known attack vectors (260 patterns)
+#   2. Pattern Match    - Regex patterns for known attack vectors (262 patterns)
 #   2.5 Heuristic Score - Signal-based scoring for confidence-gated LLM escalation
 #   3. LLM Review       - Semantic analysis using Claude Haiku or local LLM
 #   4. Session Scan     - Cross-turn anomaly detection

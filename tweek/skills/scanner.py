@@ -6,7 +6,7 @@ installation. Reuses existing Tweek infrastructure where possible.
 
 Layers:
 1. Structure Validation    — file types, size, depth, symlinks
-2. Pattern Matching        — 259 regex patterns (reuses audit.py)
+2. Pattern Matching        — 262 regex patterns (reuses audit.py)
 3. Secret Scanning         — credential detection (reuses secret_scanner.py)
 4. AST Analysis            — forbidden imports/calls (reuses git_security.py)
 5. Prompt Injection Scan   — skill-specific instruction injection patterns
@@ -349,7 +349,7 @@ class SkillScanner:
     def _scan_patterns(
         self, skill_dir: Path, text_files: List[Path]
     ) -> ScanLayerResult:
-        """Run 259 regex patterns against all text files."""
+        """Run 262 regex patterns against all text files."""
         result = ScanLayerResult(layer_name="patterns", passed=True)
 
         try:

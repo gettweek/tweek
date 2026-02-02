@@ -300,8 +300,8 @@ class TestProtectClaudeCode:
     def test_protect_claude_code_invokes_install(self, runner, tmp_path):
         """Test that protect claude-code delegates to install command."""
         with patch.object(Path, "home", return_value=tmp_path):
-            with patch("tweek.cli.Path.home", return_value=tmp_path):
-                with patch("tweek.cli.scan_for_env_files", return_value=[]):
+            with patch("tweek.cli_install.Path.home", return_value=tmp_path):
+                with patch("tweek.cli_install.scan_for_env_files", return_value=[]):
                     result = runner.invoke(main, ["protect", "claude-code"])
 
         # Should show the Tweek banner (from install command)

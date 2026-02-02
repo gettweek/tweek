@@ -21,8 +21,8 @@ from rich.console import Console
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tweek.cli import (
-    main,
+from tweek.cli import main
+from tweek.cli_install import (
     _check_python_version,
     _configure_llm_provider,
     _detect_llm_provider,
@@ -64,7 +64,7 @@ class TestQuickFlag:
     def test_quick_flag_no_prompts(self, runner, tmp_path):
         """--quick should complete without any user prompts."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick', '--skip-proxy-check'],
@@ -77,7 +77,7 @@ class TestQuickFlag:
     def test_quick_applies_cautious_preset(self, runner, tmp_path):
         """--quick should apply cautious preset by default."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick'],
@@ -89,7 +89,7 @@ class TestQuickFlag:
     def test_quick_skips_env_scan(self, runner, tmp_path):
         """--quick should skip .env scanning."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick'],
@@ -102,7 +102,7 @@ class TestQuickFlag:
     def test_quick_skips_proxy_check(self, runner, tmp_path):
         """--quick should skip proxy/openclaw detection."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick'],
@@ -114,7 +114,7 @@ class TestQuickFlag:
     def test_quick_with_preset_override(self, runner, tmp_path):
         """--quick with explicit --preset uses the specified preset."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick', '--preset', 'paranoid'],
@@ -126,7 +126,7 @@ class TestQuickFlag:
     def test_quick_skips_scope_prompt(self, runner, tmp_path):
         """--quick should not prompt for scope selection."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick'],
@@ -139,7 +139,7 @@ class TestQuickFlag:
     def test_quick_skips_llm_prompt(self, runner, tmp_path):
         """--quick should not prompt for LLM provider selection."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick'],
@@ -160,7 +160,7 @@ class TestScopeSelection:
     def test_scope_shown_without_interactive_flag(self, runner, tmp_path):
         """Scope selection should appear even without --interactive."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
@@ -173,7 +173,7 @@ class TestScopeSelection:
     def test_scope_skipped_with_global_flag(self, runner, tmp_path):
         """--global should skip scope prompt."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--global', '--skip-env-scan', '--skip-proxy-check'],
@@ -187,7 +187,7 @@ class TestScopeSelection:
     def test_scope_defaults_to_global(self, runner, tmp_path):
         """Scope should default to global (recommended)."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
@@ -201,7 +201,7 @@ class TestScopeSelection:
     def test_scope_option_2_is_project(self, runner, tmp_path):
         """Selecting option 2 should install to project only."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
@@ -234,10 +234,10 @@ class TestCheckPythonVersion:
         """Should warn when system python3 differs from install Python."""
         # Mock shutil.which to return a different path than sys.executable
         fake_system_python = "/usr/bin/python3"
-        monkeypatch.setattr("tweek.cli.shutil.which", lambda cmd: fake_system_python if cmd == "python3" else None)
+        monkeypatch.setattr("tweek.cli_install.shutil.which", lambda cmd: fake_system_python if cmd == "python3" else None)
 
         # Make sure the paths resolve differently
-        monkeypatch.setattr("tweek.cli.Path.resolve",
+        monkeypatch.setattr("tweek.cli_install.Path.resolve",
                           lambda self: Path(fake_system_python) if str(self) == fake_system_python
                           else Path(sys.executable))
 
@@ -248,14 +248,14 @@ class TestCheckPythonVersion:
 
     def test_no_python3_on_path_warns(self, monkeypatch, capsys):
         """Should warn when python3 is not found on PATH."""
-        monkeypatch.setattr("tweek.cli.shutil.which", lambda cmd: None)
+        monkeypatch.setattr("tweek.cli_install.shutil.which", lambda cmd: None)
         _check_python_version(Console(), quick=False)
         captured = capsys.readouterr()
         assert "not found" in captured.out.lower() or "Python" in captured.out
 
     def test_no_python3_on_path_quiet_in_quick(self, monkeypatch, capsys):
         """Quick mode should not warn about missing python3 on PATH."""
-        monkeypatch.setattr("tweek.cli.shutil.which", lambda cmd: None)
+        monkeypatch.setattr("tweek.cli_install.shutil.which", lambda cmd: None)
         _check_python_version(Console(), quick=True)
         captured = capsys.readouterr()
         # In quick mode, the "not found on PATH" warning should be suppressed
@@ -411,7 +411,7 @@ class TestConfigureLLMProvider:
         tweek_dir.mkdir()
 
         # Simulate user choosing option 6 (disable)
-        with patch('tweek.cli.click.prompt', return_value=6):
+        with patch('tweek.cli_install.click.prompt', return_value=6):
             result = _configure_llm_provider(tweek_dir, interactive=True, quick=False)
 
         assert result["provider"] == "disabled"
@@ -431,7 +431,7 @@ class TestConfigureLLMProvider:
         tweek_dir.mkdir()
 
         # Simulate user choosing option 2 (Anthropic)
-        with patch('tweek.cli.click.prompt', side_effect=[2, "continue"]):
+        with patch('tweek.cli_install.click.prompt', side_effect=[2, "continue"]):
             result = _configure_llm_provider(tweek_dir, interactive=True, quick=False)
 
         assert result["provider"] == "anthropic"
@@ -450,7 +450,7 @@ class TestConfigureLLMProvider:
         tweek_dir = tmp_path / ".tweek"
         tweek_dir.mkdir()
 
-        with patch('tweek.cli.click.prompt', side_effect=[3, "continue"]):
+        with patch('tweek.cli_install.click.prompt', side_effect=[3, "continue"]):
             result = _configure_llm_provider(tweek_dir, interactive=True, quick=False)
 
         assert result["provider"] == "openai"
@@ -462,7 +462,7 @@ class TestConfigureLLMProvider:
         tweek_dir = tmp_path / ".tweek"
         tweek_dir.mkdir()
 
-        with patch('tweek.cli.click.prompt', side_effect=[4, "continue"]):
+        with patch('tweek.cli_install.click.prompt', side_effect=[4, "continue"]):
             result = _configure_llm_provider(tweek_dir, interactive=True, quick=False)
 
         assert result["provider"] == "google"
@@ -474,7 +474,7 @@ class TestConfigureLLMProvider:
         tweek_dir.mkdir()
 
         # Simulate: choice=5, base_url, model, api_key_env (empty)
-        with patch('tweek.cli.click.prompt', side_effect=[
+        with patch('tweek.cli_install.click.prompt', side_effect=[
             5,                                  # Custom endpoint
             "http://localhost:11434/v1",         # base_url
             "llama3.2",                         # model
@@ -500,7 +500,7 @@ class TestConfigureLLMProvider:
         tweek_dir = tmp_path / ".tweek"
         tweek_dir.mkdir()
 
-        with patch('tweek.cli.click.prompt', side_effect=[
+        with patch('tweek.cli_install.click.prompt', side_effect=[
             5,
             "https://api.groq.com/openai/v1",
             "llama-3.1-8b-instant",
@@ -551,7 +551,7 @@ class TestValidateLLMProvider:
     def test_warns_missing_key(self, capsys):
         """Should warn when required API key is missing."""
         config = {"provider": "anthropic"}
-        with patch('tweek.cli.click.prompt', return_value="continue"):
+        with patch('tweek.cli_install.click.prompt', return_value="continue"):
             _validate_llm_provider(config)
         captured = capsys.readouterr()
         assert "not set" in captured.out.lower()
@@ -562,7 +562,7 @@ class TestValidateLLMProvider:
         config = {"provider": "anthropic"}
 
         # User chooses to switch to auto
-        with patch('tweek.cli.click.prompt', return_value="auto"):
+        with patch('tweek.cli_install.click.prompt', return_value="auto"):
             _validate_llm_provider(config)
 
         # Config should be updated to auto
@@ -741,7 +741,7 @@ class TestEnvScanOrdering:
     def test_env_scan_after_security_config(self, runner, tmp_path):
         """The .env scan should appear after security preset in output."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--preset', 'cautious', '--skip-proxy-check'],
@@ -767,7 +767,7 @@ class TestInteractiveInstallFlow:
     def test_interactive_full_flow(self, runner, tmp_path):
         """Full interactive install with all prompts."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--interactive', '--skip-env-scan', '--skip-proxy-check'],
@@ -785,7 +785,7 @@ class TestInteractiveInstallFlow:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
@@ -799,7 +799,7 @@ class TestInteractiveInstallFlow:
     def test_non_interactive_shows_summary(self, runner, tmp_path):
         """Non-interactive install should still show summary."""
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--quick'],

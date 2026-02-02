@@ -51,7 +51,7 @@ class TestInstallCommand:
         claude_dir = tmp_path / ".claude"
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli.Path.home', return_value=tmp_path):
+            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
                     ['protect', 'claude-code', '--skip-env-scan'],
@@ -217,7 +217,7 @@ class TestInstallCommand:
 class TestUninstallCommand:
     """Tests for the unprotect command (formerly uninstall)."""
 
-    @patch('tweek.cli.sys')
+    @patch('tweek.cli_protect.sys')
     def test_uninstall_not_installed(self, mock_sys, runner, tmp_path):
         """Test unprotect when not installed (project scope, empty directory)."""
         mock_sys.stdin.isatty.return_value = True
@@ -227,7 +227,7 @@ class TestUninstallCommand:
 
         assert "No Tweek installation" in result.output or result.exit_code == 0
 
-    @patch('tweek.cli.sys')
+    @patch('tweek.cli_protect.sys')
     def test_uninstall_removes_hooks(self, mock_sys, runner, tmp_path):
         """Test unprotect removes Tweek hooks."""
         mock_sys.stdin.isatty.return_value = True

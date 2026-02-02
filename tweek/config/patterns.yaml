@@ -1,5 +1,5 @@
 # Tweek Attack Pattern Definitions v3
-# All 259 patterns included FREE
+# All 262 patterns included FREE
 #
 # Update via: tweek update (pulls from github.com/gettweek/tweek)
 #
@@ -25,7 +25,7 @@
 # PRO tier adds: LLM review, session analysis, rate limiting
 
 version: 5
-pattern_count: 259
+pattern_count: 262
 
 patterns:
   # ============================================================================
@@ -711,7 +711,7 @@ patterns:
   - id: 83
     name: document_metadata_injection
     description: "Hidden instructions in document metadata"
-    regex: '(author|title|subject|keywords|description)\s*[=:]\s*.*?(execute|run|ignore|override|bypass)'
+    regex: '(author|title|subject|keywords|description)\s*[=:]\s*[^\n]{0,80}(execute|run|ignore|override|bypass)'
     severity: high
     confidence: heuristic
     family: prompt_injection
@@ -736,7 +736,7 @@ patterns:
   - id: 86
     name: log_to_leak
     description: "Log-To-Leak covert channel attack"
-    regex: '(log|write|append|print).*?(secret|credential|token|key|password).*?(file|output|stream)'
+    regex: '(log|write|append|print)[^\n]{0,60}(secret|credential|token|key|password)[^\n]{0,60}(file|output|stream)'
     severity: high
     confidence: heuristic
     family: covert_channels
@@ -1514,7 +1514,7 @@ patterns:
   - id: 174
     name: leetspeak_instruction_bypass
     description: "Heavy character substitution of security-critical words"
-    regex: '([sS5$][yY][sS5$][tT7][eE3][mM]\s*[pP][rR][0oO][mM][pP][tT7]|[1iI][nN][sS5$][tT7][rR][uU][cC][tT7]|[cC][0oO][nN][fF][1iI][gG]|[eE3][xX][eE3][cC][uU][tT7][eE3])'
+    regex: '((?=[a-zA-Z01357$]*[01357$])[sS5$][yY][sS5$][tT7][eE3][mM]\s*[pP][rR][0oO][mM][pP][tT7]|(?=[a-zA-Z01357$]*[01357$])[1iI][nN][sS5$][tT7][rR][uU][cC][tT7]|(?=[a-zA-Z01357$]*[01357$])[cC][0oO][nN][fF][1iI][gG]|(?=[a-zA-Z01357$]*[01357$])[eE3][xX][eE3][cC][uU][tT7][eE3])'
     severity: medium
     confidence: contextual
     family: prompt_injection
@@ -2249,5 +2249,29 @@ patterns:
     description: "LLM output referencing its own instructions or guidelines"
     regex: '(my\s+instructions\s+(say|tell|state|indicate|require)|i\s+was\s+told\s+to\s+(not|never|always|ensure)|according\s+to\s+my\s+(guidelines|instructions|rules|directives)|my\s+guidelines\s+(say|tell|state|require|prohibit))'
     severity: low
+    confidence: contextual
+    family: prompt_injection
+
+  - id: 260
+    name: summarize_instructions_extraction
+    description: "Summarization-based system prompt extraction"
+    regex: '(summarize|recap|outline|condense|describe|paraphrase)\s+.{0,30}(instructions|prompt|rules|guidelines|directives|configuration)\s+.{0,20}(given|told|provided|have|follow|received|programmed)'
+    severity: medium
+    confidence: contextual
+    family: prompt_injection
+
+  - id: 261
+    name: special_instructions_probe
+    description: "Probing for special instructions or unique capabilities"
+    regex: 'what\s+.{0,20}(instructions|capabilities|directives|rules)\s+.{0,30}(do\s+you\s+have|make\s+you|were\s+you|that\s+you)'
+    severity: medium
+    confidence: contextual
+    family: prompt_injection
+
+  - id: 262
+    name: system_prompt_reference_broad
+    description: "Broad references to system prompt in extraction context"
+    regex: '((your|my|the|its)\s+.{0,20}system[\s_]+prompt|system[\s_]+prompt\s*(say|would\s+say|output|reveal|share|display)|output\s+(system[\s_]+)?(prompt|configuration)\b|(instructions|directives)\s+(you|I|they|it)\s+(received|were\s+given|have\b|follow|got)|what.s\s+your\s+system[\s_]+prompt)'
+    severity: medium
     confidence: contextual
     family: prompt_injection

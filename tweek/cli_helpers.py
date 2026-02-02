@@ -7,8 +7,13 @@ Provides colored status messages, health banners, command example formatting,
 and progress spinners.
 """
 
+import json
+import shutil
 from contextlib import contextmanager
+from pathlib import Path
 from typing import List, Tuple
+
+import click
 
 from rich.console import Console
 from rich.panel import Panel
@@ -191,3 +196,132 @@ def print_doctor_json(checks: "List") -> None:
     }
 
     console.print_json(json.dumps(output, indent=2))
+
+
+# ---------------------------------------------------------------------------
+# Cross-module constants and helpers
+# ---------------------------------------------------------------------------
+
+TWEEK_BANNER = """
+ ████████╗██╗    ██╗███████╗███████╗██╗  ██╗
+ ╚══██╔══╝██║    ██║██╔════╝██╔════╝██║ ██╔╝
+    ██║   ██║ █╗ ██║█████╗  █████╗  █████╔╝
+    ██║   ██║███╗██║██╔══╝  ██╔══╝  ██╔═██╗
+    ██║   ╚███╔███╔╝███████╗███████╗██║  ██╗
+    ╚═╝    ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝  ╚═╝
+
+  GAH! Security for AI agents
+  "Because paranoia is a feature, not a bug"
+"""
+
+
+def _has_tweek_hooks(settings: dict) -> bool:
+    """Check if a settings dict contains Tweek hooks."""
+    hooks = settings.get("hooks", {})
+    for hook_type in ("PreToolUse", "PostToolUse"):
+        for hook_config in hooks.get(hook_type, []):
+            for hook in hook_config.get("hooks", []):
+                if "tweek" in hook.get("command", "").lower():
+                    return True
+    return False
+
+
+def _has_tweek_at(target: Path) -> bool:
+    """Check if Tweek is installed at a .claude/ target path."""
+    import json
+
+    if (target / "skills" / "tweek").exists():
+        return True
+    if (target / "settings.json.tweek-backup").exists():
+        return True
+    settings_file = target / "settings.json"
+    if settings_file.exists():
+        try:
+            with open(settings_file) as f:
+                settings = json.load(f)
+            if _has_tweek_hooks(settings):
+                return True
+        except (json.JSONDecodeError, IOError):
+            pass
+    return False
+
+
+def _detect_all_tools():
+    """Detect all supported AI tools and their protection status.
+
+    Returns list of (tool_id, label, installed, protected, detail) tuples.
+    """
+    import shutil
+    import json
+
+    tools = []
+
+    # Claude Code
+    claude_installed = shutil.which("claude") is not None
+    claude_protected = _has_tweek_at(Path("~/.claude").expanduser()) if claude_installed else False
+    tools.append((
+        "claude-code", "Claude Code", claude_installed, claude_protected,
+        "Hooks in ~/.claude/settings.json" if claude_protected else "",
+    ))
+
+    # OpenClaw
+    oc_installed = False
+    oc_protected = False
+    oc_detail = ""
+    try:
+        from tweek.integrations.openclaw import detect_openclaw_installation
+        openclaw = detect_openclaw_installation()
+        oc_installed = openclaw.get("installed", False)
+        if oc_installed:
+            oc_protected = openclaw.get("tweek_configured", False)
+            oc_detail = f"Gateway port {openclaw.get('gateway_port', '?')}"
+    except Exception:
+        pass
+    tools.append(("openclaw", "OpenClaw", oc_installed, oc_protected, oc_detail))
+
+    # MCP clients
+    mcp_configs = [
+        ("claude-desktop", "Claude Desktop",
+         Path("~/Library/Application Support/Claude/claude_desktop_config.json").expanduser()),
+        ("chatgpt", "ChatGPT Desktop",
+         Path("~/Library/Application Support/com.openai.chat/developer_settings.json").expanduser()),
+        ("gemini", "Gemini CLI",
+         Path("~/.gemini/settings.json").expanduser()),
+    ]
+    for tool_id, label, config_path in mcp_configs:
+        installed = config_path.exists()
+        protected = False
+        if installed:
+            try:
+                with open(config_path) as f:
+                    data = json.load(f)
+                mcp_servers = data.get("mcpServers", {})
+                protected = "tweek-security" in mcp_servers or "tweek" in mcp_servers
+            except Exception:
+                pass
+        detail = str(config_path) if protected else ""
+        tools.append((tool_id, label, installed, protected, detail))
+
+    return tools
+
+
+def _load_overrides_yaml() -> tuple:
+    """Load ~/.tweek/overrides.yaml. Returns (data_dict, file_path)."""
+    import yaml
+
+    overrides_path = Path("~/.tweek/overrides.yaml").expanduser()
+    if overrides_path.exists():
+        with open(overrides_path) as f:
+            data = yaml.safe_load(f) or {}
+    else:
+        data = {}
+    return data, overrides_path
+
+
+def _save_overrides_yaml(data: dict, overrides_path: Path):
+    """Write data to ~/.tweek/overrides.yaml."""
+    import yaml
+
+    overrides_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(overrides_path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)

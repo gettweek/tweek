@@ -7,13 +7,13 @@ prompt injection, MCP vulnerabilities, and more.
 
 ## Overview
 
-Tweek ships with **259 attack patterns** across 11 categories, all included
+Tweek ships with **262 attack patterns** across 11 categories, all included
 free in every tier. Patterns are defined in `tweek/config/patterns.yaml` and
 are updated via `tweek update`.
 
 | Metric            | Value                                      |
 |-------------------|--------------------------------------------|
-| Total patterns    | 259                                        |
+| Total patterns    | 262                                        |
 | Pattern version   | 5                                          |
 | Categories        | 11                                         |
 | Severity levels   | 4 (critical, high, medium, low)            |
@@ -36,7 +36,7 @@ Each pattern in `patterns.yaml` has the following fields:
 
 | Field         | Type   | Description                                       |
 |---------------|--------|---------------------------------------------------|
-| `id`          | int    | Sequential pattern number (1-259)                 |
+| `id`          | int    | Sequential pattern number (1-262)                 |
 | `name`        | string | Unique identifier (snake_case)                    |
 | `description` | string | Human-readable explanation                        |
 | `regex`       | string | Python-compatible regular expression               |
@@ -665,7 +665,7 @@ See [LICENSING.md](./LICENSING.md) for feature availability by tier.
    command content
 2. **Tier lookup** -- The tool's security tier determines which screening
    layers apply (all tiers include regex pattern matching)
-3. **Pattern scan** -- Each of the 259 patterns is tested against the command
+3. **Pattern scan** -- Each of the 262 patterns is tested against the command
 4. **Severity evaluation** -- Matched patterns are ranked by severity
 5. **Decision** -- Critical/high matches block or prompt; medium matches
    prompt; low matches are logged
@@ -682,7 +682,7 @@ See [LICENSING.md](./LICENSING.md) for feature availability by tier.
 | High     | 131   | 51%        |
 | Medium   | 53    | 20%        |
 | Low      | 7     | 3%         |
-| **Total**| **259** | **100%** |
+| **Total**| **262** | **100%** |
 
 *Note: Some IDs (85-91 range) serve as cross-cutting covert channel
 detections across categories.*
@@ -692,6 +692,6 @@ detections across categories.*
 ## Cross-References
 
 - [LOGGING.md](./LOGGING.md) -- How pattern matches are logged
-- [SANDBOX.md](./SANDBOX.md) -- Sandbox preview triggered by dangerous tier
+- [DRY_RUN.md](./DRY_RUN.md) -- Dry-run preview triggered by dangerous tier
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) -- Pattern loading issues
 - [LICENSING.md](./LICENSING.md) -- Custom patterns (Enterprise)

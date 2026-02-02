@@ -74,7 +74,7 @@ class LicenseInfo:
 # Only compliance and team management features require a license.
 TIER_FEATURES = {
     Tier.FREE: [
-        "pattern_matching",       # All 259 patterns included free
+        "pattern_matching",       # All 262 patterns included free
         "basic_logging",
         "vault_storage",
         "cli_commands",

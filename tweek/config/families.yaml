@@ -1,5 +1,5 @@
 # Tweek Pattern Family Definitions v1
-# Groups the 259 attack patterns by attack class for:
+# Groups the 262 attack patterns by attack class for:
 #   1. Heuristic scoring (near-miss detection via semantic signals)
 #   2. Pattern management (enable/disable by family)
 #   3. Reporting (family-level risk summaries)
@@ -257,6 +257,9 @@ families:
       - 257  # self_describe_purpose
       - 258  # self_describe_protection
       - 259  # self_describe_instructions
+      - 260  # summarize_instructions_extraction
+      - 261  # special_instructions_probe
+      - 262  # system_prompt_reference_broad
     heuristic_signals:
       instruction_keywords:
         - "ignore"

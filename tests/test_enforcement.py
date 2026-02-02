@@ -3,7 +3,7 @@ Tests for Tweek graduated security enforcement (R1/R2/R3).
 
 Validates:
 - R1: _resolve_enforcement() produces correct deny/ask/log decisions
-- R2: All 259 patterns in patterns.yaml have a valid confidence field
+- R2: All 262 patterns in patterns.yaml have a valid confidence field
 - R3: EnforcementPolicy class — default matrix, custom config, merge
 """
 
@@ -412,7 +412,7 @@ class TestPatternConfidenceClassification:
         assert len(ctx) > 0, "Expected at least one contextual pattern"
 
     def test_total_pattern_count(self, patterns):
-        """Sanity check: we expect ~259 patterns (allow some tolerance for additions)."""
+        """Sanity check: we expect ~262 patterns (allow some tolerance for additions)."""
         assert len(patterns) >= 200, f"Expected 200+ patterns, got {len(patterns)}"
 
     def test_critical_deterministic_patterns_exist(self, patterns):

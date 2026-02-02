@@ -68,7 +68,7 @@ tweek proxy setup                       # Cursor, Windsurf, Continue.dev (HTTP p
 tweek doctor
 ```
 
-That's it. Tweek auto-detects your tools, applies all 259 attack patterns across 6 defense layers, and runs 100% locally. Your code never leaves your machine.
+That's it. Tweek auto-detects your tools, applies all 262 attack patterns across 6 defense layers, and runs 100% locally. Your code never leaves your machine.
 
 ---
 
@@ -110,7 +110,7 @@ Turn 3: cat ~/.ssh/id_rsa → BLOCKED: path_escalation anomaly
 
 **Response injection** — Malicious instructions hidden in tool responses are caught at ingestion.
 
-See the full [Attack Patterns Reference](docs/ATTACK_PATTERNS.md) for all 259 patterns across 11 categories.
+See the full [Attack Patterns Reference](docs/ATTACK_PATTERNS.md) for all 262 patterns across 11 categories.
 
 ---
 
@@ -161,7 +161,7 @@ Every tool call passes through six independent screening layers. An attacker wou
 
 | Layer | What It Does |
 |-------|-------------|
-| **1. Pattern Matching** | 259 regex signatures catch known credential theft, exfiltration, and injection attacks instantly |
+| **1. Pattern Matching** | 262 regex signatures catch known credential theft, exfiltration, and injection attacks instantly |
 | **2. Rate Limiting** | Detects burst attacks, automated probing, and resource theft sequences |
 | **3. Local Prompt Injection AI** | Custom-trained AI models built specifically to classify and detect prompt injection. Run 100% on your machine — no API calls, no cloud, no latency. Small enough to be fast, accurate enough to catch what regex can't. |
 | **4. Session Tracking** | Behavioral analysis across turns detects multi-step attacks that look innocent individually |
@@ -179,7 +179,7 @@ See [Defense Layers](docs/DEFENSE_LAYERS.md) for the deep dive and [Architecture
 | [Full Feature List](docs/FEATURES.md) | Complete feature inventory |
 | [Architecture](docs/ARCHITECTURE.md) | System design and interception layers |
 | [Defense Layers](docs/DEFENSE_LAYERS.md) | Screening pipeline deep dive |
-| [Attack Patterns](docs/ATTACK_PATTERNS.md) | Full 259-pattern library reference |
+| [Attack Patterns](docs/ATTACK_PATTERNS.md) | Full 262-pattern library reference |
 | [Configuration](docs/CONFIGURATION.md) | Config files, tiers, and presets |
 | [CLI Reference](docs/CLI_REFERENCE.md) | All commands, flags, and examples |
 | [MCP Integration](docs/MCP_INTEGRATION.md) | MCP proxy and gateway setup |
@@ -188,7 +188,7 @@ See [Defense Layers](docs/DEFENSE_LAYERS.md) for the deep dive and [Architecture
 | [Credential Vault](docs/VAULT.md) | Vault setup and migration |
 | [Plugins](docs/PLUGINS.md) | Plugin development and registry |
 | [Logging](docs/LOGGING.md) | Event logging and audit trail |
-| [Sandbox](docs/SANDBOX.md) | Sandbox preview configuration |
+| [Dry-Run](docs/DRY_RUN.md) | Dry-run preview configuration |
 | [Tweek vs. Claude Code](docs/COMPARISON.md) | Feature comparison with native security |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes |
 

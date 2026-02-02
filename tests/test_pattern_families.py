@@ -4,7 +4,7 @@ Tests for Tweek Pattern Families
 
 Tests cover:
 - families.yaml parses without errors
-- All 259 patterns have a family field
+- All 262 patterns have a family field
 - Pattern IDs in families match actual patterns
 - No duplicate pattern IDs across families
 - Family structure validation
@@ -90,7 +90,7 @@ class TestFamiliesStructure:
 # =============================================================================
 
 class TestPatternCoverage:
-    """Ensure all 259 patterns are assigned to families."""
+    """Ensure all 262 patterns are assigned to families."""
 
     def test_all_patterns_have_family_field(self, patterns_data):
         patterns = patterns_data.get("patterns", [])
@@ -99,7 +99,7 @@ class TestPatternCoverage:
 
     def test_259_patterns_exist(self, patterns_data):
         patterns = patterns_data.get("patterns", [])
-        assert len(patterns) == 259, f"Expected 259 patterns, got {len(patterns)}"
+        assert len(patterns) == 262, f"Expected 262 patterns, got {len(patterns)}"
 
     def test_pattern_families_are_valid(self, patterns_data, families_data):
         """Every pattern's family field should reference an existing family."""

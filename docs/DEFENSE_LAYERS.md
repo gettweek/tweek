@@ -156,7 +156,7 @@ rate_limiting:
 ## Layer 2: Pattern Matching
 
 **Source**: `tweek/config/patterns.yaml`, `tweek/hooks/pre_tool_use.py` -> `PatternMatcher`
-**License**: Free (all 259 patterns)
+**License**: Free (all 262 patterns)
 
 Regex-based detection of known attack vectors. Patterns are loaded from YAML and matched
 against extracted content (commands, file paths, or URLs).
@@ -193,7 +193,7 @@ against extracted content (commands, file paths, or URLs).
 | **CVE Gap Analysis** | 216-249 | 34 | Reverse shell variants, AI agent attacks, privilege escalation, sandbox escape, LLM code gen RCE, MCP tool poisoning, deserialization expansion, SSRF cloud metadata, path traversal, supply chain |
 | **Red Team Hardening** | 250-259 | 10 | Indirect extraction, crescendo openers, self-descriptive leak detection |
 
-**Total**: 259 patterns across 4 severity levels.
+**Total**: 262 patterns across 4 severity levels.
 
 ### Severity Distribution
 

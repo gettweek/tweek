@@ -145,7 +145,7 @@ Detects resource theft and abuse patterns by tracking invocation statistics in
 
 ### Layer 2: Pattern Matching
 
-Regex-based detection of 259 known attack patterns loaded from `tweek/config/patterns.yaml`.
+Regex-based detection of 262 known attack patterns loaded from `tweek/config/patterns.yaml`.
 
 - **Decision**: `ask` if any pattern matches
 - **Scope**: Tiers with `regex` in their screening list (`default`, `risky`, `dangerous`)
@@ -246,7 +246,7 @@ the human-in-the-loop workflow.
 | File | Location | Purpose |
 |---|---|---|
 | `tweek/config/tiers.yaml` | Bundled | Default tier definitions, tool/skill classifications, escalation patterns, LLM/rate-limit/session config |
-| `tweek/config/patterns.yaml` | Bundled | 259 attack pattern definitions with regex, severity, description |
+| `tweek/config/patterns.yaml` | Bundled | 262 attack pattern definitions with regex, severity, description |
 | `tweek/config/allowed_dirs.yaml` | Bundled | Directory allowlist controlling where Tweek activates |
 | `~/.tweek/config.yaml` | User home | User-level configuration overrides |
 | `.tweek/config.yaml` | Project root | Project-level configuration overrides |
@@ -332,7 +332,7 @@ tweek/
 |   +-- __init__.py
 |   +-- manager.py                 # ConfigManager: 3-layer config, presets, validation
 |   +-- tiers.yaml                 # Tier definitions, tool/skill defaults, escalations
-|   +-- patterns.yaml              # 259 attack pattern definitions
+|   +-- patterns.yaml              # 262 attack pattern definitions
 |   +-- allowed_dirs.yaml          # Directory activation allowlist
 |
 +-- screening/                     # Unified screening context

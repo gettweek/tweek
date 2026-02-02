@@ -21,7 +21,7 @@ All individual security features ship open source:
 
 | Feature                | Available |
 |------------------------|-----------|
-| 259 attack patterns    | Yes       |
+| 262 attack patterns    | Yes       |
 | Custom pattern authoring | Yes     |
 | LLM semantic review (BYOK) | Yes   |
 | Session anomaly detection | Yes    |
@@ -206,6 +206,6 @@ that are compatible with Tweek's Apache 2.0 license.
 
 - [ATTACK_PATTERNS.md](./ATTACK_PATTERNS.md) -- Pattern library (all free)
 - [LOGGING.md](./LOGGING.md) -- All logging features are free
-- [SANDBOX.md](./SANDBOX.md) -- Sandbox is free
+- [DRY_RUN.md](./DRY_RUN.md) -- Dry-run is free
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) -- Diagnostic details
 - [NOTICE](../NOTICE) -- Third-party license texts and copyright notices

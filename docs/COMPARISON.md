@@ -41,7 +41,7 @@ These are real protections. Claude Code's native sandbox in particular is a stro
 | Credential vault (OS keychain) | Yes | Yes | **Redundant** |
 | Hook infrastructure | Yes | Uses it | **Complementary** -- Tweek is intelligence, CC is plumbing |
 | curl/wget blocklist | Yes | Yes (+ 250 more) | **Tweek superset** |
-| Attack pattern library (259 patterns) | No | Yes | **Tweek unique** |
+| Attack pattern library (262 patterns) | No | Yes | **Tweek unique** |
 | Graduated enforcement (deny/ask/log) | No | Yes | **Tweek unique** |
 | Pattern confidence classification | No | Yes | **Tweek unique** |
 | PostToolUse response screening + redaction | No | Yes | **Tweek unique** |
@@ -91,7 +91,7 @@ These are areas where Claude Code and Tweek overlap. We are transparent about th
 
 **Claude Code**: Blocks curl and wget by default in the command blocklist.
 
-**Tweek**: Includes curl/wget exfiltration patterns as part of a 259-pattern library covering 22 attack categories.
+**Tweek**: Includes curl/wget exfiltration patterns as part of a 262-pattern library covering 22 attack categories.
 
 **Assessment**: Tweek is a strict superset. Claude Code's blocklist is a starting point; Tweek covers encoded exfiltration, DNS tunneling, netcat, SCP, git-based exfiltration, webhook abuse, and many other vectors.
 
@@ -109,9 +109,9 @@ These are areas where Claude Code and Tweek overlap. We are transparent about th
 
 These capabilities have **no native equivalent** in Claude Code.
 
-### 1. Attack Pattern Library (259 patterns, 11 categories)
+### 1. Attack Pattern Library (262 patterns, 11 categories)
 
-Claude Code has a command blocklist that blocks curl and wget. Tweek has **259 categorized regex patterns** across 11 categories:
+Claude Code has a command blocklist that blocks curl and wget. Tweek has **262 categorized regex patterns** across 11 categories:
 
 - Credential theft (SSH keys, AWS creds, .env, keychains, cloud configs, shell history)
 - Network exfiltration (curl POST, paste sites, netcat, reverse shells, pipe-to-shell)
@@ -153,7 +153,7 @@ Claude Code doesn't classify its detections, so it can't make proportional decis
 
 This is arguably **Tweek's most important unique feature**. Claude Code's PostToolUse hooks are passive -- the tool already ran, and the hook can only add context. It cannot screen the content returned by the tool.
 
-Tweek **actively screens response content** from Read, WebFetch, Bash, Grep, and WebSearch through all 259 patterns, detects non-English attacks, and **auto-redacts CRITICAL+deterministic matches** before the AI agent acts on them.
+Tweek **actively screens response content** from Read, WebFetch, Bash, Grep, and WebSearch through all 262 patterns, detects non-English attacks, and **auto-redacts CRITICAL+deterministic matches** before the AI agent acts on them.
 
 This means:
 - A prompt injection hiding in a fetched web page is caught and redacted
@@ -307,7 +307,7 @@ Tweek's security features are implemented as **external screening logic** -- the
 
 | Tweek Feature | Implementation | Model-Dependent? |
 |---|---|---|
-| 259 attack patterns | Regex matching | No |
+| 262 attack patterns | Regex matching | No |
 | Graduated enforcement (deny/ask/log) | Deterministic matrix | No |
 | Pattern confidence classification | Static classification | No |
 | PostToolUse response screening | Regex + language detection | No |
@@ -332,7 +332,7 @@ Without Tweek, running Claude Code with a local model creates a significant secu
 ```
 With Claude:        Client protections + Claude's safety training + Claude's injection resistance
 With local model:   Client protections only
-With local + Tweek: Client protections + 259 patterns + graduated enforcement + response screening
+With local + Tweek: Client protections + 262 patterns + graduated enforcement + response screening
                     + session analysis + memory + rate limiting + LLM review (via Haiku)
 ```
 
@@ -361,7 +361,7 @@ Claude Code's native security is a solid foundation -- particularly the OS-level
 **Where Tweek is unique** (and where Claude Code has gaps):
 
 1. **Response screening + content redaction** -- The biggest gap. No native protection against prompt injection in tool responses.
-2. **Deep attack pattern library** -- 259 patterns vs. a curl/wget blocklist.
+2. **Deep attack pattern library** -- 262 patterns vs. a curl/wget blocklist.
 3. **Graduated enforcement** -- Proportional response instead of binary allow/deny.
 4. **Cross-turn and cross-session intelligence** -- Session analysis and agentic memory detect patterns invisible to stateless systems.
 5. **Non-English attack detection** -- A complete blind spot in Claude Code.

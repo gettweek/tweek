@@ -20,7 +20,7 @@ from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
 # Global Hypothesis settings: disable deadline to handle cold-start loading
-# (PatternMatcher loads 259 patterns from YAML on first call)
+# (PatternMatcher loads 262 patterns from YAML on first call)
 settings.register_profile("tweek", deadline=None, print_blob=True)
 settings.load_profile("tweek")
 

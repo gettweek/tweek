@@ -12,7 +12,7 @@ license = "Apache-2.0"
 authors = [
     {name = "Tommy Mancino"}
 ]
-keywords = ["claude", "security", "sandbox", "ai", "llm", "tweek", "claude-code", "prompt-injection", "mcp", "credential-theft"]
+keywords = ["claude", "security", "dry-run", "ai", "llm", "tweek", "claude-code", "prompt-injection", "mcp", "credential-theft"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -128,7 +128,7 @@ markers = [
     "hooks: Pre/post tool use hook pipeline and path boundary escalation",
     "cli: CLI commands (install, uninstall, protect, config, license, logs, update)",
     "plugins: Plugin system (git registry, lockfile, compliance, discovery, security)",
-    "sandbox: Sandbox execution, project isolation, and Docker bridge",
+    "sandbox: Dry-run execution, project isolation, and Docker bridge",
     "skills: Skill scanning, isolation, fingerprints, and guard",
     "mcp: MCP proxy, server, and desktop client integration",
     "security: Credential scanning, redaction, break-glass, enforcement, overrides",

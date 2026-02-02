@@ -5,7 +5,7 @@ GAH! Because paranoia is a feature, not a bug.
 
 Tweek provides:
 - Credential vaulting via macOS Keychain
-- Process sandboxing via sandbox-exec
+- Dry-run isolation via sandbox-exec
 - Speculative execution (preview-then-execute)
 - Per-skill/per-tool security policies
 """

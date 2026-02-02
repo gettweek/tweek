@@ -66,7 +66,7 @@ whitelist:
 
 ## Pattern Toggles
 
-Control which of the 259 detection patterns are active.
+Control which of the 262 detection patterns are active.
 
 ### Globally Disable a Pattern
 

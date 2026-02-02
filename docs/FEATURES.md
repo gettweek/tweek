@@ -2,7 +2,7 @@
 
 ## Security (all free)
 
-- **259 attack patterns** across 11 categories (credential theft, prompt injection, data exfiltration, MCP CVEs, social engineering, RAG poisoning, multi-agent attacks, encoding/obfuscation detection, CVE gap analysis, red team hardening, and more)
+- **262 attack patterns** across 11 categories (credential theft, prompt injection, data exfiltration, MCP CVEs, social engineering, RAG poisoning, multi-agent attacks, encoding/obfuscation detection, CVE gap analysis, red team hardening, and more)
 - **Graduated enforcement** — severity × confidence decision matrix: CRITICAL+deterministic → hard deny, HIGH/MEDIUM → user prompt, LOW → log-only (configurable via `overrides.yaml`)
 - **Pattern confidence classification** — every pattern classified as `deterministic` (59 patterns, near-zero FP), `heuristic` (144, good signal), or `contextual` (56, context-dependent)
 - **Content redaction** — CRITICAL+deterministic matches in tool responses are auto-redacted (`[REDACTED BY TWEEK]`) before the AI agent can act on them
@@ -27,7 +27,7 @@
 - **5 LLM provider parsers** — Anthropic, OpenAI, Google Gemini, Azure OpenAI, AWS Bedrock
 - **5 tool detectors** — OpenClaw, Cursor, Continue.dev, GitHub Copilot, Windsurf
 - **Health diagnostics** (`tweek doctor`)
-- **Interactive setup wizard** (`tweek quickstart`)
+- **Interactive setup wizard** (`tweek install`)
 - **Security presets** — `paranoid`, `cautious`, `trusted`
 - **Automatic tier escalation** — content-based escalation for production references, destructive SQL, cloud deployments, sudo commands
 - **Custom pattern authoring**

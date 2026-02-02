@@ -441,3 +441,87 @@ def setup_openclaw_protection(
 
     result.success = True
     return result
+
+
+def remove_openclaw_protection() -> dict:
+    """
+    Remove Tweek protection from OpenClaw.
+
+    Reverses setup_openclaw_protection():
+    1. Uninstalls the Tweek plugin from OpenClaw
+    2. Removes the Tweek plugin entry from openclaw.json
+    3. Removes the openclaw section from ~/.tweek/config.yaml
+
+    Returns:
+        dict with 'success', 'message', 'details', and optionally 'error'
+    """
+    details = []
+
+    # 1. Uninstall the npm plugin
+    if _check_plugin_installed():
+        try:
+            proc = subprocess.run(
+                ["openclaw", "plugins", "uninstall", OPENCLAW_PLUGIN_NAME],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if proc.returncode == 0:
+                details.append(f"Uninstalled {OPENCLAW_PLUGIN_NAME} plugin")
+            else:
+                details.append(f"Plugin uninstall returned non-zero (may already be removed)")
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "Plugin uninstall timed out"}
+        except FileNotFoundError:
+            details.append("openclaw CLI not found, skipping plugin uninstall")
+    else:
+        details.append("Tweek plugin not found in OpenClaw (already removed)")
+
+    # 2. Remove Tweek entry from openclaw.json
+    if OPENCLAW_CONFIG.exists():
+        try:
+            with open(OPENCLAW_CONFIG) as f:
+                config = json.load(f)
+
+            plugins = config.get("plugins", {})
+            entries = plugins.get("entries", {})
+            if "tweek" in entries:
+                del entries["tweek"]
+                with open(OPENCLAW_CONFIG, "w") as f:
+                    json.dump(config, f, indent=2)
+                details.append(f"Removed tweek entry from {OPENCLAW_CONFIG}")
+            else:
+                details.append("No tweek entry found in openclaw.json")
+        except (json.JSONDecodeError, IOError) as e:
+            details.append(f"Could not update openclaw.json: {e}")
+
+    # 3. Remove openclaw section from ~/.tweek/config.yaml
+    tweek_config_path = Path.home() / ".tweek" / "config.yaml"
+    if tweek_config_path.exists():
+        try:
+            import yaml
+        except ImportError:
+            yaml = None
+
+        if yaml:
+            try:
+                with open(tweek_config_path) as f:
+                    tweek_config = yaml.safe_load(f) or {}
+
+                if "openclaw" in tweek_config:
+                    del tweek_config["openclaw"]
+                    with open(tweek_config_path, "w") as f:
+                        yaml.dump(tweek_config, f, default_flow_style=False)
+                    details.append("Removed openclaw section from ~/.tweek/config.yaml")
+                else:
+                    details.append("No openclaw section in ~/.tweek/config.yaml")
+            except Exception as e:
+                details.append(f"Could not update ~/.tweek/config.yaml: {e}")
+        else:
+            details.append("PyYAML not available, skipping config.yaml cleanup")
+
+    return {
+        "success": True,
+        "message": "OpenClaw protection removed",
+        "details": details,
+    }

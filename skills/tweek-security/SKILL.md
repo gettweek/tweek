@@ -1,6 +1,6 @@
 ---
 name: tweek-security
-description: Defense-in-depth security screening for all OpenClaw tool calls. Screens every command through 5 layers — pattern matching, rate limiting, LLM review, session analysis, and sandbox preview. Blocks credential theft, prompt injection, data exfiltration, and multi-step attacks. 259 attack patterns. 100% local. Apache 2.0.
+description: Defense-in-depth security screening for all OpenClaw tool calls. Screens every command through 5 layers — pattern matching, rate limiting, LLM review, session analysis, and sandbox preview. Blocks credential theft, prompt injection, data exfiltration, and multi-step attacks. 262 attack patterns. 100% local. Apache 2.0.
 homepage: https://github.com/gettweek/tweek
 user-invocable: true
 metadata: {"openclaw": {"requires": {"bins": ["tweek"]}, "install": [{"id": "uv", "kind": "uv", "package": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Python)"}, {"id": "brew", "kind": "brew", "formula": "tweek", "bins": ["tweek"], "label": "Install Tweek security (Homebrew)", "os": ["darwin"]}], "config": {"stateDirs": [".tweek"], "example": "pip install tweek && tweek protect openclaw"}}}
@@ -29,7 +29,7 @@ That's it. Tweek auto-detects your OpenClaw gateway and starts screening all too
 
 Tweek wraps your OpenClaw gateway and screens every tool call through:
 
-1. **Pattern Matching** — 259 regex patterns catch credential theft, reverse shells, data exfiltration, prompt injection, keychain access, encoded payloads, and encoding/obfuscation attacks
+1. **Pattern Matching** — 262 regex patterns catch credential theft, reverse shells, data exfiltration, prompt injection, keychain access, encoded payloads, and encoding/obfuscation attacks
 2. **Rate Limiting** — Burst detection, velocity anomaly analysis, and circuit breaker protection
 3. **LLM Review** — Claude Haiku semantic analysis of suspicious commands (optional, bring your own API key)
 4. **Session Analysis** — Cross-turn anomaly detection catches multi-step social engineering attacks across conversation turns

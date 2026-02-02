@@ -3,7 +3,7 @@ Tweek Heuristic Scorer Screening Plugin
 
 Lightweight signal-based scoring for confidence-gated LLM escalation.
 Runs between Layer 2 (regex) and Layer 3 (LLM) to detect novel attack
-variants that don't match any of the 259 regex patterns but exhibit
+variants that don't match any of the 262 regex patterns but exhibit
 suspicious characteristics.
 
 Scoring signals (all local, no network, no LLM):
