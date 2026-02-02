@@ -9,7 +9,7 @@
 #
 # Security Layers:
 #   1. Rate Limiting    - Detect resource theft and burst attacks
-#   2. Pattern Match    - Regex patterns for known attack vectors (259 patterns)
+#   2. Pattern Match    - Regex patterns for known attack vectors (260 patterns)
 #   2.5 Heuristic Score - Signal-based scoring for confidence-gated LLM escalation
 #   3. LLM Review       - Semantic analysis using Claude Haiku or local LLM
 #   4. Session Scan     - Cross-turn anomaly detection
@@ -18,11 +18,11 @@
 version: 2
 
 # LLM Review Configuration
-# Supports: anthropic, openai, google, or any OpenAI-compatible endpoint
-# Provider "auto" checks: local (if enabled) → ANTHROPIC_API_KEY → OPENAI_API_KEY → GOOGLE_API_KEY
+# Supports: anthropic, openai, google, xai (Grok), or any OpenAI-compatible endpoint
+# Provider "auto" checks: local (if enabled) → ANTHROPIC_API_KEY → OPENAI_API_KEY → GOOGLE_API_KEY → XAI_API_KEY
 llm_review:
   enabled: true
-  provider: auto              # auto | local | anthropic | openai | google | fallback
+  provider: auto              # auto | local | anthropic | openai | google | xai | fallback
   model: auto                 # auto = provider default, or explicit model name
   base_url: null              # For OpenAI-compatible endpoints (Ollama, LM Studio, etc.)
   api_key_env: null           # Override env var name (default: provider-specific)

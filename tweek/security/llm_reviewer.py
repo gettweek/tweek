@@ -55,6 +55,7 @@ DEFAULT_MODELS = {
     "anthropic": "claude-3-5-haiku-latest",
     "openai": "gpt-4o-mini",
     "google": "gemini-2.0-flash",
+    "xai": "grok-2",
 }
 
 # Default env var names per provider
@@ -62,6 +63,12 @@ DEFAULT_API_KEY_ENVS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "google": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+    "xai": "XAI_API_KEY",
+}
+
+# Base URLs for providers that use OpenAI-compatible endpoints
+PROVIDER_BASE_URLS = {
+    "xai": "https://api.x.ai/v1",
 }
 
 
@@ -724,7 +731,7 @@ def _build_escalation_provider(
 ) -> Optional[ReviewProvider]:
     """Build a cloud LLM provider for escalation from local model.
 
-    Tries Anthropic, OpenAI, and Google in order.
+    Tries Anthropic, OpenAI, Google, and xAI (Grok) in order.
     Returns None if no cloud provider is available.
     """
     # 1. Anthropic
@@ -754,6 +761,16 @@ def _build_escalation_provider(
                 model=resolved_model, api_key=key, timeout=timeout,
             )
 
+    # 4. xAI (Grok) — OpenAI-compatible endpoint
+    if OPENAI_AVAILABLE:
+        key = api_key or _get_api_key("xai", api_key_env if api_key_env else None)
+        if key:
+            resolved_model = model if model != "auto" else DEFAULT_MODELS["xai"]
+            return OpenAIReviewProvider(
+                model=resolved_model, api_key=key, timeout=timeout,
+                base_url=PROVIDER_BASE_URLS["xai"],
+            )
+
     return None
 
 
@@ -774,6 +791,7 @@ def _auto_detect_provider(
     1. Anthropic cloud
     2. OpenAI cloud
     3. Google cloud
+    4. xAI (Grok) cloud
 
     If fallback is enabled and both local + cloud are available,
     returns a FallbackReviewProvider wrapping both.
@@ -971,6 +989,16 @@ def _create_explicit_provider(
             return None
         return GoogleReviewProvider(
             model=resolved_model, api_key=key, timeout=timeout,
+        )
+
+    elif provider == "xai":
+        if not OPENAI_AVAILABLE:
+            return None
+        if not key:
+            return None
+        return OpenAIReviewProvider(
+            model=resolved_model, api_key=key, timeout=timeout,
+            base_url=base_url or PROVIDER_BASE_URLS["xai"],
         )
 
     else:

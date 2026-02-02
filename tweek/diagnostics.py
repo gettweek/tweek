@@ -604,45 +604,22 @@ def _check_llm_review(verbose: bool = False) -> HealthCheck:
         reviewer = get_llm_reviewer()
 
         if not reviewer.enabled:
-            # Check which env vars are missing to give specific guidance
-            missing_keys = []
-            for provider, env_names in DEFAULT_API_KEY_ENVS.items():
-                if isinstance(env_names, list):
-                    if not any(os.environ.get(e) for e in env_names):
-                        missing_keys.append(f"{' or '.join(env_names)} ({provider})")
-                else:
-                    if not os.environ.get(env_names):
-                        missing_keys.append(f"{env_names} ({provider})")
-
             hint_parts = [
-                "To enable cloud LLM review for uncertain classifications:",
-                "  Set one of: " + ", ".join(
-                    k.split(" (")[0] for k in missing_keys
-                ),
+                "Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY,",
+                "  GEMINI_API_KEY, XAI_API_KEY, or other LLM provider API key",
+                "  as an environment variable, or configure a provider in",
+                "  ~/.tweek/config.yaml.",
+                "",
+                "  Alternatively, install a local model for offline review.",
+                "",
+                "  See: docs/CONFIGURATION.md (LLM Review Provider section)",
             ]
-
-            if not LOCAL_MODEL_AVAILABLE:
-                hint_parts.append(
-                    "  Or install the local model: pip install 'tweek[local]'"
-                )
-            else:
-                hint_parts.append(
-                    "  Local ONNX model is available but could not initialize"
-                )
-
-            hint_parts.append(
-                "  Or install Ollama (https://ollama.ai) for local LLM review"
-            )
-            hint_parts.append(
-                "  See: docs/CONFIGURATION.md or ~/.tweek/config.yaml"
-            )
 
             return HealthCheck(
                 name="llm_review",
                 label="LLM Review",
                 status=CheckStatus.WARNING,
-                message="No LLM provider available — review disabled, "
-                        "pattern matching and heuristic scoring still active",
+                message="No LLM provider configured — using pattern matching only",
                 fix_hint="\n".join(hint_parts),
             )
 

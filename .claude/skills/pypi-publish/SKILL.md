@@ -8,7 +8,7 @@ user-invocable: true
 
 ## Purpose
 
-Automate the full release cycle: version bump, test, build, publish to PyPI, commit, tag, and push.
+Automate the release cycle: version bump, test, build, commit, tag, push to GitHub, and optionally publish to PyPI.
 
 **Use when user asks to:**
 - "Publish to PyPI"
@@ -19,11 +19,25 @@ Automate the full release cycle: version bump, test, build, publish to PyPI, com
 
 ---
 
+## CRITICAL: PyPI Publishing Requires Explicit User Instruction
+
+**Do NOT publish to PyPI unless the user explicitly asks you to.** The default workflow is:
+
+1. Bump version, run tests, build, commit, tag, and push to GitHub.
+2. **Stop and report.** Tell the user the build is ready and ask if they want to publish to PyPI.
+3. Only run the PyPI upload (Step 5) if the user confirms.
+
+Committing and pushing to GitHub is always safe. Publishing to PyPI is a one-way action (you cannot overwrite a published version), so it must always be a deliberate user decision.
+
+---
+
 ## Workflow
 
 Follow these steps in order. Stop and report if any step fails.
 
 ### Step 1: Determine Version Bump
+
+**Default behavior: always bump patch (point release).** Minor and major bumps only happen when the user explicitly requests them.
 
 **1a.** Run the version helper script to see the current version:
 
@@ -33,39 +47,9 @@ python3 .claude/skills/pypi-publish/scripts/bump_version.py --type patch
 
 This returns JSON with `current` and `next` versions.
 
-**1b.** If the user already specified the bump type (e.g., "release a minor version"), use that directly and skip to Step 2.
+**1b.** If the user explicitly specified a bump type (e.g., "release a minor version", "major release"), use that type instead. Otherwise, **always use patch**.
 
-**1c.** Otherwise, analyze what changed since the last release to make a recommendation. Get the latest git tag and review commits since then:
-
-```bash
-git describe --tags --abbrev=0 2>/dev/null || echo "no-tags"
-```
-
-Then review the commit log since that tag:
-
-```bash
-git log v{last_version}..HEAD --oneline
-```
-
-**1d.** Classify and recommend based on the changes:
-
-| Signal | Recommendation |
-|--------|---------------|
-| Only bug fixes, style changes, docs, refactors, color fixes, dependency bumps | **patch** |
-| New features, new commands, new skills, new plugins, API additions | **minor** |
-| Breaking API changes, removed commands, renamed public interfaces, config format changes | **major** |
-
-**1e.** Present the recommendation to the user using `AskUserQuestion`. Show the current version, a 1-2 sentence summary of what changed, and the three options with your recommendation marked. Example:
-
-> Current version: **0.2.1** (3 commits since v0.2.1)
->
-> Changes: Added PyPI publish skill, fixed dark mode colors across all CLI output.
->
-> - **patch** (0.2.1 → 0.2.2) — bug fixes, small changes **(Recommended)**
-> - **minor** (0.2.1 → 0.3.0) — new features, non-breaking
-> - **major** (0.2.1 → 1.0.0) — breaking changes
-
-Always wait for the user's response before proceeding.
+**1c.** Do NOT ask the user to choose between patch/minor/major. Just proceed with patch. The user will tell you if they want something different.
 
 ### Step 2: Update Version
 
@@ -91,23 +75,7 @@ python3 -m build
 
 Verify two files appear in `dist/` (`.whl` and `.tar.gz`).
 
-### Step 5: Publish to PyPI
-
-Read the PyPI token from the `.env` file:
-
-```bash
-grep PYPI_API_TOKEN .env
-```
-
-Then upload:
-
-```bash
-TWINE_USERNAME=__token__ TWINE_PASSWORD=<token_value> python3 -m twine upload dist/*
-```
-
-**IMPORTANT:** Never print or echo the token. Pass it only via environment variable.
-
-### Step 6: Git Commit, Tag, and Push
+### Step 5: Git Commit, Tag, and Push
 
 Stage the version files and any other pending changes:
 
@@ -133,14 +101,46 @@ Push both the commit and the tag:
 git push origin main && git push origin v{version}
 ```
 
-### Step 7: Report
+### Step 6: Report and Ask About PyPI
 
-Tell the user:
+**STOP here and report to the user:**
 - The new version number
+- That the commit and tag have been pushed to GitHub
+- The build artifacts are ready in `dist/`
+- Ask: **"Ready to publish v{version} to PyPI?"**
+
+**Do NOT proceed to Step 7 unless the user explicitly confirms.**
+
+### Step 7: Publish to PyPI (only when user confirms)
+
+Read the PyPI token from the `.env` file:
+
+```bash
+grep PYPI_API_TOKEN .env
+```
+
+Then upload:
+
+```bash
+TWINE_USERNAME=__token__ TWINE_PASSWORD=<token_value> python3 -m twine upload dist/*
+```
+
+**IMPORTANT:** Never print or echo the token. Pass it only via environment variable.
+
+After publishing, tell the user:
 - The PyPI URL: `https://pypi.org/project/tweek/{version}/`
 - That users can update with `tweek upgrade` or `uv tool upgrade tweek`
 
 ---
+
+## Important: Testing Installation
+
+**NEVER use `pip install -e .` to test tweek locally.** The installed binary lives at `~/.local/bin/tweek` and is managed by `uv` (or `pipx`). An editable pip install creates a conflicting package that doesn't update the actual binary.
+
+To test a new release against the installed binary:
+1. Publish to PyPI (this skill)
+2. Reinstall via: `curl -sSL https://raw.githubusercontent.com/gettweek/tweek/main/scripts/install.sh | bash`
+3. Verify with: `tweek --version`
 
 ## Troubleshooting
 
@@ -151,6 +151,7 @@ Tell the user:
 | Version already exists on PyPI | You cannot overwrite — bump again |
 | Tests fail | Fix tests before publishing |
 | Build fails | Check `pyproject.toml` for syntax errors |
+| Installed binary is stale | Do NOT use `pip install -e .` — publish to PyPI and reinstall via curl |
 
 ---
 

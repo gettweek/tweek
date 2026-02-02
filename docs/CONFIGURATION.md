@@ -333,7 +333,7 @@ model, and endpoint to use for semantic security analysis.
 # ~/.tweek/config.yaml or .tweek/config.yaml
 llm_review:
   enabled: true           # Enable/disable LLM review entirely
-  provider: auto          # auto | anthropic | openai | google
+  provider: auto          # auto | anthropic | openai | google | xai
   model: auto             # auto = provider default, or explicit model name
   base_url: null          # For OpenAI-compatible endpoints
   api_key_env: null       # Override which env var to read for the API key
@@ -347,7 +347,8 @@ When `provider: auto` (the default), Tweek checks for API keys in order:
 1. `ANTHROPIC_API_KEY` present -> Anthropic, model `claude-3-5-haiku-latest`
 2. `OPENAI_API_KEY` present -> OpenAI, model `gpt-4o-mini`
 3. `GOOGLE_API_KEY` or `GEMINI_API_KEY` present -> Google, model `gemini-2.0-flash`
-4. None found -> LLM reviewer disabled (graceful degradation)
+4. `XAI_API_KEY` present -> xAI (Grok), model `grok-2`
+5. None found -> LLM reviewer disabled (graceful degradation)
 
 ### Provider Examples
 
@@ -390,6 +391,13 @@ llm_review:
 llm_review:
   provider: google
   model: gemini-2.0-flash
+```
+
+**xAI (Grok)**
+```yaml
+llm_review:
+  provider: xai
+  model: grok-2
 ```
 
 **Explicit Anthropic (same as default)**
