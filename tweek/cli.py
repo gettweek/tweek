@@ -785,69 +785,16 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
 
 
 def _check_python_version(console: Console, quick: bool) -> None:
-    """Check Python version and warn about potential issues.
+    """Show Python version and warn about path mismatches.
 
-    Verifies:
-    1. Current Python meets minimum version (3.9+)
-    2. System `python3` matches the install Python (hook compatibility)
+    The hard version gate lives in scripts/install.sh. This function only
+    reports the running Python and warns if the system python3 differs
+    (which affects hook execution).
     """
-    import platform as plat
-
-    min_version = (3, 9)
     current = sys.version_info[:2]
-
-    # Check 1: Current Python version
-    if current < min_version:
-        console.print(f"[red]ERROR: Python {min_version[0]}.{min_version[1]}+ required, "
-                       f"but running {current[0]}.{current[1]}[/red]")
-        console.print()
-        console.print("[bold]How to install a supported Python version:[/bold]")
-        console.print()
-
-        system = plat.system()
-        if system == "Darwin":
-            console.print("  [cyan]Option 1: Homebrew (recommended)[/cyan]")
-            console.print("    brew install python@3.12")
-            console.print("    brew link python@3.12")
-            console.print()
-            console.print("  [cyan]Option 2: pyenv[/cyan]")
-            console.print("    brew install pyenv")
-            console.print("    pyenv install 3.12.10")
-            console.print("    pyenv global 3.12.10")
-            console.print()
-            console.print("  [cyan]Option 3: python.org installer[/cyan]")
-            console.print("    https://www.python.org/downloads/")
-        elif system == "Linux":
-            console.print("  [cyan]Option 1: System package manager[/cyan]")
-            if shutil.which("apt"):
-                console.print("    sudo apt update && sudo apt install python3.12 python3.12-venv")
-            elif shutil.which("dnf"):
-                console.print("    sudo dnf install python3.12")
-            elif shutil.which("pacman"):
-                console.print("    sudo pacman -S python")
-            else:
-                console.print("    Install python3.12 via your package manager")
-            console.print()
-            console.print("  [cyan]Option 2: pyenv[/cyan]")
-            console.print("    curl https://pyenv.run | bash")
-            console.print("    pyenv install 3.12.10")
-            console.print("    pyenv global 3.12.10")
-        elif system == "Windows":
-            console.print("  [cyan]Option 1: python.org installer[/cyan]")
-            console.print("    https://www.python.org/downloads/")
-            console.print()
-            console.print("  [cyan]Option 2: winget[/cyan]")
-            console.print("    winget install Python.Python.3.12")
-        else:
-            console.print("  https://www.python.org/downloads/")
-
-        console.print()
-        console.print("[dim]After installing, run: pip install tweek && tweek install[/dim]")
-        raise SystemExit(1)
-
     console.print(f"[green]✓[/green] Python {current[0]}.{current[1]} ({sys.executable})")
 
-    # Check 2: Warn if system python3 differs from install Python
+    # Warn if system python3 differs from install Python
     # This matters because hooks run via the Python path stored in settings.json
     system_python3 = shutil.which("python3")
     if system_python3:

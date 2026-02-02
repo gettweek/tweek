@@ -232,30 +232,12 @@ class TestScopeSelection:
 class TestCheckPythonVersion:
     """Tests for _check_python_version pre-flight check."""
 
-    def test_passes_on_current_python(self, capsys):
-        """Should pass on the Python running these tests (>= 3.9)."""
+    def test_shows_current_python(self, capsys):
+        """Should display the running Python version."""
         _check_python_version(Console(), quick=False)
         captured = capsys.readouterr()
         assert "Python" in captured.out
         assert sys.executable in captured.out
-
-    def test_fails_on_old_python(self, monkeypatch):
-        """Should exit with code 1 if Python is too old."""
-        monkeypatch.setattr(sys, "version_info", (3, 8, 0, "final", 0))
-        with pytest.raises(SystemExit) as exc_info:
-            _check_python_version(Console(), quick=False)
-        assert exc_info.value.code == 1
-
-    def test_old_python_shows_instructions(self, monkeypatch, capsys):
-        """Should show install instructions when Python is too old."""
-        monkeypatch.setattr(sys, "version_info", (3, 8, 0, "final", 0))
-        try:
-            _check_python_version(Console(), quick=False)
-        except SystemExit:
-            pass
-        captured = capsys.readouterr()
-        assert "3.9" in captured.out
-        assert "install" in captured.out.lower()
 
     def test_warns_system_python_mismatch(self, monkeypatch, capsys):
         """Should warn when system python3 differs from install Python."""
