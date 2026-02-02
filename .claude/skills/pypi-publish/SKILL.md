@@ -25,7 +25,7 @@ Follow these steps in order. Stop and report if any step fails.
 
 ### Step 1: Determine Version Bump
 
-Run the version helper script to see the current version:
+**1a.** Run the version helper script to see the current version:
 
 ```bash
 python3 .claude/skills/pypi-publish/scripts/bump_version.py --type patch
@@ -33,12 +33,39 @@ python3 .claude/skills/pypi-publish/scripts/bump_version.py --type patch
 
 This returns JSON with `current` and `next` versions.
 
-Ask the user which bump type they want:
-- **patch** (0.2.1 → 0.2.2) — bug fixes, small changes (default)
-- **minor** (0.2.1 → 0.3.0) — new features, non-breaking
-- **major** (0.2.1 → 1.0.0) — breaking changes
+**1b.** If the user already specified the bump type (e.g., "release a minor version"), use that directly and skip to Step 2.
 
-If the user already specified (e.g., "release a minor version"), use that directly.
+**1c.** Otherwise, analyze what changed since the last release to make a recommendation. Get the latest git tag and review commits since then:
+
+```bash
+git describe --tags --abbrev=0 2>/dev/null || echo "no-tags"
+```
+
+Then review the commit log since that tag:
+
+```bash
+git log v{last_version}..HEAD --oneline
+```
+
+**1d.** Classify and recommend based on the changes:
+
+| Signal | Recommendation |
+|--------|---------------|
+| Only bug fixes, style changes, docs, refactors, color fixes, dependency bumps | **patch** |
+| New features, new commands, new skills, new plugins, API additions | **minor** |
+| Breaking API changes, removed commands, renamed public interfaces, config format changes | **major** |
+
+**1e.** Present the recommendation to the user using `AskUserQuestion`. Show the current version, a 1-2 sentence summary of what changed, and the three options with your recommendation marked. Example:
+
+> Current version: **0.2.1** (3 commits since v0.2.1)
+>
+> Changes: Added PyPI publish skill, fixed dark mode colors across all CLI output.
+>
+> - **patch** (0.2.1 → 0.2.2) — bug fixes, small changes **(Recommended)**
+> - **minor** (0.2.1 → 0.3.0) — new features, non-breaking
+> - **major** (0.2.1 → 1.0.0) — breaking changes
+
+Always wait for the user's response before proceeding.
 
 ### Step 2: Update Version
 
