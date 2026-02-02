@@ -7,7 +7,7 @@ Logs all tool/skill invocations, screening decisions, and user responses.
 
 Database location: ~/.tweek/security.db
 
-Includes log redaction for sensitive data based on moltbot's security hardening.
+Includes log redaction for sensitive data based on OpenClaw's security hardening.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class LogRedactor:
     """
     Redacts sensitive information from log data.
 
-    Based on moltbot's log-redaction security feature.
+    Based on OpenClaw's log-redaction security feature.
     Ensures secrets, tokens, and credentials are never written to logs.
     """
 

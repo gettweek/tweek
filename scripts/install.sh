@@ -447,25 +447,25 @@ setup_hooks() {
     fi
 }
 
-# ── Detect Moltbot and offer protection ─────────────────────────
-setup_moltbot() {
-    if ! command -v moltbot &>/dev/null; then
+# ── Detect OpenClaw and offer protection ─────────────────────────
+setup_openclaw() {
+    if ! command -v openclaw &>/dev/null; then
         return
     fi
 
     echo ""
-    info "Moltbot detected on this system"
+    info "OpenClaw detected on this system"
     echo ""
 
     if [ "$INTERACTIVE" = true ]; then
-        echo -e "${CYAN}Tweek can protect Moltbot tool calls. Choose a method:${NC}"
+        echo -e "${CYAN}Tweek can protect OpenClaw tool calls. Choose a method:${NC}"
         echo ""
-        echo -e "  ${CYAN}1.${NC} Protect via ${BOLD}tweek-security${NC} MoltHub skill"
-        echo -e "     ${DIM}Screens tool calls through Tweek as a MoltHub skill${NC}"
-        echo -e "  ${CYAN}2.${NC} Protect via ${BOLD}tweek protect moltbot${NC}"
-        echo -e "     ${DIM}Wraps the Moltbot gateway with Tweek's proxy${NC}"
+        echo -e "  ${CYAN}1.${NC} Protect via ${BOLD}tweek-security${NC} ClawHub skill"
+        echo -e "     ${DIM}Screens tool calls through Tweek as a ClawHub skill${NC}"
+        echo -e "  ${CYAN}2.${NC} Protect via ${BOLD}tweek protect openclaw${NC}"
+        echo -e "     ${DIM}Wraps the OpenClaw gateway with Tweek's proxy${NC}"
         echo -e "  ${CYAN}3.${NC} Skip for now"
-        echo -e "     ${DIM}You can set up Moltbot protection later${NC}"
+        echo -e "     ${DIM}You can set up OpenClaw protection later${NC}"
         echo ""
         echo -ne "${CYAN}→${NC} Select ${DIM}[1/2/3]${NC} (default: 3): "
         read -r choice </dev/tty
@@ -473,24 +473,24 @@ setup_moltbot() {
         case "${choice:-3}" in
             1)
                 echo ""
-                echo -e "  ${GREEN}✓${NC} To add Moltbot protection via the skill, run:"
-                echo -e "    ${BOLD}moltbot protect tweek-security${NC}"
+                echo -e "  ${GREEN}✓${NC} To add OpenClaw protection via the skill, run:"
+                echo -e "    ${BOLD}openclaw protect tweek-security${NC}"
                 ;;
             2)
                 echo ""
-                step "Configuring Moltbot proxy protection..."
-                $TWEEK_CMD protect moltbot 2>/dev/null || true
+                step "Configuring OpenClaw proxy protection..."
+                $TWEEK_CMD protect openclaw 2>/dev/null || true
                 ;;
             *)
                 echo ""
-                echo -e "  ${DIM}Skipped. Run 'tweek protect moltbot' or add the${NC}"
-                echo -e "  ${DIM}tweek-security skill later to protect Moltbot.${NC}"
+                echo -e "  ${DIM}Skipped. Run 'tweek protect openclaw' or add the${NC}"
+                echo -e "  ${DIM}tweek-security skill later to protect OpenClaw.${NC}"
                 ;;
         esac
     else
         # Non-interactive: inform and skip
-        echo -e "  ${DIM}Run 'tweek protect moltbot' or add the tweek-security${NC}"
-        echo -e "  ${DIM}skill to protect Moltbot tool calls.${NC}"
+        echo -e "  ${DIM}Run 'tweek protect openclaw' or add the tweek-security${NC}"
+        echo -e "  ${DIM}skill to protect OpenClaw tool calls.${NC}"
     fi
 }
 
@@ -521,7 +521,7 @@ main() {
     install_tweek_package
     verify_install
     setup_hooks
-    setup_moltbot
+    setup_openclaw
     run_doctor
     finish
 }

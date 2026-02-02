@@ -179,7 +179,7 @@ Both macOS and Linux installation require `sudo` privileges.
 During `tweek install`, Tweek detects existing proxy configurations that may conflict:
 
 - Other HTTP proxies already set via environment variables
-- Tools like moltbot that manage their own proxy settings
+- Tools like openclaw that manage their own proxy settings
 
 Options for handling conflicts:
 

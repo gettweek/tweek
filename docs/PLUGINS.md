@@ -13,7 +13,7 @@ Tweek uses a modular plugin architecture organized into four categories. Plugins
 |                                                                   |
 |  +-------------------+  +-------------------+  +----------------+ |
 |  | Compliance        |  | LLM Providers     |  | Tool Detectors | |
-|  | gov, hipaa, pci,  |  | anthropic, openai,|  | moltbot,cursor,| |
+|  | gov, hipaa, pci,  |  | anthropic, openai,|  | openclaw,cursor,| |
 |  | legal, soc2, gdpr |  | azure, google,    |  | continue,      | |
 |  |                   |  | bedrock           |  | copilot,       | |
 |  | Coming soon       |  | FREE (all users)  |  | windsurf       | |
@@ -252,7 +252,7 @@ Detects EU personal data protection patterns covered under GDPR.
 
 | Plugin | Source | Tool |
 |--------|--------|------|
-| moltbot | `tweek/plugins/detectors/moltbot.py` | Claude Code (moltbot) |
+| openclaw | `tweek/plugins/detectors/openclaw.py` | OpenClaw |
 | cursor | `tweek/plugins/detectors/cursor.py` | Cursor IDE |
 | continue | `tweek/plugins/detectors/continue_dev.py` | Continue.dev |
 | copilot | `tweek/plugins/detectors/copilot.py` | GitHub Copilot |

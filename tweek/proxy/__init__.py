@@ -35,7 +35,7 @@ except ImportError:
 
 
 # Default ports
-MOLTBOT_DEFAULT_PORT = 18789
+OPENCLAW_DEFAULT_PORT = 18789
 TWEEK_DEFAULT_PORT = 9877
 
 
@@ -59,8 +59,8 @@ def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
-def check_moltbot_gateway_running(port: int = MOLTBOT_DEFAULT_PORT) -> bool:
-    """Check if moltbot's gateway is actively listening on its port."""
+def check_openclaw_gateway_running(port: int = OPENCLAW_DEFAULT_PORT) -> bool:
+    """Check if OpenClaw's gateway is actively listening on its port."""
     return is_port_in_use(port)
 
 
@@ -72,19 +72,19 @@ def detect_proxy_conflicts() -> list[ProxyConflict]:
     """
     conflicts = []
 
-    # Check for moltbot
-    moltbot_info = detect_moltbot()
-    if moltbot_info:
-        moltbot_port = moltbot_info.get("gateway_port", MOLTBOT_DEFAULT_PORT)
-        is_running = check_moltbot_gateway_running(moltbot_port)
+    # Check for OpenClaw
+    openclaw_info = detect_openclaw()
+    if openclaw_info:
+        openclaw_port = openclaw_info.get("gateway_port", OPENCLAW_DEFAULT_PORT)
+        is_running = check_openclaw_gateway_running(openclaw_port)
 
-        if moltbot_info.get("process_running") or is_running:
+        if openclaw_info.get("process_running") or is_running:
             conflicts.append(ProxyConflict(
-                tool_name="moltbot",
-                port=moltbot_port,
+                tool_name="openclaw",
+                port=openclaw_port,
                 is_running=is_running,
-                description="Moltbot gateway detected" +
-                           (f" on port {moltbot_port}" if is_running else " (process found)")
+                description="OpenClaw gateway detected" +
+                           (f" on port {openclaw_port}" if is_running else " (process found)")
             ))
 
     # Check if something else is using Tweek's default port
@@ -99,31 +99,31 @@ def detect_proxy_conflicts() -> list[ProxyConflict]:
     return conflicts
 
 
-def get_moltbot_status() -> dict:
+def get_openclaw_status() -> dict:
     """
-    Get detailed moltbot status including whether its gateway is running.
+    Get detailed OpenClaw status including whether its gateway is running.
 
     Returns:
         Dict with keys: installed, running, gateway_active, port, config_path
     """
     from pathlib import Path
 
-    moltbot_info = detect_moltbot()
+    openclaw_info = detect_openclaw()
 
     status = {
-        "installed": moltbot_info is not None,
+        "installed": openclaw_info is not None,
         "running": False,
         "gateway_active": False,
-        "port": MOLTBOT_DEFAULT_PORT,
+        "port": OPENCLAW_DEFAULT_PORT,
         "config_path": None,
     }
 
-    if moltbot_info:
-        status["running"] = moltbot_info.get("process_running", False)
-        status["port"] = moltbot_info.get("gateway_port", MOLTBOT_DEFAULT_PORT)
-        status["gateway_active"] = check_moltbot_gateway_running(status["port"])
+    if openclaw_info:
+        status["running"] = openclaw_info.get("process_running", False)
+        status["port"] = openclaw_info.get("gateway_port", OPENCLAW_DEFAULT_PORT)
+        status["gateway_active"] = check_openclaw_gateway_running(status["port"])
 
-        config_path = Path.home() / ".moltbot"
+        config_path = Path.home() / ".openclaw"
         if config_path.exists():
             status["config_path"] = str(config_path)
 
@@ -131,8 +131,8 @@ def get_moltbot_status() -> dict:
 
 
 # Detection functions for supported tools
-def detect_moltbot() -> Optional[dict]:
-    """Detect if moltbot is installed on the system."""
+def detect_openclaw() -> Optional[dict]:
+    """Detect if OpenClaw is installed on the system."""
     import subprocess
     import json
     from pathlib import Path
@@ -147,22 +147,22 @@ def detect_moltbot() -> Optional[dict]:
     # Check for npm global installation
     try:
         result = subprocess.run(
-            ["npm", "list", "-g", "moltbot", "--json"],
+            ["npm", "list", "-g", "openclaw", "--json"],
             capture_output=True,
             text=True,
             timeout=5
         )
         if result.returncode == 0:
             data = json.loads(result.stdout)
-            if "dependencies" in data and "moltbot" in data.get("dependencies", {}):
+            if "dependencies" in data and "openclaw" in data.get("dependencies", {}):
                 indicators["npm_global"] = True
     except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
         pass
 
-    # Check for running moltbot process
+    # Check for running openclaw process
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "moltbot"],
+            ["pgrep", "-f", "openclaw"],
             capture_output=True,
             timeout=5
         )
@@ -171,9 +171,9 @@ def detect_moltbot() -> Optional[dict]:
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
 
-    # Check for moltbot config directory
-    moltbot_config = Path.home() / ".moltbot"
-    if moltbot_config.exists():
+    # Check for OpenClaw config directory
+    openclaw_config = Path.home() / ".openclaw"
+    if openclaw_config.exists():
         indicators["config_exists"] = True
 
     # Default gateway port
@@ -232,7 +232,7 @@ def detect_continue() -> Optional[dict]:
 def detect_supported_tools() -> dict:
     """Detect all supported LLM tools on the system."""
     return {
-        "moltbot": detect_moltbot(),
+        "openclaw": detect_openclaw(),
         "cursor": detect_cursor(),
         "continue": detect_continue(),
     }
@@ -288,14 +288,14 @@ def get_proxy_status() -> dict:
 __all__ = [
     "PROXY_AVAILABLE",
     "PROXY_MISSING_DEPS",
-    "MOLTBOT_DEFAULT_PORT",
+    "OPENCLAW_DEFAULT_PORT",
     "TWEEK_DEFAULT_PORT",
     "ProxyConflict",
     "is_port_in_use",
-    "check_moltbot_gateway_running",
+    "check_openclaw_gateway_running",
     "detect_proxy_conflicts",
-    "get_moltbot_status",
-    "detect_moltbot",
+    "get_openclaw_status",
+    "detect_openclaw",
     "detect_cursor",
     "detect_continue",
     "detect_supported_tools",

@@ -100,7 +100,7 @@ class TestQuickFlag:
         assert "Scanning for .env" not in result.output
 
     def test_quick_skips_proxy_check(self, runner, tmp_path):
-        """--quick should skip proxy/moltbot detection."""
+        """--quick should skip proxy/openclaw detection."""
         with patch.object(Path, 'home', return_value=tmp_path):
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
@@ -109,7 +109,7 @@ class TestQuickFlag:
                     catch_exceptions=False,
                 )
 
-        assert "moltbot" not in result.output.lower()
+        assert "openclaw" not in result.output.lower()
 
     def test_quick_with_preset_override(self, runner, tmp_path):
         """--quick with explicit --preset uses the specified preset."""

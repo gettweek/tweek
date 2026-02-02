@@ -120,7 +120,7 @@ class CircuitBreaker:
     - OPEN: Too many failures, requests blocked, waiting for timeout
     - HALF_OPEN: Testing recovery, limited requests allowed
 
-    Based on moltbot's circuit breaker implementation for resilience.
+    Based on OpenClaw's circuit breaker implementation for resilience.
     """
 
     def __init__(self, config: Optional[CircuitBreakerConfig] = None):

@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
+from pathlib import Path as _Path
+
 from tweek.skills import (
     CHAMBER_DIR,
     CLAUDE_GLOBAL_SKILLS,
@@ -22,11 +24,14 @@ from tweek.skills import (
     SKILLS_DIR,
 )
 
+# OpenClaw skill directory
+OPENCLAW_SKILLS_DIR = _Path.home() / ".openclaw" / "workspace" / "skills"
 
 # Paths that AI cannot write to directly
 PROTECTED_SKILL_PATHS = [
-    SKILLS_DIR,          # ~/.tweek/skills/ (chamber, jail, reports)
+    SKILLS_DIR,            # ~/.tweek/skills/ (chamber, jail, reports)
     CLAUDE_GLOBAL_SKILLS,  # ~/.claude/skills/
+    OPENCLAW_SKILLS_DIR,   # ~/.openclaw/workspace/skills/
 ]
 
 # Regex patterns for detecting skill-related shell commands
@@ -41,6 +46,11 @@ _SKILL_DIR_PATTERNS = [
         r"(cp|mv|rsync|ln)\s+.*\.claude/skills/",
         re.IGNORECASE,
     ),
+    # Moving/copying into OpenClaw's skill directories
+    re.compile(
+        r"(cp|mv|rsync|ln)\s+.*\.openclaw/workspace/skills/",
+        re.IGNORECASE,
+    ),
     # Symlink attacks targeting skill directories
     re.compile(
         r"ln\s+(-sf?\s+)?.*\.claude/skills",
@@ -50,9 +60,17 @@ _SKILL_DIR_PATTERNS = [
         r"ln\s+(-sf?\s+)?.*\.tweek/skills",
         re.IGNORECASE,
     ),
+    re.compile(
+        r"ln\s+(-sf?\s+)?.*\.openclaw/workspace/skills",
+        re.IGNORECASE,
+    ),
     # Direct creation of SKILL.md via shell
     re.compile(
         r"(echo|cat|tee|printf)\s+.*>\s*.*\.claude/skills/.*SKILL\.md",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(echo|cat|tee|printf)\s+.*>\s*.*\.openclaw/workspace/skills/.*SKILL\.md",
         re.IGNORECASE,
     ),
 ]
@@ -65,6 +83,10 @@ _DOWNLOAD_PATTERNS = [
     ),
     re.compile(
         r"(curl|wget)\s+[^\n]*https?://[^\s]+.*>\s*.*\.claude/skills/",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(curl|wget)\s+[^\n]*https?://[^\s]+.*>\s*.*\.openclaw/workspace/skills/",
         re.IGNORECASE,
     ),
     re.compile(
@@ -112,10 +134,20 @@ def is_skill_install_attempt(tool_name: str, tool_input: Dict) -> bool:
     except ValueError:
         pass
 
+    # Check if targeting OpenClaw's skill directories
+    openclaw_skills = OPENCLAW_SKILLS_DIR.resolve()
+    try:
+        resolved.relative_to(openclaw_skills)
+        return True
+    except ValueError:
+        pass
+
     # Check project-level skills
-    # Look for .claude/skills/ pattern anywhere in the path
+    # Look for .claude/skills/ or .openclaw/workspace/skills/ pattern anywhere in the path
     path_str = str(resolved)
     if ".claude/skills/" in path_str and "SKILL.md" in path_str:
+        return True
+    if ".openclaw/workspace/skills/" in path_str and "SKILL.md" in path_str:
         return True
 
     return False

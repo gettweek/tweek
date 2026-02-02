@@ -3,11 +3,11 @@
 Tests for Tweek protect command group.
 
 Tests coverage of:
-- tweek protect moltbot (detection, setup, error handling)
+- tweek protect openclaw (detection, setup, error handling)
 - tweek protect claude (delegation to install)
-- MoltbotSetupResult dataclass
-- detect_moltbot_installation function
-- setup_moltbot_protection function
+- OpenClawSetupResult dataclass
+- detect_openclaw_installation function
+- setup_openclaw_protection function
 """
 
 import json
@@ -22,10 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 pytestmark = pytest.mark.cli
 
 from tweek.cli import main
-from tweek.integrations.moltbot import (
-    detect_moltbot_installation,
-    setup_moltbot_protection,
-    MoltbotSetupResult,
+from tweek.integrations.openclaw import (
+    detect_openclaw_installation,
+    setup_openclaw_protection,
+    OpenClawSetupResult,
 )
 
 
@@ -46,12 +46,12 @@ def temp_home(tmp_path):
 
 
 @pytest.fixture
-def mock_moltbot_detected():
-    """Mock a detected Moltbot installation."""
+def mock_openclaw_detected():
+    """Mock a detected OpenClaw installation."""
     return {
         "installed": True,
         "version": "1.2.3",
-        "config_path": Path.home() / ".moltbot" / "config.json",
+        "config_path": Path.home() / ".openclaw" / "config.json",
         "gateway_port": 18789,
         "process_running": True,
         "gateway_active": True,
@@ -59,8 +59,8 @@ def mock_moltbot_detected():
 
 
 @pytest.fixture
-def mock_moltbot_not_detected():
-    """Mock no Moltbot installation."""
+def mock_openclaw_not_detected():
+    """Mock no OpenClaw installation."""
     return {
         "installed": False,
         "version": None,
@@ -78,59 +78,59 @@ class TestProtectGroup:
         """Test protect group shows help."""
         result = runner.invoke(main, ["protect", "--help"])
         assert result.exit_code == 0
-        assert "moltbot" in result.output
+        assert "openclaw" in result.output
         assert "claude" in result.output
 
     def test_protect_no_subcommand(self, runner):
         """Test protect without subcommand shows help."""
         result = runner.invoke(main, ["protect"])
         assert result.exit_code == 0
-        assert "moltbot" in result.output
+        assert "openclaw" in result.output
 
 
-class TestProtectMoltbot:
-    """Tests for tweek protect moltbot."""
+class TestProtectOpenClaw:
+    """Tests for tweek protect openclaw."""
 
-    def test_protect_moltbot_detected(self, runner, mock_moltbot_detected, tmp_path):
-        """Test protect moltbot when Moltbot is found and gateway running."""
+    def test_protect_openclaw_detected(self, runner, mock_openclaw_detected, tmp_path):
+        """Test protect openclaw when OpenClaw is found and gateway running."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=mock_moltbot_detected,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=mock_openclaw_detected,
         ):
             with patch(
-                "tweek.integrations.moltbot.setup_moltbot_protection",
-                return_value=MoltbotSetupResult(
+                "tweek.integrations.openclaw.setup_openclaw_protection",
+                return_value=OpenClawSetupResult(
                     success=True,
-                    moltbot_detected=True,
-                    moltbot_version="1.2.3",
+                    openclaw_detected=True,
+                    openclaw_version="1.2.3",
                     gateway_port=18789,
                     gateway_running=True,
-                    proxy_port=9877,
+                    scanner_port=9877,
                     preset="cautious",
                     config_path=str(tmp_path / ".tweek" / "config.yaml"),
                 ),
             ):
-                result = runner.invoke(main, ["protect", "moltbot"])
+                result = runner.invoke(main, ["protect", "openclaw"])
 
         assert result.exit_code == 0
-        assert "Moltbot detected" in result.output
+        assert "OpenClaw detected" in result.output
         assert "Protection configured" in result.output
 
-    def test_protect_moltbot_not_found(self, runner, mock_moltbot_not_detected):
-        """Test protect moltbot when Moltbot is not installed."""
+    def test_protect_openclaw_not_found(self, runner, mock_openclaw_not_detected):
+        """Test protect openclaw when OpenClaw is not installed."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=mock_moltbot_not_detected,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=mock_openclaw_not_detected,
         ):
-            result = runner.invoke(main, ["protect", "moltbot"])
+            result = runner.invoke(main, ["protect", "openclaw"])
 
         assert result.exit_code == 0
         assert "not detected" in result.output
-        assert "npm install -g moltbot" in result.output
+        assert "npm install -g openclaw" in result.output
 
-    def test_protect_moltbot_gateway_not_running(self, runner, tmp_path):
-        """Test protect moltbot when gateway is not active."""
-        moltbot_info = {
+    def test_protect_openclaw_gateway_not_running(self, runner, tmp_path):
+        """Test protect openclaw when gateway is not active."""
+        openclaw_info = {
             "installed": True,
             "version": "1.0.0",
             "config_path": None,
@@ -140,121 +140,121 @@ class TestProtectMoltbot:
         }
 
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=moltbot_info,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=openclaw_info,
         ):
             with patch(
-                "tweek.integrations.moltbot.setup_moltbot_protection",
-                return_value=MoltbotSetupResult(
+                "tweek.integrations.openclaw.setup_openclaw_protection",
+                return_value=OpenClawSetupResult(
                     success=True,
-                    moltbot_detected=True,
-                    moltbot_version="1.0.0",
+                    openclaw_detected=True,
+                    openclaw_version="1.0.0",
                     gateway_port=18789,
                     gateway_running=False,
-                    proxy_port=9877,
+                    scanner_port=9877,
                     preset="cautious",
                     config_path=str(tmp_path / ".tweek" / "config.yaml"),
                 ),
             ):
-                result = runner.invoke(main, ["protect", "moltbot"])
+                result = runner.invoke(main, ["protect", "openclaw"])
 
         assert result.exit_code == 0
         assert "not currently running" in result.output
         assert "Protection will activate" in result.output
 
-    def test_protect_moltbot_custom_port(self, runner, mock_moltbot_detected, tmp_path):
-        """Test protect moltbot with --port override."""
+    def test_protect_openclaw_custom_port(self, runner, mock_openclaw_detected, tmp_path):
+        """Test protect openclaw with --port override."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=mock_moltbot_detected,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=mock_openclaw_detected,
         ):
             with patch(
-                "tweek.integrations.moltbot.setup_moltbot_protection",
-                return_value=MoltbotSetupResult(
+                "tweek.integrations.openclaw.setup_openclaw_protection",
+                return_value=OpenClawSetupResult(
                     success=True,
-                    moltbot_detected=True,
+                    openclaw_detected=True,
                     gateway_port=9999,
                     gateway_running=True,
-                    proxy_port=9877,
+                    scanner_port=9877,
                     preset="cautious",
                     config_path=str(tmp_path / ".tweek" / "config.yaml"),
                 ),
             ) as mock_setup:
-                result = runner.invoke(main, ["protect", "moltbot", "--port", "9999"])
+                result = runner.invoke(main, ["protect", "openclaw", "--port", "9999"])
                 mock_setup.assert_called_once_with(port=9999, preset="cautious")
 
         assert result.exit_code == 0
 
-    def test_protect_moltbot_paranoid(self, runner, mock_moltbot_detected, tmp_path):
-        """Test protect moltbot with --paranoid flag."""
+    def test_protect_openclaw_paranoid(self, runner, mock_openclaw_detected, tmp_path):
+        """Test protect openclaw with --paranoid flag."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=mock_moltbot_detected,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=mock_openclaw_detected,
         ):
             with patch(
-                "tweek.integrations.moltbot.setup_moltbot_protection",
-                return_value=MoltbotSetupResult(
+                "tweek.integrations.openclaw.setup_openclaw_protection",
+                return_value=OpenClawSetupResult(
                     success=True,
-                    moltbot_detected=True,
+                    openclaw_detected=True,
                     gateway_port=18789,
                     gateway_running=True,
-                    proxy_port=9877,
+                    scanner_port=9877,
                     preset="paranoid",
                     config_path=str(tmp_path / ".tweek" / "config.yaml"),
                 ),
             ) as mock_setup:
-                result = runner.invoke(main, ["protect", "moltbot", "--paranoid"])
+                result = runner.invoke(main, ["protect", "openclaw", "--paranoid"])
                 mock_setup.assert_called_once_with(port=None, preset="paranoid")
 
         assert result.exit_code == 0
 
-    def test_protect_moltbot_preset_option(self, runner, mock_moltbot_detected, tmp_path):
-        """Test protect moltbot with --preset option."""
+    def test_protect_openclaw_preset_option(self, runner, mock_openclaw_detected, tmp_path):
+        """Test protect openclaw with --preset option."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=mock_moltbot_detected,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=mock_openclaw_detected,
         ):
             with patch(
-                "tweek.integrations.moltbot.setup_moltbot_protection",
-                return_value=MoltbotSetupResult(
+                "tweek.integrations.openclaw.setup_openclaw_protection",
+                return_value=OpenClawSetupResult(
                     success=True,
-                    moltbot_detected=True,
+                    openclaw_detected=True,
                     gateway_port=18789,
                     gateway_running=True,
-                    proxy_port=9877,
+                    scanner_port=9877,
                     preset="trusted",
                     config_path=str(tmp_path / ".tweek" / "config.yaml"),
                 ),
             ) as mock_setup:
                 result = runner.invoke(
-                    main, ["protect", "moltbot", "--preset", "trusted"]
+                    main, ["protect", "openclaw", "--preset", "trusted"]
                 )
                 mock_setup.assert_called_once_with(port=None, preset="trusted")
 
         assert result.exit_code == 0
 
-    def test_protect_moltbot_setup_failure(self, runner, mock_moltbot_detected):
-        """Test protect moltbot when setup fails."""
+    def test_protect_openclaw_setup_failure(self, runner, mock_openclaw_detected):
+        """Test protect openclaw when setup fails."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=mock_moltbot_detected,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=mock_openclaw_detected,
         ):
             with patch(
-                "tweek.integrations.moltbot.setup_moltbot_protection",
-                return_value=MoltbotSetupResult(
+                "tweek.integrations.openclaw.setup_openclaw_protection",
+                return_value=OpenClawSetupResult(
                     success=False,
-                    moltbot_detected=True,
+                    openclaw_detected=True,
                     error="Failed to write config: Permission denied",
                 ),
             ):
-                result = runner.invoke(main, ["protect", "moltbot"])
+                result = runner.invoke(main, ["protect", "openclaw"])
 
         assert result.exit_code == 0
         assert "Setup failed" in result.output
 
-    def test_protect_moltbot_shows_version(self, runner, tmp_path):
-        """Test that Moltbot version is displayed when available."""
-        moltbot_info = {
+    def test_protect_openclaw_shows_version(self, runner, tmp_path):
+        """Test that OpenClaw version is displayed when available."""
+        openclaw_info = {
             "installed": True,
             "version": "2.5.1",
             "config_path": None,
@@ -264,29 +264,29 @@ class TestProtectMoltbot:
         }
 
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
-            return_value=moltbot_info,
+            "tweek.integrations.openclaw.detect_openclaw_installation",
+            return_value=openclaw_info,
         ):
             with patch(
-                "tweek.integrations.moltbot.setup_moltbot_protection",
-                return_value=MoltbotSetupResult(
+                "tweek.integrations.openclaw.setup_openclaw_protection",
+                return_value=OpenClawSetupResult(
                     success=True,
-                    moltbot_detected=True,
-                    moltbot_version="2.5.1",
+                    openclaw_detected=True,
+                    openclaw_version="2.5.1",
                     gateway_port=18789,
                     gateway_running=False,
-                    proxy_port=9877,
+                    scanner_port=9877,
                     preset="cautious",
                     config_path=str(tmp_path / ".tweek" / "config.yaml"),
                 ),
             ):
-                result = runner.invoke(main, ["protect", "moltbot"])
+                result = runner.invoke(main, ["protect", "openclaw"])
 
         assert "2.5.1" in result.output
 
-    def test_protect_moltbot_help(self, runner):
-        """Test protect moltbot --help."""
-        result = runner.invoke(main, ["protect", "moltbot", "--help"])
+    def test_protect_openclaw_help(self, runner):
+        """Test protect openclaw --help."""
+        result = runner.invoke(main, ["protect", "openclaw", "--help"])
         assert result.exit_code == 0
         assert "--port" in result.output
         assert "--paranoid" in result.output
@@ -315,17 +315,17 @@ class TestProtectClaude:
         assert "--preset" in result.output
 
 
-class TestDetectMoltbotInstallation:
-    """Tests for the detect_moltbot_installation function."""
+class TestDetectOpenClawInstallation:
+    """Tests for the detect_openclaw_installation function."""
 
     def test_detect_not_installed(self):
-        """Test detection when Moltbot is not installed."""
+        """Test detection when OpenClaw is not installed."""
         with patch("subprocess.run") as mock_run:
             # npm list returns error
             mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
             with patch.object(Path, "exists", return_value=False):
-                result = detect_moltbot_installation()
+                result = detect_openclaw_installation()
 
         assert result["installed"] is False
         assert result["version"] is None
@@ -334,7 +334,7 @@ class TestDetectMoltbotInstallation:
         """Test detection via npm global list."""
         npm_output = json.dumps({
             "dependencies": {
-                "moltbot": {"version": "1.5.0"}
+                "openclaw": {"version": "1.5.0"}
             }
         })
 
@@ -344,16 +344,16 @@ class TestDetectMoltbotInstallation:
             )
 
             with patch.object(Path, "exists", return_value=False):
-                result = detect_moltbot_installation()
+                result = detect_openclaw_installation()
 
         assert result["installed"] is True
         assert result["version"] == "1.5.0"
 
     def test_detect_config_exists(self, tmp_path):
         """Test detection via config file."""
-        config_dir = tmp_path / ".moltbot"
+        config_dir = tmp_path / ".openclaw"
         config_dir.mkdir()
-        config_file = config_dir / "config.json"
+        config_file = config_dir / "openclaw.json"
         config_file.write_text(json.dumps({
             "gateway": {"port": 19000}
         }))
@@ -361,8 +361,10 @@ class TestDetectMoltbotInstallation:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
-            with patch.object(Path, "home", return_value=tmp_path):
-                result = detect_moltbot_installation()
+            with patch("tweek.integrations.openclaw.OPENCLAW_HOME", config_dir.parent / ".openclaw"), \
+                 patch("tweek.integrations.openclaw.OPENCLAW_CONFIG", config_file), \
+                 patch("tweek.integrations.openclaw.OPENCLAW_SKILLS_DIR", config_dir / "workspace" / "skills"):
+                result = detect_openclaw_installation()
 
         assert result["installed"] is True
         assert result["gateway_port"] == 19000
@@ -373,18 +375,18 @@ class TestDetectMoltbotInstallation:
             mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
             with patch.object(Path, "exists", return_value=False):
-                result = detect_moltbot_installation()
+                result = detect_openclaw_installation()
 
         assert result["gateway_port"] == 18789
 
 
-class TestSetupMoltbotProtection:
-    """Tests for the setup_moltbot_protection function."""
+class TestSetupOpenClawProtection:
+    """Tests for the setup_openclaw_protection function."""
 
     def test_setup_not_detected(self):
-        """Test setup when Moltbot is not installed."""
+        """Test setup when OpenClaw is not installed."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
+            "tweek.integrations.openclaw.detect_openclaw_installation",
             return_value={
                 "installed": False,
                 "version": None,
@@ -394,16 +396,16 @@ class TestSetupMoltbotProtection:
                 "gateway_active": False,
             },
         ):
-            result = setup_moltbot_protection()
+            result = setup_openclaw_protection()
 
         assert result.success is False
-        assert result.moltbot_detected is False
+        assert result.openclaw_detected is False
         assert "not detected" in result.error
 
     def test_setup_success(self, tmp_path):
         """Test successful setup writes config."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
+            "tweek.integrations.openclaw.detect_openclaw_installation",
             return_value={
                 "installed": True,
                 "version": "1.0.0",
@@ -420,10 +422,10 @@ class TestSetupMoltbotProtection:
                     mock_cfg = MagicMock()
                     mock_cfg_cls.return_value = mock_cfg
 
-                    result = setup_moltbot_protection()
+                    result = setup_openclaw_protection()
 
         assert result.success is True
-        assert result.moltbot_detected is True
+        assert result.openclaw_detected is True
         assert result.gateway_port == 18789
         assert result.preset == "cautious"
         assert result.config_path is not None
@@ -431,7 +433,7 @@ class TestSetupMoltbotProtection:
     def test_setup_custom_port(self, tmp_path):
         """Test setup with custom port override."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
+            "tweek.integrations.openclaw.detect_openclaw_installation",
             return_value={
                 "installed": True,
                 "version": "1.0.0",
@@ -448,7 +450,7 @@ class TestSetupMoltbotProtection:
                     mock_cfg = MagicMock()
                     mock_cfg_cls.return_value = mock_cfg
 
-                    result = setup_moltbot_protection(port=9999)
+                    result = setup_openclaw_protection(port=9999)
 
         assert result.success is True
         assert result.gateway_port == 9999
@@ -456,7 +458,7 @@ class TestSetupMoltbotProtection:
     def test_setup_paranoid_preset(self, tmp_path):
         """Test setup with paranoid preset."""
         with patch(
-            "tweek.integrations.moltbot.detect_moltbot_installation",
+            "tweek.integrations.openclaw.detect_openclaw_installation",
             return_value={
                 "installed": True,
                 "version": "1.0.0",
@@ -473,45 +475,45 @@ class TestSetupMoltbotProtection:
                     mock_cfg = MagicMock()
                     mock_cfg_cls.return_value = mock_cfg
 
-                    result = setup_moltbot_protection(preset="paranoid")
+                    result = setup_openclaw_protection(preset="paranoid")
 
         assert result.success is True
         assert result.preset == "paranoid"
         mock_cfg.apply_preset.assert_called_once_with("paranoid")
 
 
-class TestMoltbotSetupResult:
-    """Tests for the MoltbotSetupResult dataclass."""
+class TestOpenClawSetupResult:
+    """Tests for the OpenClawSetupResult dataclass."""
 
     def test_default_values(self):
-        """Test default values of MoltbotSetupResult."""
-        result = MoltbotSetupResult()
+        """Test default values of OpenClawSetupResult."""
+        result = OpenClawSetupResult()
         assert result.success is False
-        assert result.moltbot_detected is False
-        assert result.moltbot_version is None
+        assert result.openclaw_detected is False
+        assert result.openclaw_version is None
         assert result.gateway_port is None
         assert result.gateway_running is False
-        assert result.proxy_port is None
         assert result.preset == "cautious"
         assert result.config_path is None
+        assert result.plugin_installed is False
         assert result.error is None
         assert result.warnings == []
 
     def test_custom_values(self):
-        """Test MoltbotSetupResult with custom values."""
-        result = MoltbotSetupResult(
+        """Test OpenClawSetupResult with custom values."""
+        result = OpenClawSetupResult(
             success=True,
-            moltbot_detected=True,
-            moltbot_version="2.0.0",
+            openclaw_detected=True,
+            openclaw_version="2.0.0",
             gateway_port=18789,
             gateway_running=True,
-            proxy_port=9877,
+            scanner_port=9877,
             preset="paranoid",
             config_path="/home/user/.tweek/config.yaml",
             warnings=["Port conflict detected"],
         )
         assert result.success is True
-        assert result.moltbot_version == "2.0.0"
+        assert result.openclaw_version == "2.0.0"
         assert result.gateway_port == 18789
         assert result.preset == "paranoid"
         assert len(result.warnings) == 1

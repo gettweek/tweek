@@ -86,29 +86,29 @@ class TestInstallCommand:
         assert "paranoid" in result.output.lower() or result.exit_code == 0
 
     def test_install_skip_proxy_check(self, runner, tmp_path):
-        """Test install with --skip-proxy-check skips moltbot detection."""
+        """Test install with --skip-proxy-check skips openclaw detection."""
         with patch.object(Path, 'home', return_value=tmp_path):
             result = runner.invoke(
                 main,
                 ['install', '--skip-env-scan', '--skip-proxy-check']
             )
 
-        # Should not mention moltbot
-        assert "moltbot" not in result.output.lower()
+        # Should not mention openclaw
+        assert "openclaw" not in result.output.lower()
         assert result.exit_code == 0 or "Installation complete" in result.output
 
-    def test_install_detects_moltbot_installed(self, runner, tmp_path):
-        """Test install detects when moltbot is installed."""
-        moltbot_status = {
+    def test_install_detects_openclaw_installed(self, runner, tmp_path):
+        """Test install detects when openclaw is installed."""
+        openclaw_status = {
             "installed": True,
             "running": False,
             "gateway_active": False,
             "port": 18789,
-            "config_path": str(tmp_path / ".moltbot"),
+            "config_path": str(tmp_path / ".openclaw"),
         }
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_moltbot_status', return_value=moltbot_status):
+            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
@@ -116,21 +116,21 @@ class TestInstallCommand:
                         input='n\n'  # Answer 'no' to proxy override prompt
                     )
 
-        # Should mention moltbot was detected
-        assert "moltbot" in result.output.lower() or result.exit_code == 0
+        # Should mention openclaw was detected
+        assert "openclaw" in result.output.lower() or result.exit_code == 0
 
-    def test_install_detects_moltbot_gateway_running(self, runner, tmp_path):
-        """Test install detects when moltbot gateway is actively running."""
-        moltbot_status = {
+    def test_install_detects_openclaw_gateway_running(self, runner, tmp_path):
+        """Test install detects when openclaw gateway is actively running."""
+        openclaw_status = {
             "installed": True,
             "running": True,
             "gateway_active": True,
             "port": 18789,
-            "config_path": str(tmp_path / ".moltbot"),
+            "config_path": str(tmp_path / ".openclaw"),
         }
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_moltbot_status', return_value=moltbot_status):
+            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
@@ -143,7 +143,7 @@ class TestInstallCommand:
 
     def test_install_force_proxy_flag(self, runner, tmp_path):
         """Test install with --force-proxy enables proxy override."""
-        moltbot_status = {
+        openclaw_status = {
             "installed": True,
             "running": True,
             "gateway_active": True,
@@ -152,7 +152,7 @@ class TestInstallCommand:
         }
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_moltbot_status', return_value=moltbot_status):
+            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
@@ -164,7 +164,7 @@ class TestInstallCommand:
 
     def test_install_force_proxy_creates_config(self, runner, tmp_path):
         """Test that --force-proxy creates proxy config file."""
-        moltbot_status = {
+        openclaw_status = {
             "installed": True,
             "running": False,
             "gateway_active": False,
@@ -175,7 +175,7 @@ class TestInstallCommand:
         tweek_dir = tmp_path / ".tweek"
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_moltbot_status', return_value=moltbot_status):
+            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
@@ -189,11 +189,11 @@ class TestInstallCommand:
             with open(config_file) as f:
                 config = yaml.safe_load(f)
             assert config.get("proxy", {}).get("enabled") is True
-            assert config.get("proxy", {}).get("override_moltbot") is True
+            assert config.get("proxy", {}).get("override_openclaw") is True
 
     def test_install_user_accepts_proxy_override(self, runner, tmp_path):
         """Test install when user accepts proxy override prompt."""
-        moltbot_status = {
+        openclaw_status = {
             "installed": True,
             "running": False,
             "gateway_active": False,
@@ -202,7 +202,7 @@ class TestInstallCommand:
         }
 
         with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_moltbot_status', return_value=moltbot_status):
+            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,

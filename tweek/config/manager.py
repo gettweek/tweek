@@ -1006,7 +1006,7 @@ class ConfigManager:
             return "providers"
 
         # Check known detector plugins
-        detector_plugins = {"moltbot", "cursor", "continue", "copilot", "windsurf"}
+        detector_plugins = {"openclaw", "cursor", "continue", "copilot", "windsurf"}
         if plugin_name in detector_plugins:
             return "detectors"
 

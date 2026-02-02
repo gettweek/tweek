@@ -3,7 +3,7 @@
 Tweek Tool Detector Plugins
 
 Detector plugins identify installed LLM tools and IDEs:
-- Moltbot: AI coding assistant
+- OpenClaw: AI personal assistant
 - Cursor: AI-powered IDE
 - Continue.dev: VS Code AI extension
 - Copilot: GitHub Copilot
@@ -15,14 +15,14 @@ Detection helps:
 - Suggest integration options
 """
 
-from tweek.plugins.detectors.moltbot import MoltbotDetector
+from tweek.plugins.detectors.openclaw import OpenClawDetector
 from tweek.plugins.detectors.cursor import CursorDetector
 from tweek.plugins.detectors.continue_dev import ContinueDetector
 from tweek.plugins.detectors.copilot import CopilotDetector
 from tweek.plugins.detectors.windsurf import WindsurfDetector
 
 __all__ = [
-    "MoltbotDetector",
+    "OpenClawDetector",
     "CursorDetector",
     "ContinueDetector",
     "CopilotDetector",

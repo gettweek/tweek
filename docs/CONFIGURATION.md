@@ -427,7 +427,7 @@ Plugins are configured under the `plugins` key, organized by category.
 | `compliance` | `gov`, `hipaa`, `pci`, `legal`, `soc2`, `gdpr` |
 | `screening` | `rate_limiter`, `pattern_matcher`, `llm_reviewer`, `session_analyzer` |
 | `providers` | `anthropic`, `openai`, `google`, `bedrock`, `azure_openai` |
-| `detectors` | `moltbot`, `cursor`, `continue`, `copilot`, `windsurf` |
+| `detectors` | `openclaw`, `cursor`, `continue`, `copilot`, `windsurf` |
 
 ### Plugin Configuration Options
 

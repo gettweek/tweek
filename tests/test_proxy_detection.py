@@ -3,8 +3,8 @@
 Tests for Tweek proxy detection module.
 
 Tests coverage of:
-- Moltbot detection (npm, process, config)
-- Moltbot gateway port checking
+- OpenClaw detection (npm, process, config)
+- OpenClaw gateway port checking
 - Proxy conflict detection
 - Port availability checking
 """
@@ -21,16 +21,16 @@ pytestmark = pytest.mark.core
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tweek.proxy import (
-    detect_moltbot,
+    detect_openclaw,
     detect_cursor,
     detect_continue,
     detect_supported_tools,
     detect_proxy_conflicts,
-    get_moltbot_status,
+    get_openclaw_status,
     is_port_in_use,
-    check_moltbot_gateway_running,
+    check_openclaw_gateway_running,
     ProxyConflict,
-    MOLTBOT_DEFAULT_PORT,
+    OPENCLAW_DEFAULT_PORT,
     TWEEK_DEFAULT_PORT,
 )
 
@@ -68,11 +68,11 @@ class TestPortChecking:
             assert result is False
 
 
-class TestMoltbotDetection:
-    """Tests for moltbot detection."""
+class TestOpenClawDetection:
+    """Tests for openclaw detection."""
 
-    def test_detect_moltbot_not_installed(self):
-        """Test detection when moltbot is not installed."""
+    def test_detect_openclaw_not_installed(self):
+        """Test detection when openclaw is not installed."""
         with patch('subprocess.run') as mock_run:
             # npm list returns empty/error
             mock_run.return_value = MagicMock(
@@ -82,14 +82,14 @@ class TestMoltbotDetection:
             )
 
             with patch.object(Path, 'home', return_value=Path("/tmp/fake_home")):
-                result = detect_moltbot()
+                result = detect_openclaw()
 
             # Should return None when not installed
             assert result is None
 
-    def test_detect_moltbot_npm_installed(self):
-        """Test detection when moltbot is installed via npm."""
-        npm_output = '{"dependencies": {"moltbot": {"version": "1.0.0"}}}'
+    def test_detect_openclaw_npm_installed(self):
+        """Test detection when openclaw is installed via npm."""
+        npm_output = '{"dependencies": {"openclaw": {"version": "1.0.0"}}}'
 
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = MagicMock(
@@ -99,14 +99,14 @@ class TestMoltbotDetection:
             )
 
             with patch.object(Path, 'home', return_value=Path("/tmp/fake_home")):
-                result = detect_moltbot()
+                result = detect_openclaw()
 
             assert result is not None
             assert result["npm_global"] is True
-            assert result["gateway_port"] == MOLTBOT_DEFAULT_PORT
+            assert result["gateway_port"] == OPENCLAW_DEFAULT_PORT
 
-    def test_detect_moltbot_process_running(self):
-        """Test detection when moltbot process is running."""
+    def test_detect_openclaw_process_running(self):
+        """Test detection when openclaw process is running."""
         with patch('subprocess.run') as mock_run:
             def subprocess_side_effect(cmd, **kwargs):
                 if "npm" in cmd:
@@ -118,85 +118,85 @@ class TestMoltbotDetection:
             mock_run.side_effect = subprocess_side_effect
 
             with patch.object(Path, 'home', return_value=Path("/tmp/fake_home")):
-                result = detect_moltbot()
+                result = detect_openclaw()
 
             assert result is not None
             assert result["process_running"] is True
 
-    def test_detect_moltbot_config_exists(self, tmp_path):
-        """Test detection when moltbot config directory exists."""
-        # Create fake moltbot config directory
-        moltbot_config = tmp_path / ".moltbot"
-        moltbot_config.mkdir()
+    def test_detect_openclaw_config_exists(self, tmp_path):
+        """Test detection when openclaw config directory exists."""
+        # Create fake openclaw config directory
+        openclaw_config = tmp_path / ".openclaw"
+        openclaw_config.mkdir()
 
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stdout="{}", stderr="")
 
             with patch.object(Path, 'home', return_value=tmp_path):
-                result = detect_moltbot()
+                result = detect_openclaw()
 
             assert result is not None
             assert result["config_exists"] is True
 
-    def test_detect_moltbot_timeout_handling(self):
+    def test_detect_openclaw_timeout_handling(self):
         """Test that subprocess timeout is handled gracefully."""
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd="npm", timeout=5)
 
             with patch.object(Path, 'home', return_value=Path("/tmp/fake_home")):
-                result = detect_moltbot()
+                result = detect_openclaw()
 
             # Should not raise, returns None
             assert result is None
 
 
-class TestMoltbotStatus:
-    """Tests for detailed moltbot status."""
+class TestOpenClawStatus:
+    """Tests for detailed openclaw status."""
 
-    def test_get_moltbot_status_not_installed(self):
-        """Test status when moltbot is not installed."""
-        with patch('tweek.proxy.detect_moltbot', return_value=None):
-            status = get_moltbot_status()
+    def test_get_openclaw_status_not_installed(self):
+        """Test status when openclaw is not installed."""
+        with patch('tweek.proxy.detect_openclaw', return_value=None):
+            status = get_openclaw_status()
 
             assert status["installed"] is False
             assert status["running"] is False
             assert status["gateway_active"] is False
-            assert status["port"] == MOLTBOT_DEFAULT_PORT
+            assert status["port"] == OPENCLAW_DEFAULT_PORT
 
-    def test_get_moltbot_status_installed_not_running(self, tmp_path):
-        """Test status when moltbot is installed but not running."""
-        moltbot_info = {
+    def test_get_openclaw_status_installed_not_running(self, tmp_path):
+        """Test status when openclaw is installed but not running."""
+        openclaw_info = {
             "npm_global": True,
             "process_running": False,
             "config_exists": True,
-            "gateway_port": MOLTBOT_DEFAULT_PORT,
+            "gateway_port": OPENCLAW_DEFAULT_PORT,
         }
 
-        with patch('tweek.proxy.detect_moltbot', return_value=moltbot_info):
-            with patch('tweek.proxy.check_moltbot_gateway_running', return_value=False):
+        with patch('tweek.proxy.detect_openclaw', return_value=openclaw_info):
+            with patch('tweek.proxy.check_openclaw_gateway_running', return_value=False):
                 with patch.object(Path, 'home', return_value=tmp_path):
                     # Create the config path
-                    (tmp_path / ".moltbot").mkdir()
-                    status = get_moltbot_status()
+                    (tmp_path / ".openclaw").mkdir()
+                    status = get_openclaw_status()
 
             assert status["installed"] is True
             assert status["running"] is False
             assert status["gateway_active"] is False
 
-    def test_get_moltbot_status_fully_running(self, tmp_path):
-        """Test status when moltbot is fully running with gateway active."""
-        moltbot_info = {
+    def test_get_openclaw_status_fully_running(self, tmp_path):
+        """Test status when openclaw is fully running with gateway active."""
+        openclaw_info = {
             "npm_global": True,
             "process_running": True,
             "config_exists": True,
-            "gateway_port": MOLTBOT_DEFAULT_PORT,
+            "gateway_port": OPENCLAW_DEFAULT_PORT,
         }
 
-        with patch('tweek.proxy.detect_moltbot', return_value=moltbot_info):
-            with patch('tweek.proxy.check_moltbot_gateway_running', return_value=True):
+        with patch('tweek.proxy.detect_openclaw', return_value=openclaw_info):
+            with patch('tweek.proxy.check_openclaw_gateway_running', return_value=True):
                 with patch.object(Path, 'home', return_value=tmp_path):
-                    (tmp_path / ".moltbot").mkdir()
-                    status = get_moltbot_status()
+                    (tmp_path / ".openclaw").mkdir()
+                    status = get_openclaw_status()
 
             assert status["installed"] is True
             assert status["running"] is True
@@ -209,38 +209,38 @@ class TestProxyConflictDetection:
 
     def test_detect_proxy_conflicts_none(self):
         """Test no conflicts when nothing is running."""
-        with patch('tweek.proxy.detect_moltbot', return_value=None):
+        with patch('tweek.proxy.detect_openclaw', return_value=None):
             with patch('tweek.proxy.is_port_in_use', return_value=False):
                 conflicts = detect_proxy_conflicts()
 
             assert len(conflicts) == 0
 
-    def test_detect_proxy_conflicts_moltbot_running(self):
-        """Test conflict detection when moltbot is running."""
-        moltbot_info = {
+    def test_detect_proxy_conflicts_openclaw_running(self):
+        """Test conflict detection when openclaw is running."""
+        openclaw_info = {
             "npm_global": True,
             "process_running": True,
             "config_exists": False,
-            "gateway_port": MOLTBOT_DEFAULT_PORT,
+            "gateway_port": OPENCLAW_DEFAULT_PORT,
         }
 
-        with patch('tweek.proxy.detect_moltbot', return_value=moltbot_info):
-            with patch('tweek.proxy.check_moltbot_gateway_running', return_value=True):
+        with patch('tweek.proxy.detect_openclaw', return_value=openclaw_info):
+            with patch('tweek.proxy.check_openclaw_gateway_running', return_value=True):
                 with patch('tweek.proxy.is_port_in_use', return_value=False):
                     conflicts = detect_proxy_conflicts()
 
             assert len(conflicts) >= 1
-            moltbot_conflict = next((c for c in conflicts if c.tool_name == "moltbot"), None)
-            assert moltbot_conflict is not None
-            assert moltbot_conflict.is_running is True
-            assert moltbot_conflict.port == MOLTBOT_DEFAULT_PORT
+            openclaw_conflict = next((c for c in conflicts if c.tool_name == "openclaw"), None)
+            assert openclaw_conflict is not None
+            assert openclaw_conflict.is_running is True
+            assert openclaw_conflict.port == OPENCLAW_DEFAULT_PORT
 
     def test_detect_proxy_conflicts_tweek_port_in_use(self):
         """Test conflict detection when Tweek's port is already in use."""
         def port_check(port):
             return port == TWEEK_DEFAULT_PORT
 
-        with patch('tweek.proxy.detect_moltbot', return_value=None):
+        with patch('tweek.proxy.detect_openclaw', return_value=None):
             with patch('tweek.proxy.is_port_in_use', side_effect=port_check):
                 conflicts = detect_proxy_conflicts()
 
@@ -251,23 +251,23 @@ class TestProxyConflictDetection:
 
     def test_detect_proxy_conflicts_multiple(self):
         """Test detection of multiple conflicts."""
-        moltbot_info = {
+        openclaw_info = {
             "npm_global": True,
             "process_running": True,
             "config_exists": False,
-            "gateway_port": MOLTBOT_DEFAULT_PORT,
+            "gateway_port": OPENCLAW_DEFAULT_PORT,
         }
 
         def port_check(port):
-            # Both moltbot port and tweek port in use
-            return port in (MOLTBOT_DEFAULT_PORT, TWEEK_DEFAULT_PORT)
+            # Both openclaw port and tweek port in use
+            return port in (OPENCLAW_DEFAULT_PORT, TWEEK_DEFAULT_PORT)
 
-        with patch('tweek.proxy.detect_moltbot', return_value=moltbot_info):
-            with patch('tweek.proxy.check_moltbot_gateway_running', return_value=True):
+        with patch('tweek.proxy.detect_openclaw', return_value=openclaw_info):
+            with patch('tweek.proxy.check_openclaw_gateway_running', return_value=True):
                 with patch('tweek.proxy.is_port_in_use', side_effect=port_check):
                     conflicts = detect_proxy_conflicts()
 
-            # Should have both moltbot and port conflicts
+            # Should have both openclaw and port conflicts
             assert len(conflicts) >= 2
 
 
@@ -315,31 +315,31 @@ class TestSupportedToolsDetection:
 
     def test_detect_supported_tools_empty(self):
         """Test supported tools detection when nothing installed."""
-        with patch('tweek.proxy.detect_moltbot', return_value=None):
+        with patch('tweek.proxy.detect_openclaw', return_value=None):
             with patch('tweek.proxy.detect_cursor', return_value=None):
                 with patch('tweek.proxy.detect_continue', return_value=None):
                     tools = detect_supported_tools()
 
-                    assert tools["moltbot"] is None
+                    assert tools["openclaw"] is None
                     assert tools["cursor"] is None
                     assert tools["continue"] is None
 
-    def test_detect_supported_tools_with_moltbot(self):
-        """Test supported tools detection with moltbot installed."""
-        moltbot_info = {
+    def test_detect_supported_tools_with_openclaw(self):
+        """Test supported tools detection with openclaw installed."""
+        openclaw_info = {
             "npm_global": True,
             "process_running": False,
             "config_exists": False,
-            "gateway_port": MOLTBOT_DEFAULT_PORT,
+            "gateway_port": OPENCLAW_DEFAULT_PORT,
         }
 
-        with patch('tweek.proxy.detect_moltbot', return_value=moltbot_info):
+        with patch('tweek.proxy.detect_openclaw', return_value=openclaw_info):
             with patch('tweek.proxy.detect_cursor', return_value=None):
                 with patch('tweek.proxy.detect_continue', return_value=None):
                     tools = detect_supported_tools()
 
-                    assert tools["moltbot"] is not None
-                    assert tools["moltbot"]["npm_global"] is True
+                    assert tools["openclaw"] is not None
+                    assert tools["openclaw"]["npm_global"] is True
 
 
 class TestProxyConflictDataclass:
@@ -348,13 +348,13 @@ class TestProxyConflictDataclass:
     def test_proxy_conflict_creation(self):
         """Test creating a ProxyConflict instance."""
         conflict = ProxyConflict(
-            tool_name="moltbot",
+            tool_name="openclaw",
             port=18789,
             is_running=True,
-            description="Moltbot gateway detected on port 18789"
+            description="OpenClaw gateway detected on port 18789"
         )
 
-        assert conflict.tool_name == "moltbot"
+        assert conflict.tool_name == "openclaw"
         assert conflict.port == 18789
         assert conflict.is_running is True
         assert "18789" in conflict.description

@@ -410,7 +410,7 @@ tweek/
 |       +-- copilot.py             # GitHub Copilot detection
 |       +-- continue_dev.py        # Continue.dev detection
 |       +-- windsurf.py            # Windsurf detection
-|       +-- moltbot.py             # Moltbot detection
+|       +-- openclaw.py            # OpenClaw detection
 |
 +-- logging/                       # Audit logging
 |   +-- __init__.py

@@ -854,7 +854,7 @@ class ToolDetectorPlugin(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Tool name (e.g., 'moltbot', 'cursor')."""
+        """Tool name (e.g., 'openclaw', 'cursor')."""
         pass
 
     @abstractmethod

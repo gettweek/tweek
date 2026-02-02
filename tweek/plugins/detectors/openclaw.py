@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Tweek Moltbot Detector Plugin
+Tweek OpenClaw Detector Plugin
 
-Detects Moltbot AI coding assistant:
+Detects OpenClaw AI personal assistant:
 - Global npm installation
 - Running process
 - Gateway configuration
@@ -17,36 +17,35 @@ from typing import Optional, List, Dict, Any
 from tweek.plugins.base import ToolDetectorPlugin, DetectionResult
 
 
-class MoltbotDetector(ToolDetectorPlugin):
+class OpenClawDetector(ToolDetectorPlugin):
     """
-    Moltbot AI coding assistant detector.
+    OpenClaw AI personal assistant detector.
 
     Detects:
     - npm global installation
-    - Running moltbot process
+    - Running openclaw process
     - Gateway service on default port
     - Configuration file location
     """
 
     VERSION = "1.0.0"
-    DESCRIPTION = "Detect Moltbot AI coding assistant"
+    DESCRIPTION = "Detect OpenClaw AI personal assistant"
     AUTHOR = "Tweek"
     REQUIRES_LICENSE = "free"
-    TAGS = ["detector", "moltbot", "ide"]
+    TAGS = ["detector", "openclaw", "assistant"]
 
-    DEFAULT_PORT = 8080
+    DEFAULT_PORT = 18789
     CONFIG_LOCATIONS = [
-        Path.home() / ".moltbot" / "config.json",
-        Path.home() / ".config" / "moltbot" / "config.json",
+        Path.home() / ".openclaw" / "openclaw.json",
     ]
 
     @property
     def name(self) -> str:
-        return "moltbot"
+        return "openclaw"
 
     def detect(self) -> DetectionResult:
         """
-        Detect Moltbot installation and status.
+        Detect OpenClaw installation and status.
         """
         result = DetectionResult(
             detected=False,
@@ -74,6 +73,11 @@ class MoltbotDetector(ToolDetectorPlugin):
             except (json.JSONDecodeError, IOError):
                 result.port = self.DEFAULT_PORT
 
+        # Check for home directory existence
+        openclaw_home = Path.home() / ".openclaw"
+        if openclaw_home.exists():
+            result.detected = True
+
         # Check for running process
         process_info = self._check_running_process()
         if process_info:
@@ -90,11 +94,11 @@ class MoltbotDetector(ToolDetectorPlugin):
         return result
 
     def _check_npm_installation(self) -> Optional[Dict[str, str]]:
-        """Check if moltbot is installed via npm."""
+        """Check if openclaw is installed via npm."""
         try:
             # Try npm list -g
             proc = subprocess.run(
-                ["npm", "list", "-g", "moltbot", "--json"],
+                ["npm", "list", "-g", "openclaw", "--json"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -102,9 +106,9 @@ class MoltbotDetector(ToolDetectorPlugin):
             if proc.returncode == 0:
                 data = json.loads(proc.stdout)
                 deps = data.get("dependencies", {})
-                if "moltbot" in deps:
+                if "openclaw" in deps:
                     return {
-                        "version": deps["moltbot"].get("version", "unknown"),
+                        "version": deps["openclaw"].get("version", "unknown"),
                         "path": data.get("path", ""),
                     }
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
@@ -113,7 +117,7 @@ class MoltbotDetector(ToolDetectorPlugin):
         # Try which/where
         try:
             proc = subprocess.run(
-                ["which", "moltbot"] if os.name != "nt" else ["where", "moltbot"],
+                ["which", "openclaw"] if os.name != "nt" else ["where", "openclaw"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -126,14 +130,14 @@ class MoltbotDetector(ToolDetectorPlugin):
         return None
 
     def _find_config(self) -> Optional[Path]:
-        """Find moltbot config file."""
+        """Find OpenClaw config file."""
         for path in self.CONFIG_LOCATIONS:
             if path.exists():
                 return path
         return None
 
     def _check_running_process(self) -> Optional[Dict[str, Any]]:
-        """Check if moltbot process is running."""
+        """Check if openclaw process is running."""
         try:
             if os.name == "nt":
                 # Windows
@@ -143,13 +147,12 @@ class MoltbotDetector(ToolDetectorPlugin):
                     text=True,
                     timeout=10,
                 )
-                # This is a rough check - would need more sophisticated detection
-                if "moltbot" in proc.stdout.lower():
+                if "openclaw" in proc.stdout.lower():
                     return {"running": True}
             else:
                 # Unix-like
                 proc = subprocess.run(
-                    ["pgrep", "-f", "moltbot"],
+                    ["pgrep", "-f", "openclaw"],
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -158,9 +161,9 @@ class MoltbotDetector(ToolDetectorPlugin):
                     pids = proc.stdout.strip().split("\n")
                     return {"pid": pids[0]}
 
-                # Also check for node process with moltbot
+                # Also check for node process with openclaw
                 proc = subprocess.run(
-                    ["pgrep", "-af", "node.*moltbot"],
+                    ["pgrep", "-af", "node.*openclaw"],
                     capture_output=True,
                     text=True,
                     timeout=10,
@@ -174,7 +177,7 @@ class MoltbotDetector(ToolDetectorPlugin):
         return None
 
     def _check_gateway_active(self, port: int) -> bool:
-        """Check if moltbot gateway is listening on port."""
+        """Check if OpenClaw gateway is listening on port."""
         try:
             import socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -193,12 +196,12 @@ class MoltbotDetector(ToolDetectorPlugin):
         if result.detected:
             if result.metadata.get("gateway_active"):
                 conflicts.append(
-                    f"Moltbot gateway is active on port {result.port}. "
+                    f"OpenClaw gateway is active on port {result.port}. "
                     "This may intercept LLM API calls before Tweek."
                 )
             elif result.running:
                 conflicts.append(
-                    "Moltbot process is running. Gateway may start and "
+                    "OpenClaw process is running. Gateway may start and "
                     "intercept LLM API calls."
                 )
 

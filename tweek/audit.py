@@ -53,8 +53,7 @@ class AuditResult:
 # Default locations to scan for installed skills
 SKILL_SCAN_LOCATIONS = [
     Path.home() / ".claude" / "skills",
-    Path.home() / ".moltbot" / "skills",
-    Path.home() / ".config" / "moltbot" / "skills",
+    Path.home() / ".openclaw" / "workspace" / "skills",
 ]
 
 

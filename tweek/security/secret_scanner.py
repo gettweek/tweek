@@ -5,7 +5,7 @@ Tweek Secret Scanner
 Scans configuration files for hardcoded secrets and credentials.
 Enforces environment-variable-only secrets policy.
 
-Based on moltbot's secret-guard security hardening initiative.
+Based on OpenClaw's secret-guard security hardening initiative.
 """
 
 import os

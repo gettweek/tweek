@@ -25,7 +25,7 @@
 - **HTTP proxy** for Cursor, Windsurf, Continue.dev
 - **Plugin system** — 4 categories (compliance, LLM providers, tool detectors, screening) with git-based installation
 - **5 LLM provider parsers** — Anthropic, OpenAI, Google Gemini, Azure OpenAI, AWS Bedrock
-- **5 tool detectors** — Moltbot, Cursor, Continue.dev, GitHub Copilot, Windsurf
+- **5 tool detectors** — OpenClaw, Cursor, Continue.dev, GitHub Copilot, Windsurf
 - **Health diagnostics** (`tweek doctor`)
 - **Interactive setup wizard** (`tweek quickstart`)
 - **Security presets** — `paranoid`, `cautious`, `trusted`

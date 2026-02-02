@@ -5,7 +5,7 @@ Tweek Plugin System
 Modular plugin architecture supporting:
 - Domain compliance modules (Gov, HIPAA, PCI, Legal)
 - LLM provider plugins (Anthropic, OpenAI, Google, Bedrock)
-- Tool detector plugins (moltbot, Cursor, Continue)
+- Tool detector plugins (openclaw, Cursor, Continue)
 - Screening method plugins (rate limiting, pattern matching, LLM review)
 
 Plugin Discovery:
@@ -43,7 +43,7 @@ class PluginCategory(Enum):
     """Categories of plugins supported by Tweek."""
     COMPLIANCE = "tweek.compliance"          # Gov, HIPAA, PCI, Legal
     LLM_PROVIDER = "tweek.llm_providers"     # Anthropic, OpenAI, etc.
-    TOOL_DETECTOR = "tweek.tool_detectors"   # moltbot, Cursor, etc.
+    TOOL_DETECTOR = "tweek.tool_detectors"   # openclaw, Cursor, etc.
     SCREENING = "tweek.screening"            # rate_limiter, pattern_matcher
 
 
@@ -248,7 +248,7 @@ class PluginRegistry:
                     f"Git plugin {name} overriding builtin in {category.value}"
                 )
             else:
-                logger.warning(f"Plugin {name} already registered in {category.value}")
+                logger.debug(f"Plugin {name} already registered in {category.value}")
                 return False
 
         # Create plugin info
@@ -551,6 +551,7 @@ class PluginRegistry:
 
 # Global registry instance
 _registry: Optional[PluginRegistry] = None
+_initialized: bool = False
 
 
 def get_registry() -> PluginRegistry:
@@ -578,6 +579,7 @@ def init_plugins(config: Optional[Dict[str, Any]] = None) -> PluginRegistry:
     3. Entry point plugins (from installed packages)
 
     Git plugins with the same name as a builtin will override the builtin.
+    Safe to call multiple times — plugin discovery only runs once.
 
     Args:
         config: Optional configuration dictionary
@@ -585,31 +587,35 @@ def init_plugins(config: Optional[Dict[str, Any]] = None) -> PluginRegistry:
     Returns:
         The initialized plugin registry
     """
+    global _initialized
     registry = get_registry()
 
-    # Log startup
-    try:
-        from tweek.logging.security_log import get_logger as get_sec_logger, SecurityEvent, EventType
-        get_sec_logger().log(SecurityEvent(
-            event_type=EventType.STARTUP,
-            tool_name="plugin_system",
-            decision="allow",
-            metadata={"operation": "init_plugins"},
-            source="plugins",
-        ))
-    except Exception:
-        pass
+    if not _initialized:
+        # Log startup
+        try:
+            from tweek.logging.security_log import get_logger as get_sec_logger, SecurityEvent, EventType
+            get_sec_logger().log(SecurityEvent(
+                event_type=EventType.STARTUP,
+                tool_name="plugin_system",
+                decision="allow",
+                metadata={"operation": "init_plugins"},
+                source="plugins",
+            ))
+        except Exception:
+            pass
 
-    # Register built-in plugins
-    _register_builtin_plugins(registry)
+        # Register built-in plugins
+        _register_builtin_plugins(registry)
 
-    # Discover git-installed plugins
-    _discover_git_plugins(registry)
+        # Discover git-installed plugins
+        _discover_git_plugins(registry)
 
-    # Discover external plugins via entry_points
-    registry.discover_plugins()
+        # Discover external plugins via entry_points
+        registry.discover_plugins()
 
-    # Load configuration
+        _initialized = True
+
+    # Load configuration (always applied, even on subsequent calls)
     if config:
         registry.load_config(config)
 
@@ -688,13 +694,13 @@ def _register_builtin_plugins(registry: PluginRegistry) -> None:
     # Detector plugins
     try:
         from tweek.plugins.detectors import (
-            MoltbotDetector,
+            OpenClawDetector,
             CursorDetector,
             ContinueDetector,
             CopilotDetector,
             WindsurfDetector,
         )
-        registry.register("moltbot", MoltbotDetector, PluginCategory.TOOL_DETECTOR)
+        registry.register("openclaw", OpenClawDetector, PluginCategory.TOOL_DETECTOR)
         registry.register("cursor", CursorDetector, PluginCategory.TOOL_DETECTOR)
         registry.register("continue", ContinueDetector, PluginCategory.TOOL_DETECTOR)
         registry.register("copilot", CopilotDetector, PluginCategory.TOOL_DETECTOR)

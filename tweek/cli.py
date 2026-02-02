@@ -181,7 +181,7 @@ Examples:
 @click.option("--with-sandbox", is_flag=True,
               help="Prompt to install sandbox tool if not available (Linux only)")
 @click.option("--force-proxy", is_flag=True,
-              help="Force Tweek proxy to override existing proxy configurations (e.g., moltbot)")
+              help="Force Tweek proxy to override existing proxy configurations (e.g., openclaw)")
 @click.option("--skip-proxy-check", is_flag=True,
               help="Skip checking for existing proxy configurations")
 @click.option("--quick", is_flag=True,
@@ -315,49 +315,49 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             pass
 
     # ─────────────────────────────────────────────────────────────
-    # Step 4: Detect Moltbot and offer protection options
+    # Step 4: Detect OpenClaw and offer protection options
     # ─────────────────────────────────────────────────────────────
     proxy_override_enabled = force_proxy
     if not skip_proxy_check:
         try:
             from tweek.proxy import (
                 detect_proxy_conflicts,
-                get_moltbot_status,
-                MOLTBOT_DEFAULT_PORT,
+                get_openclaw_status,
+                OPENCLAW_DEFAULT_PORT,
                 TWEEK_DEFAULT_PORT,
             )
 
-            moltbot_status = get_moltbot_status()
+            openclaw_status = get_openclaw_status()
 
-            if moltbot_status["installed"]:
+            if openclaw_status["installed"]:
                 console.print()
-                console.print("[green]✓[/green] Moltbot detected on this system")
+                console.print("[green]✓[/green] OpenClaw detected on this system")
 
-                if moltbot_status["gateway_active"]:
-                    console.print(f"  Gateway running on port {moltbot_status['port']}")
-                elif moltbot_status["running"]:
-                    console.print(f"  [dim]Process running (gateway may start on port {moltbot_status['port']})[/dim]")
+                if openclaw_status["gateway_active"]:
+                    console.print(f"  Gateway running on port {openclaw_status['port']}")
+                elif openclaw_status["running"]:
+                    console.print(f"  [dim]Process running (gateway may start on port {openclaw_status['port']})[/dim]")
                 else:
                     console.print(f"  [dim]Installed but not currently running[/dim]")
 
-                if moltbot_status["config_path"]:
-                    console.print(f"  [dim]Config: {moltbot_status['config_path']}[/dim]")
+                if openclaw_status["config_path"]:
+                    console.print(f"  [dim]Config: {openclaw_status['config_path']}[/dim]")
 
                 console.print()
 
                 if force_proxy:
                     proxy_override_enabled = True
-                    console.print("[green]✓[/green] Force proxy enabled - Tweek will override moltbot")
+                    console.print("[green]✓[/green] Force proxy enabled - Tweek will override openclaw")
                     console.print()
                 else:
-                    console.print("[cyan]Tweek can protect Moltbot tool calls. Choose a method:[/cyan]")
+                    console.print("[cyan]Tweek can protect OpenClaw tool calls. Choose a method:[/cyan]")
                     console.print()
-                    console.print("  [cyan]1.[/cyan] Protect via [bold]tweek-security[/bold] MoltHub skill")
-                    console.print("     [dim]Screens tool calls through Tweek as a MoltHub skill[/dim]")
-                    console.print("  [cyan]2.[/cyan] Protect via [bold]tweek protect moltbot[/bold]")
-                    console.print("     [dim]Wraps the Moltbot gateway with Tweek's proxy[/dim]")
+                    console.print("  [cyan]1.[/cyan] Protect via [bold]tweek-security[/bold] ClawHub skill")
+                    console.print("     [dim]Screens tool calls through Tweek as a ClawHub skill[/dim]")
+                    console.print("  [cyan]2.[/cyan] Protect via [bold]tweek protect openclaw[/bold]")
+                    console.print("     [dim]Wraps the OpenClaw gateway with Tweek's proxy[/dim]")
                     console.print("  [cyan]3.[/cyan] Skip for now")
-                    console.print("     [dim]You can set up Moltbot protection later[/dim]")
+                    console.print("     [dim]You can set up OpenClaw protection later[/dim]")
                     console.print()
 
                     choice = click.prompt(
@@ -368,28 +368,28 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
 
                     if choice == 1:
                         console.print()
-                        console.print("[green]✓[/green] To add Moltbot protection via the skill, run:")
-                        console.print("  [bold]moltbot protect tweek-security[/bold]")
+                        console.print("[green]✓[/green] To add OpenClaw protection via the skill, run:")
+                        console.print("  [bold]openclaw protect tweek-security[/bold]")
                         console.print()
                     elif choice == 2:
                         proxy_override_enabled = True
                         console.print()
-                        console.print("[green]✓[/green] Moltbot proxy protection will be configured")
-                        console.print(f"  [dim]Run 'tweek protect moltbot' after installation to complete setup[/dim]")
+                        console.print("[green]✓[/green] OpenClaw proxy protection will be configured")
+                        console.print(f"  [dim]Run 'tweek protect openclaw' after installation to complete setup[/dim]")
                         console.print()
                     else:
                         console.print()
-                        console.print("[dim]Skipped. Run 'tweek protect moltbot' or add the[/dim]")
-                        console.print("[dim]tweek-security skill later to protect Moltbot.[/dim]")
+                        console.print("[dim]Skipped. Run 'tweek protect openclaw' or add the[/dim]")
+                        console.print("[dim]tweek-security skill later to protect OpenClaw.[/dim]")
                         console.print()
 
             # Check for other proxy conflicts
             conflicts = detect_proxy_conflicts()
-            non_moltbot_conflicts = [c for c in conflicts if c.tool_name != "moltbot"]
+            non_openclaw_conflicts = [c for c in conflicts if c.tool_name != "openclaw"]
 
-            if non_moltbot_conflicts:
+            if non_openclaw_conflicts:
                 console.print("[yellow]⚠ Other proxy conflicts detected:[/yellow]")
-                for conflict in non_moltbot_conflicts:
+                for conflict in non_openclaw_conflicts:
                     console.print(f"  • {conflict.description}")
                 console.print()
 
@@ -766,7 +766,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             tweek_config["proxy"] = tweek_config.get("proxy", {})
             tweek_config["proxy"]["enabled"] = True
             tweek_config["proxy"]["port"] = TWEEK_DEFAULT_PORT
-            tweek_config["proxy"]["override_moltbot"] = True
+            tweek_config["proxy"]["override_openclaw"] = True
             tweek_config["proxy"]["auto_start"] = False  # User must explicitly start
 
             with open(proxy_config_path, "w") as f:
@@ -2214,7 +2214,7 @@ def audit(path, translate, llm_review, json_out):
     \b
     Without arguments, scans all installed skills in:
       ~/.claude/skills/
-      ~/.moltbot/skills/
+      ~/.openclaw/workspace/skills/
       ./.claude/skills/
     """
     from tweek.audit import scan_installed_skills, audit_skill, audit_content
@@ -2529,9 +2529,9 @@ def _quickstart_install_hooks(scope: str) -> None:
 @main.group(
     epilog="""\b
 Examples:
-  tweek protect moltbot                One-command Moltbot protection
-  tweek protect moltbot --paranoid     Use paranoid security preset
-  tweek protect moltbot --port 9999    Override gateway port
+  tweek protect openclaw                One-command OpenClaw protection
+  tweek protect openclaw --paranoid     Use paranoid security preset
+  tweek protect openclaw --port 9999    Override gateway port
   tweek protect claude                 Install Claude Code hooks (alias for tweek install)
 """
 )
@@ -2545,30 +2545,30 @@ def protect():
 
 
 @protect.command(
-    "moltbot",
+    "openclaw",
     epilog="""\b
 Examples:
-  tweek protect moltbot                Auto-detect and protect Moltbot
-  tweek protect moltbot --paranoid     Maximum security preset
-  tweek protect moltbot --port 9999    Custom gateway port
+  tweek protect openclaw                Auto-detect and protect OpenClaw
+  tweek protect openclaw --paranoid     Maximum security preset
+  tweek protect openclaw --port 9999    Custom gateway port
 """
 )
 @click.option("--port", default=None, type=int,
-              help="Moltbot gateway port (default: auto-detect)")
+              help="OpenClaw gateway port (default: auto-detect)")
 @click.option("--paranoid", is_flag=True,
               help="Use paranoid security preset (default: cautious)")
 @click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
               default=None, help="Security preset to apply")
-def protect_moltbot(port, paranoid, preset):
-    """One-command Moltbot protection setup.
+def protect_openclaw(port, paranoid, preset):
+    """One-command OpenClaw protection setup.
 
-    Auto-detects Moltbot, configures proxy wrapping,
+    Auto-detects OpenClaw, configures proxy wrapping,
     and starts screening all tool calls through Tweek's
     five-layer defense pipeline.
     """
-    from tweek.integrations.moltbot import (
-        detect_moltbot_installation,
-        setup_moltbot_protection,
+    from tweek.integrations.openclaw import (
+        detect_openclaw_installation,
+        setup_openclaw_protection,
     )
 
     console.print(TWEEK_BANNER, style="cyan")
@@ -2581,52 +2581,52 @@ def protect_moltbot(port, paranoid, preset):
     else:
         effective_preset = "cautious"
 
-    # Step 1: Detect Moltbot
-    console.print("[cyan]Detecting Moltbot...[/cyan]")
-    moltbot = detect_moltbot_installation()
+    # Step 1: Detect OpenClaw
+    console.print("[cyan]Detecting OpenClaw...[/cyan]")
+    openclaw = detect_openclaw_installation()
 
-    if not moltbot["installed"]:
+    if not openclaw["installed"]:
         console.print()
-        console.print("[red]Moltbot not detected on this system.[/red]")
+        console.print("[red]OpenClaw not detected on this system.[/red]")
         console.print()
-        console.print("[dim]Install Moltbot first:[/dim]")
-        console.print("  npm install -g moltbot")
+        console.print("[dim]Install OpenClaw first:[/dim]")
+        console.print("  npm install -g openclaw")
         console.print()
-        console.print("[dim]Or if Moltbot is installed in a non-standard location,[/dim]")
+        console.print("[dim]Or if OpenClaw is installed in a non-standard location,[/dim]")
         console.print("[dim]specify the gateway port manually:[/dim]")
-        console.print("  tweek protect moltbot --port 18789")
+        console.print("  tweek protect openclaw --port 18789")
         return
 
     # Show detection results
     console.print()
-    console.print("  [green]Moltbot detected[/green]")
+    console.print("  [green]OpenClaw detected[/green]")
 
-    if moltbot["version"]:
-        console.print(f"  Version:    {moltbot['version']}")
+    if openclaw["version"]:
+        console.print(f"  Version:    {openclaw['version']}")
 
-    console.print(f"  Gateway:    port {moltbot['gateway_port']}", end="")
-    if moltbot["gateway_active"]:
+    console.print(f"  Gateway:    port {openclaw['gateway_port']}", end="")
+    if openclaw["gateway_active"]:
         console.print(" [green](running)[/green]")
-    elif moltbot["process_running"]:
+    elif openclaw["process_running"]:
         console.print(" [yellow](process running, gateway inactive)[/yellow]")
     else:
         console.print(" [dim](not running)[/dim]")
 
-    if moltbot["config_path"]:
-        console.print(f"  Config:     {moltbot['config_path']}")
+    if openclaw["config_path"]:
+        console.print(f"  Config:     {openclaw['config_path']}")
 
     console.print()
 
     # Step 2: Configure protection
     console.print("[cyan]Configuring Tweek protection...[/cyan]")
-    result = setup_moltbot_protection(port=port, preset=effective_preset)
+    result = setup_openclaw_protection(port=port, preset=effective_preset)
 
     if not result.success:
         console.print(f"\n[red]Setup failed: {result.error}[/red]")
         return
 
     # Show configuration
-    console.print(f"  Proxy:      port {result.proxy_port} -> wrapping Moltbot gateway")
+    console.print(f"  Scanner:    port {result.scanner_port} -> wrapping OpenClaw gateway")
     console.print(f"  Preset:     {result.preset} (215 patterns + rate limiting)")
 
     # Check for API key
@@ -2642,12 +2642,12 @@ def protect_moltbot(port, paranoid, preset):
 
     console.print()
 
-    if not moltbot["gateway_active"]:
-        console.print("[yellow]Note: Moltbot gateway is not currently running.[/yellow]")
-        console.print("[dim]Protection will activate when Moltbot starts.[/dim]")
+    if not openclaw["gateway_active"]:
+        console.print("[yellow]Note: OpenClaw gateway is not currently running.[/yellow]")
+        console.print("[dim]Protection will activate when OpenClaw starts.[/dim]")
         console.print()
 
-    console.print("[green]Protection configured.[/green] Screening all Moltbot tool calls.")
+    console.print("[green]Protection configured.[/green] Screening all OpenClaw tool calls.")
     console.print()
     console.print("[dim]Verify:     tweek doctor[/dim]")
     console.print("[dim]Logs:       tweek logs show[/dim]")
@@ -3761,7 +3761,7 @@ def proxy():
     Quick start:
         tweek proxy start       # Start the proxy
         tweek proxy trust       # Install CA certificate
-        tweek proxy wrap moltbot "npm start"  # Wrap an app
+        tweek proxy wrap openclaw "npm start"  # Wrap an app
     """
     pass
 
@@ -3935,7 +3935,7 @@ def proxy_config(set_enabled, set_disabled, port):
 @proxy.command("wrap",
     epilog="""\b
 Examples:
-  tweek proxy wrap moltbot "npm start"                     Wrap a Node.js app
+  tweek proxy wrap openclaw "npm start"                     Wrap a Node.js app
   tweek proxy wrap cursor "/Applications/Cursor.app/Contents/MacOS/Cursor"
   tweek proxy wrap myapp "python serve.py" -o run.sh       Custom output path
   tweek proxy wrap myapp "npm start" --port 8080           Use custom proxy port

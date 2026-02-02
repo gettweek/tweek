@@ -36,7 +36,7 @@ tweek install --force-proxy            # Override existing proxy configurations
 ```
 
 During installation, Tweek will:
-1. Detect existing proxy configurations (e.g., moltbot) and offer override options
+1. Detect existing proxy configurations (e.g., openclaw) and offer override options
 2. Install PreToolUse hooks into Claude Code settings
 3. Scan for .env files and offer to migrate credentials to secure vault storage
 4. Apply security configuration (preset, interactive, ai-defaults, or default cautious)
@@ -452,7 +452,7 @@ Generate a wrapper script to route an application through the proxy.
 | `--port, -p` | `9877` | Proxy port |
 
 ```bash
-tweek proxy wrap moltbot "npm start"
+tweek proxy wrap openclaw "npm start"
 tweek proxy wrap cursor "/Applications/Cursor.app/Contents/MacOS/Cursor"
 tweek proxy wrap myapp "python serve.py" -o run.sh
 ```
