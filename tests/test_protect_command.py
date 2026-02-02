@@ -82,10 +82,10 @@ class TestProtectGroup:
         assert "claude-code" in result.output
 
     def test_protect_no_subcommand(self, runner):
-        """Test protect without subcommand shows help."""
-        result = runner.invoke(main, ["protect"])
+        """Test protect without subcommand runs the wizard."""
+        result = runner.invoke(main, ["protect"], input="1\nn\n")
         assert result.exit_code == 0
-        assert "openclaw" in result.output
+        assert "Protection Wizard" in result.output
 
 
 class TestProtectOpenClaw:

@@ -1181,10 +1181,10 @@ def _print_install_summary(
 @main.command(
     epilog="""\b
 Examples:
+  tweek unprotect                          Interactive — choose what to remove
   tweek unprotect claude-code              Remove Claude Code hooks
   tweek unprotect claude-code --global     Remove global Claude Code hooks
   tweek unprotect claude-desktop           Remove from Claude Desktop
-  tweek unprotect chatgpt                  Remove from ChatGPT Desktop
   tweek unprotect --all                    Remove ALL Tweek data system-wide
 """
 )
@@ -1198,7 +1198,9 @@ Examples:
 def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool):
     """Remove Tweek protection from an AI tool.
 
-    Specify which tool to unprotect, or use --all to remove everything.
+    When run without arguments, launches an interactive wizard
+    that walks through each protected tool asking if you want
+    to remove protection. Use --all to remove everything at once.
 
     This command can only be run from an interactive terminal.
     AI agents are blocked from running it.
@@ -1215,18 +1217,10 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
         console.print("[white]Open a terminal and run the command directly.[/white]")
         raise SystemExit(1)
 
-    # Require either a tool or --all
+    # No tool and no --all: run interactive wizard
     if not tool and not remove_all:
-        console.print("[red]Error: specify which tool to unprotect.[/red]")
-        console.print()
-        console.print("[white]Usage:[/white]")
-        console.print("  tweek unprotect claude-code")
-        console.print("  tweek unprotect claude-desktop")
-        console.print("  tweek unprotect chatgpt")
-        console.print("  tweek unprotect gemini")
-        console.print("  tweek unprotect openclaw")
-        console.print("  tweek unprotect --all")
-        raise SystemExit(1)
+        _run_unprotect_wizard()
+        return
 
     console.print(TWEEK_BANNER, style="cyan")
 
@@ -1273,6 +1267,16 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
         return
 
     _show_package_removal_hint()
+
+
+@main.command()
+def status():
+    """Show Tweek protection status dashboard.
+
+    Scans for all supported AI tools and displays which are
+    detected, which are protected by Tweek, and configuration details.
+    """
+    _show_protection_status()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2818,104 +2822,123 @@ def _protect_mcp_client(client_name: str):
 # =============================================================================
 
 
-def _run_protect_wizard():
-    """Interactive wizard: detect installed AI tools and offer protection."""
-    import shutil
+def _detect_all_tools():
+    """Detect all supported AI tools and their protection status.
 
-    console.print(TWEEK_BANNER, style="cyan")
-    console.print("[bold]Tweek Protection Wizard[/bold]\n")
-    console.print("Detecting installed AI tools...\n")
+    Returns list of (tool_id, label, installed, protected, detail) tuples.
+    """
+    import shutil
+    import json
 
     tools = []
 
-    # Detect Claude Code
+    # Claude Code
     claude_installed = shutil.which("claude") is not None
-    if claude_installed:
-        global_settings = Path("~/.claude/settings.json").expanduser()
-        protected = _has_tweek_at(Path("~/.claude").expanduser())
-        tools.append(("claude-code", "Claude Code", claude_installed, protected))
-    else:
-        tools.append(("claude-code", "Claude Code", False, False))
+    claude_protected = _has_tweek_at(Path("~/.claude").expanduser()) if claude_installed else False
+    tools.append((
+        "claude-code", "Claude Code", claude_installed, claude_protected,
+        "Hooks in ~/.claude/settings.json" if claude_protected else "",
+    ))
 
-    # Detect OpenClaw
+    # OpenClaw
+    oc_installed = False
+    oc_protected = False
+    oc_detail = ""
     try:
         from tweek.integrations.openclaw import detect_openclaw_installation
         openclaw = detect_openclaw_installation()
-        openclaw_installed = openclaw.get("installed", False)
+        oc_installed = openclaw.get("installed", False)
+        if oc_installed:
+            oc_protected = openclaw.get("tweek_configured", False)
+            oc_detail = f"Gateway port {openclaw.get('gateway_port', '?')}"
     except Exception:
-        openclaw_installed = False
-    tools.append(("openclaw", "OpenClaw", openclaw_installed, False))
+        pass
+    tools.append(("openclaw", "OpenClaw", oc_installed, oc_protected, oc_detail))
 
-    # Detect MCP clients by config path existence
-    mcp_configs = {
-        "claude-desktop": ("Claude Desktop", Path("~/Library/Application Support/Claude/claude_desktop_config.json").expanduser()),
-        "chatgpt": ("ChatGPT Desktop", Path("~/Library/Application Support/com.openai.chat/developer_settings.json").expanduser()),
-        "gemini": ("Gemini CLI", Path("~/.gemini/settings.json").expanduser()),
-    }
-    for tool_id, (label, config_path) in mcp_configs.items():
+    # MCP clients
+    mcp_configs = [
+        ("claude-desktop", "Claude Desktop",
+         Path("~/Library/Application Support/Claude/claude_desktop_config.json").expanduser()),
+        ("chatgpt", "ChatGPT Desktop",
+         Path("~/Library/Application Support/com.openai.chat/developer_settings.json").expanduser()),
+        ("gemini", "Gemini CLI",
+         Path("~/.gemini/settings.json").expanduser()),
+    ]
+    for tool_id, label, config_path in mcp_configs:
         installed = config_path.exists()
-        # Check if tweek is already configured
         protected = False
         if installed:
             try:
-                import json
                 with open(config_path) as f:
                     data = json.load(f)
                 mcp_servers = data.get("mcpServers", {})
                 protected = "tweek-security" in mcp_servers or "tweek" in mcp_servers
             except Exception:
                 pass
-        tools.append((tool_id, label, installed, protected))
+        detail = str(config_path) if protected else ""
+        tools.append((tool_id, label, installed, protected, detail))
 
-    # Display detection results
-    for tool_id, label, installed, protected in tools:
-        if not installed:
-            console.print(f"  [dim]{label:<20} not detected[/dim]")
-        elif protected:
-            console.print(f"  [green]{label:<20} protected[/green]")
-        else:
-            console.print(f"  [yellow]{label:<20} detected — not protected[/yellow]")
+    return tools
 
-    # Find unprotected tools
-    unprotected = [(tid, label) for tid, label, inst, prot in tools if inst and not prot]
+
+def _run_protect_wizard():
+    """Interactive wizard: detect tools and ask Y/n for each one."""
+    console.print(TWEEK_BANNER, style="cyan")
+    console.print("[bold]Tweek Protection Wizard[/bold]\n")
+    console.print("Scanning for AI tools...\n")
+
+    tools = _detect_all_tools()
+
+    # Show detection summary
+    detected = [(tid, label, prot) for tid, label, inst, prot, _ in tools if inst]
+    not_detected = [label for _, label, inst, _, _ in tools if not inst]
+
+    if not_detected:
+        for label in not_detected:
+            console.print(f"  [white]{label:<20}[/white] [white]not found[/white]")
+
+    if not detected:
+        console.print("\n[yellow]No AI tools detected on this system.[/yellow]")
+        return
+
+    # Show already-protected tools
+    already_protected = [(tid, label) for tid, label, prot in detected if prot]
+    unprotected = [(tid, label) for tid, label, prot in detected if not prot]
+
+    for _, label in already_protected:
+        console.print(f"  [green]{label:<20} protected[/green]")
 
     if not unprotected:
-        console.print("\n[green]All detected tools are protected.[/green]")
+        console.print(f"\n[green]All {len(already_protected)} detected tool(s) already protected.[/green]")
+        console.print("Run 'tweek status' to see details.")
         return
 
-    console.print(f"\n[bold]Select tools to protect:[/bold]\n")
-    for i, (tid, label) in enumerate(unprotected, 1):
-        console.print(f"  [bold]{i}.[/bold] {label}")
-    console.print(f"  [bold]{len(unprotected) + 1}.[/bold] All of the above")
-    console.print(f"  [bold]0.[/bold] Cancel")
+    for _, label in unprotected:
+        console.print(f"  [yellow]{label:<20} not protected[/yellow]")
 
-    console.print()
-    choice = click.prompt("Select", type=click.IntRange(0, len(unprotected) + 1), default=len(unprotected) + 1)
-
-    if choice == 0:
-        console.print("[dim]Cancelled.[/dim]")
-        return
-
-    if choice == len(unprotected) + 1:
-        selected = [tid for tid, _ in unprotected]
-    else:
-        selected = [unprotected[choice - 1][0]]
-
-    # Ask for preset
+    # Ask for preset first (applies to all)
     console.print()
     console.print("[bold]Security preset:[/bold]")
-    console.print("  [bold]1.[/bold] cautious (recommended) — screen risky & dangerous tools")
+    console.print("  [bold]1.[/bold] cautious [white](recommended)[/white] — screen risky & dangerous tools")
     console.print("  [bold]2.[/bold] paranoid — screen everything except safe tools")
     console.print("  [bold]3.[/bold] trusted — only screen dangerous tools")
     console.print()
-    preset_choice = click.prompt("Select", type=click.IntRange(1, 3), default=1)
+    preset_choice = click.prompt("Select preset", type=click.IntRange(1, 3), default=1)
     preset = ["cautious", "paranoid", "trusted"][preset_choice - 1]
 
+    # Walk through each unprotected tool
     console.print()
+    protected_count = 0
+    skipped_count = 0
 
-    # Run protection for each selected tool
-    for tool_id in selected:
-        console.print(f"[cyan]Protecting {tool_id}...[/cyan]")
+    for tool_id, label in unprotected:
+        protect_it = click.confirm(f"  Protect {label}?", default=True)
+
+        if not protect_it:
+            console.print(f"    [white]skipped[/white]")
+            skipped_count += 1
+            continue
+
         try:
             if tool_id == "claude-code":
                 _install_claude_code_hooks(
@@ -2928,83 +2951,124 @@ def _run_protect_wizard():
                 from tweek.integrations.openclaw import setup_openclaw_protection
                 result = setup_openclaw_protection(preset=preset)
                 if result.success:
-                    console.print(f"  [green]OpenClaw protected[/green]")
+                    console.print(f"    [green]done[/green]")
                 else:
-                    console.print(f"  [red]Failed: {result.error}[/red]")
+                    console.print(f"    [red]failed: {result.error}[/red]")
+                    continue
             elif tool_id in ("claude-desktop", "chatgpt", "gemini"):
                 _protect_mcp_client(tool_id)
+            protected_count += 1
         except Exception as e:
-            console.print(f"  [red]Error: {e}[/red]")
-        console.print()
+            console.print(f"    [red]error: {e}[/red]")
 
-    console.print("[green]Done.[/green] Run 'tweek protect --status' to verify.")
+    console.print()
+    if protected_count:
+        console.print(f"[green]Protected {protected_count} tool(s).[/green]", end="")
+    if skipped_count:
+        console.print(f"  [white]Skipped {skipped_count}.[/white]", end="")
+    console.print()
+    console.print("Run 'tweek status' to see the full dashboard.")
+
+
+def _run_unprotect_wizard():
+    """Interactive wizard: detect protected tools and ask Y/n to unprotect each."""
+    console.print(TWEEK_BANNER, style="cyan")
+    console.print("[bold]Tweek Unprotect Wizard[/bold]\n")
+    console.print("Scanning for protected AI tools...\n")
+
+    tools = _detect_all_tools()
+    tweek_dir = Path("~/.tweek").expanduser()
+    global_target = Path("~/.claude").expanduser()
+    project_target = Path.cwd() / ".claude"
+
+    protected = [(tid, label) for tid, label, inst, prot, _ in tools if inst and prot]
+
+    if not protected:
+        console.print("[yellow]No protected tools found.[/yellow]")
+        return
+
+    for _, label in protected:
+        console.print(f"  [green]{label:<20} protected[/green]")
+
+    console.print()
+    removed_count = 0
+    skipped_count = 0
+
+    for tool_id, label in protected:
+        remove_it = click.confirm(f"  Remove protection from {label}?", default=False)
+
+        if not remove_it:
+            console.print(f"    [white]kept[/white]")
+            skipped_count += 1
+            continue
+
+        try:
+            if tool_id == "claude-code":
+                _uninstall_scope(global_target, tweek_dir, confirm=True, scope_label="global")
+            elif tool_id in ("claude-desktop", "chatgpt", "gemini"):
+                from tweek.mcp.clients import get_client
+                handler = get_client(tool_id)
+                result = handler.uninstall()
+                if result.get("success"):
+                    console.print(f"    [green]{result.get('message', 'removed')}[/green]")
+                else:
+                    console.print(f"    [red]{result.get('error', 'failed')}[/red]")
+                    continue
+            elif tool_id == "openclaw":
+                console.print("    [white]Manual step: remove tweek plugin from openclaw.json[/white]")
+            removed_count += 1
+        except Exception as e:
+            console.print(f"    [red]error: {e}[/red]")
+
+    console.print()
+    if removed_count:
+        console.print(f"[green]Removed protection from {removed_count} tool(s).[/green]", end="")
+    if skipped_count:
+        console.print(f"  [white]Kept {skipped_count}.[/white]", end="")
+    console.print()
 
 
 def _show_protection_status():
-    """Show protection status table for all AI tools."""
-    import shutil
-    import json
-
+    """Show protection status dashboard for all AI tools."""
     console.print(TWEEK_BANNER, style="cyan")
-    console.print("[bold]Protection Status[/bold]\n")
 
-    table = Table()
-    table.add_column("Tool", style="cyan")
-    table.add_column("Detected")
-    table.add_column("Protected")
+    tools = _detect_all_tools()
+
+    # Build status table
+    table = Table(title="Protection Status", show_lines=False)
+    table.add_column("Tool", style="cyan", min_width=18)
+    table.add_column("Installed", justify="center", min_width=10)
+    table.add_column("Protected", justify="center", min_width=10)
     table.add_column("Details")
 
-    # Claude Code
-    claude_installed = shutil.which("claude") is not None
-    claude_protected = _has_tweek_at(Path("~/.claude").expanduser())
-    table.add_row(
-        "Claude Code",
-        "[green]yes[/green]" if claude_installed else "[dim]no[/dim]",
-        "[green]yes[/green]" if claude_protected else "[yellow]no[/yellow]" if claude_installed else "[dim]—[/dim]",
-        "Hooks in ~/.claude/settings.json" if claude_protected else "",
-    )
+    detected_count = 0
+    protected_count = 0
 
-    # OpenClaw
-    try:
-        from tweek.integrations.openclaw import detect_openclaw_installation
-        openclaw = detect_openclaw_installation()
-        oc_installed = openclaw.get("installed", False)
-        oc_protected = openclaw.get("tweek_configured", False) if oc_installed else False
-    except Exception:
-        oc_installed = False
-        oc_protected = False
-    table.add_row(
-        "OpenClaw",
-        "[green]yes[/green]" if oc_installed else "[dim]no[/dim]",
-        "[green]yes[/green]" if oc_protected else "[yellow]no[/yellow]" if oc_installed else "[dim]—[/dim]",
-        f"Gateway port {openclaw.get('gateway_port', '?')}" if oc_installed else "",
-    )
-
-    # MCP clients
-    mcp_configs = {
-        "Claude Desktop": Path("~/Library/Application Support/Claude/claude_desktop_config.json").expanduser(),
-        "ChatGPT Desktop": Path("~/Library/Application Support/com.openai.chat/developer_settings.json").expanduser(),
-        "Gemini CLI": Path("~/.gemini/settings.json").expanduser(),
-    }
-    for label, config_path in mcp_configs.items():
-        installed = config_path.exists()
-        protected = False
+    for tool_id, label, installed, protected, detail in tools:
         if installed:
-            try:
-                with open(config_path) as f:
-                    data = json.load(f)
-                mcp_servers = data.get("mcpServers", {})
-                protected = "tweek-security" in mcp_servers or "tweek" in mcp_servers
-            except Exception:
-                pass
+            detected_count += 1
+        if protected:
+            protected_count += 1
+
         table.add_row(
             label,
-            "[green]yes[/green]" if installed else "[dim]no[/dim]",
-            "[green]yes[/green]" if protected else "[yellow]no[/yellow]" if installed else "[dim]—[/dim]",
-            str(config_path) if protected else "",
+            "[green]yes[/green]" if installed else "[white]no[/white]",
+            "[green]yes[/green]" if protected else "[yellow]no[/yellow]" if installed else "[white]—[/white]",
+            detail,
         )
 
     console.print(table)
+    console.print()
+
+    # Summary line
+    unprotected_count = detected_count - protected_count
+    if detected_count == 0:
+        console.print("[yellow]No AI tools detected.[/yellow]")
+    elif unprotected_count == 0:
+        console.print(f"[green]{protected_count}/{detected_count} detected tools protected.[/green]")
+    else:
+        console.print(f"[yellow]{protected_count}/{detected_count} detected tools protected. {unprotected_count} unprotected.[/yellow]")
+        console.print("[white]Run 'tweek protect' to set up protection.[/white]")
     console.print()
 
 
