@@ -101,6 +101,12 @@ const tweekPlugin: OpenClawPluginDefinition = {
       config = resolveConfig({ preset: "cautious" });
     }
 
+    // Master switch — if disabled, register but don't activate hooks
+    if (!config.enabled) {
+      log(`[Tweek] Plugin disabled via configuration. Skipping hook registration.`);
+      return;
+    }
+
     scanner = new ScannerBridge(config.scannerPort);
     skillGuard = new SkillGuard(scanner, config, log);
     toolScreener = new ToolScreener(scanner, config, log);

@@ -5,7 +5,7 @@ Tweek CLI - GAH! Security for your AI agents.
 Usage:
     tweek install [--scope global|project]
     tweek uninstall [--scope global|project]
-    tweek status
+    tweek doctor
     tweek config [--skill NAME] [--preset paranoid|cautious|trusted]
     tweek vault store SKILL KEY VALUE
     tweek vault get SKILL KEY
@@ -152,41 +152,7 @@ def _has_tweek_hooks(settings: dict) -> bool:
     return False
 
 
-@main.command(
-    epilog="""\b
-Examples:
-  tweek install                          Install for current project
-  tweek install --global                 Install globally (all projects)
-  tweek install --interactive            Walk through configuration prompts
-  tweek install --preset paranoid        Apply paranoid security preset
-  tweek install --quick                  Zero-prompt install with defaults
-  tweek install --with-sandbox           Install sandbox tool if needed (Linux)
-  tweek install --force-proxy            Override existing proxy configurations
-"""
-)
-@click.option("--global", "install_global", is_flag=True, default=False,
-              help="Install globally to ~/.claude/ (protects all projects)")
-@click.option("--dev-test", is_flag=True, hidden=True,
-              help="Install to test environment (for Tweek development only)")
-@click.option("--backup/--no-backup", default=True,
-              help="Backup existing hooks before installation")
-@click.option("--skip-env-scan", is_flag=True,
-              help="Skip scanning for .env files to migrate")
-@click.option("--interactive", "-i", is_flag=True,
-              help="Interactively configure security settings")
-@click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
-              help="Apply a security preset (skip interactive)")
-@click.option("--ai-defaults", is_flag=True,
-              help="Let AI suggest default settings based on detected skills")
-@click.option("--with-sandbox", is_flag=True,
-              help="Prompt to install sandbox tool if not available (Linux only)")
-@click.option("--force-proxy", is_flag=True,
-              help="Force Tweek proxy to override existing proxy configurations (e.g., openclaw)")
-@click.option("--skip-proxy-check", is_flag=True,
-              help="Skip checking for existing proxy configurations")
-@click.option("--quick", is_flag=True,
-              help="Zero-prompt install with cautious defaults (skips env scan and proxy check)")
-def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool, quick: bool):
+def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool, quick: bool):
     """Install Tweek hooks into Claude Code.
 
     By default, installs to the current project (./.claude/).
@@ -1205,7 +1171,7 @@ def _print_install_summary(
     # Next steps
     console.print()
     console.print("[white]Next steps:[/white]")
-    console.print("[white]  tweek status       — Verify installation[/white]")
+    console.print("[white]  tweek doctor       — Verify installation[/white]")
     console.print("[white]  tweek update       — Get latest attack patterns[/white]")
     console.print("[white]  tweek config list  — See security settings[/white]")
     if proxy_override_enabled:
@@ -1215,23 +1181,24 @@ def _print_install_summary(
 @main.command(
     epilog="""\b
 Examples:
-  tweek uninstall                        Interactive — choose what to remove
-  tweek uninstall --global               Remove global installation directly
-  tweek uninstall --everything           Remove ALL Tweek data system-wide
-  tweek uninstall --confirm              Skip confirmation prompt
+  tweek unprotect claude-code              Remove Claude Code hooks
+  tweek unprotect claude-desktop           Remove from Claude Desktop
+  tweek unprotect --all                    Remove ALL Tweek data system-wide
+  tweek unprotect --confirm                Skip confirmation prompt
 """
 )
-@click.option("--global", "uninstall_global", is_flag=True, default=False,
-              help="Uninstall from ~/.claude/ (global installation)")
-@click.option("--everything", is_flag=True, default=False,
+@click.argument("tool", required=False, type=click.Choice(
+    ["claude-code", "openclaw", "claude-desktop", "chatgpt", "gemini"]))
+@click.option("--all", "remove_all", is_flag=True, default=False,
               help="Remove ALL Tweek data: hooks, skills, config, patterns, logs, MCP integrations")
+@click.option("--global", "unprotect_global", is_flag=True, default=False,
+              help="Remove from ~/.claude/ (global installation)")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
-def uninstall(uninstall_global: bool, everything: bool, confirm: bool):
-    """Remove Tweek hooks and data from Claude Code.
+def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool):
+    """Remove Tweek protection from an AI tool.
 
-    When run without flags, presents an interactive menu to choose scope.
-    Use --global to remove from ~/.claude/ directly.
-    Use --everything to remove ALL Tweek data system-wide.
+    Specify which tool to unprotect, or use --all to remove everything.
+    When run without arguments, presents an interactive menu.
 
     This command can only be run from an interactive terminal.
     AI agents are blocked from running it.
@@ -1243,7 +1210,7 @@ def uninstall(uninstall_global: bool, everything: bool, confirm: bool):
     # This is Layer 2 of protection (Layer 1 is the PreToolUse hook)
     # ─────────────────────────────────────────────────────────────
     if not sys.stdin.isatty():
-        console.print("[red]ERROR: tweek uninstall must be run from an interactive terminal.[/red]")
+        console.print("[red]ERROR: tweek unprotect must be run from an interactive terminal.[/red]")
         console.print("[white]This command cannot be run by AI agents or automated scripts.[/white]")
         console.print("[white]Open a terminal and run the command directly.[/white]")
         raise SystemExit(1)
@@ -1254,52 +1221,83 @@ def uninstall(uninstall_global: bool, everything: bool, confirm: bool):
     global_target = Path("~/.claude").expanduser()
     project_target = Path.cwd() / ".claude"
 
-    if everything:
+    if remove_all:
         _uninstall_everything(global_target, project_target, tweek_dir, confirm)
-    elif uninstall_global:
-        _uninstall_scope(global_target, tweek_dir, confirm, scope_label="global")
-    else:
-        # ── Interactive scope selection ──
-        # Detect what's installed
-        has_project = _has_tweek_at(project_target)
-        has_global = _has_tweek_at(global_target)
-        has_data = tweek_dir.exists() and any(tweek_dir.iterdir()) if tweek_dir.exists() else False
+        _show_package_removal_hint()
+        return
 
-        if not has_project and not has_global and not has_data:
-            console.print("[yellow]No Tweek installation found.[/yellow]")
-            console.print(f"  Checked project:  {project_target}")
-            console.print(f"  Checked global:   {global_target}")
-            console.print(f"  Checked data:     {tweek_dir}")
-            _show_package_removal_hint()
-            return
-
-        console.print("[bold]What would you like to remove?[/bold]\n")
-
-        options = []
-        if has_project:
-            options.append(("project", f"This project only ({project_target})"))
-        if has_global:
-            options.append(("global", f"Global installation (~/.claude/)"))
-        if has_project or has_global or has_data:
-            options.append(("everything", "Everything — all hooks, skills, config, data, and MCP integrations"))
-
-        for i, (_, label) in enumerate(options, 1):
-            console.print(f"  [bold]{i}.[/bold] {label}")
-
-        console.print()
-        choice = click.prompt("Select", type=click.IntRange(1, len(options)), default=len(options))
-
-        selected = options[choice - 1][0]
-        console.print()
-
-        if selected == "project":
-            _uninstall_scope(project_target, tweek_dir, confirm, scope_label="project")
-        elif selected == "global":
+    if tool == "claude-code":
+        if unprotect_global:
             _uninstall_scope(global_target, tweek_dir, confirm, scope_label="global")
-        elif selected == "everything":
-            _uninstall_everything(global_target, project_target, tweek_dir, confirm)
+        else:
+            _uninstall_scope(project_target, tweek_dir, confirm, scope_label="project")
+        _show_package_removal_hint()
+        return
 
-    # Always show how to remove the CLI binary itself
+    if tool in ("claude-desktop", "chatgpt", "gemini"):
+        try:
+            from tweek.mcp.clients import get_client
+            handler = get_client(tool)
+            result = handler.uninstall()
+            if result.get("success"):
+                console.print(f"[green]{result.get('message', 'Uninstalled successfully')}[/green]")
+                if result.get("backup"):
+                    console.print(f"   Backup: {result['backup']}")
+                if result.get("instructions"):
+                    console.print()
+                    for line in result["instructions"]:
+                        console.print(f"   {line}")
+            else:
+                console.print(f"[red]{result.get('error', 'Uninstallation failed')}[/red]")
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+        return
+
+    if tool == "openclaw":
+        console.print("[yellow]OpenClaw unprotect: removing Tweek proxy configuration...[/yellow]")
+        # TODO: implement openclaw unprotect
+        console.print("[white]Manual step: remove tweek plugin from openclaw.json[/white]")
+        return
+
+    # No tool specified — interactive menu
+    has_project = _has_tweek_at(project_target)
+    has_global = _has_tweek_at(global_target)
+    has_data = tweek_dir.exists() and any(tweek_dir.iterdir()) if tweek_dir.exists() else False
+
+    if not has_project and not has_global and not has_data:
+        console.print("[yellow]No Tweek installation found.[/yellow]")
+        console.print(f"  Checked project:  {project_target}")
+        console.print(f"  Checked global:   {global_target}")
+        console.print(f"  Checked data:     {tweek_dir}")
+        _show_package_removal_hint()
+        return
+
+    console.print("[bold]What would you like to remove?[/bold]\n")
+
+    options = []
+    if has_project:
+        options.append(("project", f"This project only ({project_target})"))
+    if has_global:
+        options.append(("global", f"Global installation (~/.claude/)"))
+    if has_project or has_global or has_data:
+        options.append(("everything", "Everything — all hooks, skills, config, data, and MCP integrations"))
+
+    for i, (_, label) in enumerate(options, 1):
+        console.print(f"  [bold]{i}.[/bold] {label}")
+
+    console.print()
+    choice = click.prompt("Select", type=click.IntRange(1, len(options)), default=len(options))
+
+    selected = options[choice - 1][0]
+    console.print()
+
+    if selected == "project":
+        _uninstall_scope(project_target, tweek_dir, confirm, scope_label="project")
+    elif selected == "global":
+        _uninstall_scope(global_target, tweek_dir, confirm, scope_label="global")
+    elif selected == "everything":
+        _uninstall_everything(global_target, project_target, tweek_dir, confirm)
+
     _show_package_removal_hint()
 
 
@@ -2159,22 +2157,6 @@ def doctor(verbose: bool, json_out: bool):
         print_doctor_results(checks)
 
 
-# `tweek status` — alias for `tweek doctor`
-@main.command("status")
-@click.option("--verbose", "-v", is_flag=True, help="Show detailed check information")
-@click.option("--json-output", "--json", "json_out", is_flag=True, help="Output results as JSON")
-def status(verbose: bool, json_out: bool):
-    """Show Tweek protection status (alias for 'tweek doctor')."""
-    from tweek.diagnostics import run_health_checks
-    from tweek.cli_helpers import print_doctor_results, print_doctor_json
-
-    checks = run_health_checks(verbose=verbose)
-
-    if json_out:
-        print_doctor_json(checks)
-    else:
-        print_doctor_results(checks)
-
 
 @main.command("upgrade")
 def upgrade():
@@ -2558,7 +2540,6 @@ def quickstart():
     console.print()
     console.print("[bold green]Setup complete![/bold green]")
     console.print("  Run [cyan]tweek doctor[/cyan] to verify your installation")
-    console.print("  Run [cyan]tweek status[/cyan] to see protection status")
 
 
 def _quickstart_install_hooks(scope: str) -> None:
@@ -2626,21 +2607,31 @@ def _quickstart_install_hooks(scope: str) -> None:
 # =============================================================================
 
 @main.group(
+    invoke_without_command=True,
     epilog="""\b
 Examples:
-  tweek protect openclaw                One-command OpenClaw protection
-  tweek protect openclaw --paranoid     Use paranoid security preset
-  tweek protect openclaw --port 9999    Override gateway port
-  tweek protect claude                 Install Claude Code hooks (alias for tweek install)
+  tweek protect                          Interactive wizard — detect & protect all tools
+  tweek protect --status                 Show protection status for all tools
+  tweek protect claude-code              Install Claude Code hooks
+  tweek protect openclaw                 One-command OpenClaw protection
+  tweek protect claude-desktop           Configure Claude Desktop integration
+  tweek protect chatgpt                  Set up ChatGPT Desktop integration
+  tweek protect gemini                   Configure Gemini CLI integration
 """
 )
-def protect():
-    """Set up Tweek protection for a specific AI agent.
+@click.option("--status", is_flag=True, help="Show protection status for all tools")
+@click.pass_context
+def protect(ctx, status):
+    """Set up Tweek protection for AI tools.
 
-    One-command setup that auto-detects, configures, and starts
-    screening all tool calls for your AI assistant.
+    When run without a subcommand, launches an interactive wizard
+    that auto-detects installed AI tools and offers to protect them.
     """
-    pass
+    if status:
+        _show_protection_status()
+        return
+    if ctx.invoked_subcommand is None:
+        _run_protect_wizard()
 
 
 @protect.command(
@@ -2754,40 +2745,293 @@ def protect_openclaw(port, paranoid, preset):
 
 
 @protect.command(
-    "claude",
+    "claude-code",
     epilog="""\b
 Examples:
-  tweek protect claude                 Install Claude Code hooks (current project)
-  tweek protect claude --global        Install globally (all projects)
+  tweek protect claude-code              Install for current project
+  tweek protect claude-code --global     Install globally (all projects)
+  tweek protect claude-code --quick      Zero-prompt install with defaults
+  tweek protect claude-code --preset paranoid   Apply paranoid security preset
 """
 )
 @click.option("--global", "install_global", is_flag=True, default=False,
               help="Install globally to ~/.claude/ (protects all projects)")
+@click.option("--dev-test", is_flag=True, hidden=True,
+              help="Install to test environment (for Tweek development only)")
+@click.option("--backup/--no-backup", default=True,
+              help="Backup existing hooks before installation")
+@click.option("--skip-env-scan", is_flag=True,
+              help="Skip scanning for .env files to migrate")
+@click.option("--interactive", "-i", is_flag=True,
+              help="Interactively configure security settings")
 @click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
-              default=None, help="Security preset to apply")
-@click.pass_context
-def protect_claude(ctx, install_global, preset):
+              help="Apply a security preset (skip interactive)")
+@click.option("--ai-defaults", is_flag=True,
+              help="Let AI suggest default settings based on detected skills")
+@click.option("--with-sandbox", is_flag=True,
+              help="Prompt to install sandbox tool if not available (Linux only)")
+@click.option("--force-proxy", is_flag=True,
+              help="Force Tweek proxy to override existing proxy configurations (e.g., openclaw)")
+@click.option("--skip-proxy-check", is_flag=True,
+              help="Skip checking for existing proxy configurations")
+@click.option("--quick", is_flag=True,
+              help="Zero-prompt install with cautious defaults (skips env scan and proxy check)")
+def protect_claude_code(install_global, dev_test, backup, skip_env_scan, interactive, preset, ai_defaults, with_sandbox, force_proxy, skip_proxy_check, quick):
     """Install Tweek hooks for Claude Code.
 
-    This is equivalent to 'tweek install' -- installs PreToolUse
-    and PostToolUse hooks to screen all Claude Code tool calls.
+    Installs PreToolUse and PostToolUse hooks to screen all
+    Claude Code tool calls through Tweek's security pipeline.
     """
-    # Delegate to the main install command
-    # (use main.commands lookup to avoid name shadowing by mcp install)
-    install_cmd = main.commands['install']
-    ctx.invoke(
-        install_cmd,
+    _install_claude_code_hooks(
         install_global=install_global,
-        dev_test=False,
-        backup=True,
-        skip_env_scan=False,
-        interactive=False,
+        dev_test=dev_test,
+        backup=backup,
+        skip_env_scan=skip_env_scan,
+        interactive=interactive,
         preset=preset,
-        ai_defaults=False,
-        with_sandbox=False,
-        force_proxy=False,
-        skip_proxy_check=False,
+        ai_defaults=ai_defaults,
+        with_sandbox=with_sandbox,
+        force_proxy=force_proxy,
+        skip_proxy_check=skip_proxy_check,
+        quick=quick,
     )
+
+
+@protect.command("claude-desktop")
+def protect_claude_desktop():
+    """Configure Tweek as MCP server for Claude Desktop."""
+    _protect_mcp_client("claude-desktop")
+
+
+@protect.command("chatgpt")
+def protect_chatgpt():
+    """Configure Tweek as MCP server for ChatGPT Desktop."""
+    _protect_mcp_client("chatgpt")
+
+
+@protect.command("gemini")
+def protect_gemini():
+    """Configure Tweek as MCP server for Gemini CLI."""
+    _protect_mcp_client("gemini")
+
+
+def _protect_mcp_client(client_name: str):
+    """Shared logic for MCP client protection commands."""
+    try:
+        from tweek.mcp.clients import get_client
+
+        handler = get_client(client_name)
+        result = handler.install()
+
+        if result.get("success"):
+            console.print(f"[green]{result.get('message', 'Installed successfully')}[/green]")
+            if result.get("config_path"):
+                console.print(f"   Config: {result['config_path']}")
+            if result.get("backup"):
+                console.print(f"   Backup: {result['backup']}")
+            if result.get("instructions"):
+                console.print()
+                for line in result["instructions"]:
+                    console.print(f"   {line}")
+        else:
+            console.print(f"[red]{result.get('error', 'Installation failed')}[/red]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+# =============================================================================
+# PROTECT WIZARD & STATUS HELPERS
+# =============================================================================
+
+
+def _run_protect_wizard():
+    """Interactive wizard: detect installed AI tools and offer protection."""
+    import shutil
+
+    console.print(TWEEK_BANNER, style="cyan")
+    console.print("[bold]Tweek Protection Wizard[/bold]\n")
+    console.print("Detecting installed AI tools...\n")
+
+    tools = []
+
+    # Detect Claude Code
+    claude_installed = shutil.which("claude") is not None
+    if claude_installed:
+        global_settings = Path("~/.claude/settings.json").expanduser()
+        protected = _has_tweek_at(Path("~/.claude").expanduser())
+        tools.append(("claude-code", "Claude Code", claude_installed, protected))
+    else:
+        tools.append(("claude-code", "Claude Code", False, False))
+
+    # Detect OpenClaw
+    try:
+        from tweek.integrations.openclaw import detect_openclaw_installation
+        openclaw = detect_openclaw_installation()
+        openclaw_installed = openclaw.get("installed", False)
+    except Exception:
+        openclaw_installed = False
+    tools.append(("openclaw", "OpenClaw", openclaw_installed, False))
+
+    # Detect MCP clients by config path existence
+    mcp_configs = {
+        "claude-desktop": ("Claude Desktop", Path("~/Library/Application Support/Claude/claude_desktop_config.json").expanduser()),
+        "chatgpt": ("ChatGPT Desktop", Path("~/Library/Application Support/com.openai.chat/developer_settings.json").expanduser()),
+        "gemini": ("Gemini CLI", Path("~/.gemini/settings.json").expanduser()),
+    }
+    for tool_id, (label, config_path) in mcp_configs.items():
+        installed = config_path.exists()
+        # Check if tweek is already configured
+        protected = False
+        if installed:
+            try:
+                import json
+                with open(config_path) as f:
+                    data = json.load(f)
+                mcp_servers = data.get("mcpServers", {})
+                protected = "tweek-security" in mcp_servers or "tweek" in mcp_servers
+            except Exception:
+                pass
+        tools.append((tool_id, label, installed, protected))
+
+    # Display detection results
+    for tool_id, label, installed, protected in tools:
+        if not installed:
+            console.print(f"  [dim]{label:<20} not detected[/dim]")
+        elif protected:
+            console.print(f"  [green]{label:<20} protected[/green]")
+        else:
+            console.print(f"  [yellow]{label:<20} detected — not protected[/yellow]")
+
+    # Find unprotected tools
+    unprotected = [(tid, label) for tid, label, inst, prot in tools if inst and not prot]
+
+    if not unprotected:
+        console.print("\n[green]All detected tools are protected.[/green]")
+        return
+
+    console.print(f"\n[bold]Select tools to protect:[/bold]\n")
+    for i, (tid, label) in enumerate(unprotected, 1):
+        console.print(f"  [bold]{i}.[/bold] {label}")
+    console.print(f"  [bold]{len(unprotected) + 1}.[/bold] All of the above")
+    console.print(f"  [bold]0.[/bold] Cancel")
+
+    console.print()
+    choice = click.prompt("Select", type=click.IntRange(0, len(unprotected) + 1), default=len(unprotected) + 1)
+
+    if choice == 0:
+        console.print("[dim]Cancelled.[/dim]")
+        return
+
+    if choice == len(unprotected) + 1:
+        selected = [tid for tid, _ in unprotected]
+    else:
+        selected = [unprotected[choice - 1][0]]
+
+    # Ask for preset
+    console.print()
+    console.print("[bold]Security preset:[/bold]")
+    console.print("  [bold]1.[/bold] cautious (recommended) — screen risky & dangerous tools")
+    console.print("  [bold]2.[/bold] paranoid — screen everything except safe tools")
+    console.print("  [bold]3.[/bold] trusted — only screen dangerous tools")
+    console.print()
+    preset_choice = click.prompt("Select", type=click.IntRange(1, 3), default=1)
+    preset = ["cautious", "paranoid", "trusted"][preset_choice - 1]
+
+    console.print()
+
+    # Run protection for each selected tool
+    for tool_id in selected:
+        console.print(f"[cyan]Protecting {tool_id}...[/cyan]")
+        try:
+            if tool_id == "claude-code":
+                _install_claude_code_hooks(
+                    install_global=True, dev_test=False, backup=True,
+                    skip_env_scan=True, interactive=False, preset=preset,
+                    ai_defaults=False, with_sandbox=False, force_proxy=False,
+                    skip_proxy_check=True, quick=True,
+                )
+            elif tool_id == "openclaw":
+                from tweek.integrations.openclaw import setup_openclaw_protection
+                result = setup_openclaw_protection(preset=preset)
+                if result.success:
+                    console.print(f"  [green]OpenClaw protected[/green]")
+                else:
+                    console.print(f"  [red]Failed: {result.error}[/red]")
+            elif tool_id in ("claude-desktop", "chatgpt", "gemini"):
+                _protect_mcp_client(tool_id)
+        except Exception as e:
+            console.print(f"  [red]Error: {e}[/red]")
+        console.print()
+
+    console.print("[green]Done.[/green] Run 'tweek protect --status' to verify.")
+
+
+def _show_protection_status():
+    """Show protection status table for all AI tools."""
+    import shutil
+    import json
+
+    console.print(TWEEK_BANNER, style="cyan")
+    console.print("[bold]Protection Status[/bold]\n")
+
+    table = Table()
+    table.add_column("Tool", style="cyan")
+    table.add_column("Detected")
+    table.add_column("Protected")
+    table.add_column("Details")
+
+    # Claude Code
+    claude_installed = shutil.which("claude") is not None
+    claude_protected = _has_tweek_at(Path("~/.claude").expanduser())
+    table.add_row(
+        "Claude Code",
+        "[green]yes[/green]" if claude_installed else "[dim]no[/dim]",
+        "[green]yes[/green]" if claude_protected else "[yellow]no[/yellow]" if claude_installed else "[dim]—[/dim]",
+        "Hooks in ~/.claude/settings.json" if claude_protected else "",
+    )
+
+    # OpenClaw
+    try:
+        from tweek.integrations.openclaw import detect_openclaw_installation
+        openclaw = detect_openclaw_installation()
+        oc_installed = openclaw.get("installed", False)
+        oc_protected = openclaw.get("tweek_configured", False) if oc_installed else False
+    except Exception:
+        oc_installed = False
+        oc_protected = False
+    table.add_row(
+        "OpenClaw",
+        "[green]yes[/green]" if oc_installed else "[dim]no[/dim]",
+        "[green]yes[/green]" if oc_protected else "[yellow]no[/yellow]" if oc_installed else "[dim]—[/dim]",
+        f"Gateway port {openclaw.get('gateway_port', '?')}" if oc_installed else "",
+    )
+
+    # MCP clients
+    mcp_configs = {
+        "Claude Desktop": Path("~/Library/Application Support/Claude/claude_desktop_config.json").expanduser(),
+        "ChatGPT Desktop": Path("~/Library/Application Support/com.openai.chat/developer_settings.json").expanduser(),
+        "Gemini CLI": Path("~/.gemini/settings.json").expanduser(),
+    }
+    for label, config_path in mcp_configs.items():
+        installed = config_path.exists()
+        protected = False
+        if installed:
+            try:
+                with open(config_path) as f:
+                    data = json.load(f)
+                mcp_servers = data.get("mcpServers", {})
+                protected = "tweek-security" in mcp_servers or "tweek" in mcp_servers
+            except Exception:
+                pass
+        table.add_row(
+            label,
+            "[green]yes[/green]" if installed else "[dim]no[/dim]",
+            "[green]yes[/green]" if protected else "[yellow]no[/yellow]" if installed else "[dim]—[/dim]",
+            str(config_path) if protected else "",
+        )
+
+    console.print(table)
+    console.print()
 
 
 # =============================================================================
@@ -4279,6 +4523,18 @@ def plugins_list(category: str, show_all: bool):
             console.print(table)
             console.print()
 
+        # Summary line across all categories
+        total_count = 0
+        enabled_count = 0
+        for cat in list(PluginCategory):
+            for info in registry.list_plugins(cat):
+                total_count += 1
+                if info.enabled:
+                    enabled_count += 1
+        disabled_count = total_count - enabled_count
+        console.print(f"Plugins: {total_count} registered, {enabled_count} enabled, {disabled_count} disabled")
+        console.print()
+
     except ImportError as e:
         console.print(f"[red]Plugin system not available: {e}[/red]")
 
@@ -4970,87 +5226,6 @@ def serve():
         pass
     except Exception as e:
         console.print(f"[red]MCP server error: {e}[/red]")
-
-
-@mcp.command(
-    epilog="""\b
-Examples:
-  tweek mcp install claude-desktop       Configure Claude Desktop integration
-  tweek mcp install chatgpt              Set up ChatGPT Desktop integration
-  tweek mcp install gemini               Configure Gemini CLI integration
-"""
-)
-@click.argument("client", type=click.Choice(["claude-desktop", "chatgpt", "gemini"]))
-def install(client):
-    """Install Tweek as MCP server for a desktop client.
-
-    Supported clients:
-      claude-desktop  - Auto-configures Claude Desktop
-      chatgpt         - Provides Developer Mode setup instructions
-      gemini          - Auto-configures Gemini CLI settings
-    """
-    try:
-        from tweek.mcp.clients import get_client
-
-        handler = get_client(client)
-        result = handler.install()
-
-        if result.get("success"):
-            console.print(f"[green]✅ {result.get('message', 'Installed successfully')}[/green]")
-
-            if result.get("config_path"):
-                console.print(f"   Config: {result['config_path']}")
-
-            if result.get("backup"):
-                console.print(f"   Backup: {result['backup']}")
-
-            # Show instructions for manual setup clients
-            if result.get("instructions"):
-                console.print()
-                for line in result["instructions"]:
-                    console.print(f"   {line}")
-        else:
-            console.print(f"[red]❌ {result.get('error', 'Installation failed')}[/red]")
-
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-
-
-@mcp.command(
-    epilog="""\b
-Examples:
-  tweek mcp uninstall claude-desktop     Remove from Claude Desktop
-  tweek mcp uninstall chatgpt            Remove from ChatGPT Desktop
-  tweek mcp uninstall gemini             Remove from Gemini CLI
-"""
-)
-@click.argument("client", type=click.Choice(["claude-desktop", "chatgpt", "gemini"]))
-def uninstall(client):
-    """Remove Tweek MCP server from a desktop client.
-
-    Supported clients: claude-desktop, chatgpt, gemini
-    """
-    try:
-        from tweek.mcp.clients import get_client
-
-        handler = get_client(client)
-        result = handler.uninstall()
-
-        if result.get("success"):
-            console.print(f"[green]✅ {result.get('message', 'Uninstalled successfully')}[/green]")
-
-            if result.get("backup"):
-                console.print(f"   Backup: {result['backup']}")
-
-            if result.get("instructions"):
-                console.print()
-                for line in result["instructions"]:
-                    console.print(f"   {line}")
-        else:
-            console.print(f"[red]❌ {result.get('error', 'Uninstallation failed')}[/red]")
-
-    except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
 
 
 # =============================================================================

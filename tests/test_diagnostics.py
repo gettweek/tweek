@@ -67,9 +67,9 @@ class TestHealthCheck:
             label="Test",
             status=CheckStatus.ERROR,
             message="Failed",
-            fix_hint="Run: tweek install",
+            fix_hint="Run: tweek protect claude-code",
         )
-        assert check.fix_hint == "Run: tweek install"
+        assert check.fix_hint == "Run: tweek protect claude-code"
 
 
 class TestGetHealthVerdict:

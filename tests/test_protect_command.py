@@ -4,7 +4,7 @@ Tests for Tweek protect command group.
 
 Tests coverage of:
 - tweek protect openclaw (detection, setup, error handling)
-- tweek protect claude (delegation to install)
+- tweek protect claude-code (delegation to install)
 - OpenClawSetupResult dataclass
 - detect_openclaw_installation function
 - setup_openclaw_protection function
@@ -79,7 +79,7 @@ class TestProtectGroup:
         result = runner.invoke(main, ["protect", "--help"])
         assert result.exit_code == 0
         assert "openclaw" in result.output
-        assert "claude" in result.output
+        assert "claude-code" in result.output
 
     def test_protect_no_subcommand(self, runner):
         """Test protect without subcommand shows help."""
@@ -294,22 +294,22 @@ class TestProtectOpenClaw:
         assert "Auto-detect" in result.output
 
 
-class TestProtectClaude:
-    """Tests for tweek protect claude."""
+class TestProtectClaudeCode:
+    """Tests for tweek protect claude-code."""
 
-    def test_protect_claude_invokes_install(self, runner, tmp_path):
-        """Test that protect claude delegates to install command."""
+    def test_protect_claude_code_invokes_install(self, runner, tmp_path):
+        """Test that protect claude-code delegates to install command."""
         with patch.object(Path, "home", return_value=tmp_path):
             with patch("tweek.cli.Path.home", return_value=tmp_path):
                 with patch("tweek.cli.scan_for_env_files", return_value=[]):
-                    result = runner.invoke(main, ["protect", "claude"])
+                    result = runner.invoke(main, ["protect", "claude-code"])
 
         # Should show the Tweek banner (from install command)
         assert "TWEEK" in result.output or result.exit_code == 0
 
-    def test_protect_claude_help(self, runner):
-        """Test protect claude --help."""
-        result = runner.invoke(main, ["protect", "claude", "--help"])
+    def test_protect_claude_code_help(self, runner):
+        """Test protect claude-code --help."""
+        result = runner.invoke(main, ["protect", "claude-code", "--help"])
         assert result.exit_code == 0
         assert "--global" in result.output
         assert "--preset" in result.output

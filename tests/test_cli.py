@@ -3,7 +3,7 @@
 Tests for Tweek CLI commands.
 
 Tests coverage of:
-- Install/uninstall commands
+- Protect/unprotect commands
 - License commands
 - Config commands
 - Vault commands
@@ -20,7 +20,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tweek.cli import main, install, uninstall, update
+from tweek.cli import main, update
 from tweek.licensing import License, Tier
 from tweek._keygen import generate_license_key
 
@@ -44,17 +44,17 @@ def temp_home(tmp_path):
 
 
 class TestInstallCommand:
-    """Tests for the install command."""
+    """Tests for the protect claude-code command (formerly install)."""
 
     def test_install_global_creates_settings(self, runner, tmp_path):
-        """Test global install creates settings.json."""
+        """Test global protect claude-code creates settings.json."""
         claude_dir = tmp_path / ".claude"
 
         with patch.object(Path, 'home', return_value=tmp_path):
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--skip-env-scan'],
+                    ['protect', 'claude-code', '--skip-env-scan'],
                     catch_exceptions=False
                 )
 
@@ -62,11 +62,11 @@ class TestInstallCommand:
         assert result.exit_code == 0 or "Installation complete" in result.output
 
     def test_install_project_scope(self, runner, tmp_path):
-        """Test project-scoped install."""
+        """Test project-scoped protect claude-code."""
         with runner.isolated_filesystem(temp_dir=tmp_path):
             result = runner.invoke(
                 main,
-                ['install', '--scope', 'project', '--skip-env-scan']
+                ['protect', 'claude-code', '--scope', 'project', '--skip-env-scan']
             )
 
             # Check .claude directory was created
@@ -76,21 +76,21 @@ class TestInstallCommand:
                 assert settings.exists() or "Installation complete" in result.output
 
     def test_install_with_preset(self, runner, tmp_path):
-        """Test install with security preset."""
+        """Test protect claude-code with security preset."""
         with patch.object(Path, 'home', return_value=tmp_path):
             result = runner.invoke(
                 main,
-                ['install', '--preset', 'paranoid', '--skip-env-scan']
+                ['protect', 'claude-code', '--preset', 'paranoid', '--skip-env-scan']
             )
 
         assert "paranoid" in result.output.lower() or result.exit_code == 0
 
     def test_install_skip_proxy_check(self, runner, tmp_path):
-        """Test install with --skip-proxy-check skips openclaw detection."""
+        """Test protect claude-code with --skip-proxy-check skips openclaw detection."""
         with patch.object(Path, 'home', return_value=tmp_path):
             result = runner.invoke(
                 main,
-                ['install', '--skip-env-scan', '--skip-proxy-check']
+                ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check']
             )
 
         # Should not mention openclaw
@@ -98,7 +98,7 @@ class TestInstallCommand:
         assert result.exit_code == 0 or "Installation complete" in result.output
 
     def test_install_detects_openclaw_installed(self, runner, tmp_path):
-        """Test install detects when openclaw is installed."""
+        """Test protect claude-code detects when openclaw is installed."""
         openclaw_status = {
             "installed": True,
             "running": False,
@@ -112,7 +112,7 @@ class TestInstallCommand:
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
-                        ['install', '--skip-env-scan'],
+                        ['protect', 'claude-code', '--skip-env-scan'],
                         input='n\n'  # Answer 'no' to proxy override prompt
                     )
 
@@ -120,7 +120,7 @@ class TestInstallCommand:
         assert "openclaw" in result.output.lower() or result.exit_code == 0
 
     def test_install_detects_openclaw_gateway_running(self, runner, tmp_path):
-        """Test install detects when openclaw gateway is actively running."""
+        """Test protect claude-code detects when openclaw gateway is actively running."""
         openclaw_status = {
             "installed": True,
             "running": True,
@@ -134,7 +134,7 @@ class TestInstallCommand:
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
-                        ['install', '--skip-env-scan'],
+                        ['protect', 'claude-code', '--skip-env-scan'],
                         input='n\n'  # Answer 'no' to proxy override prompt
                     )
 
@@ -142,7 +142,7 @@ class TestInstallCommand:
         assert "gateway" in result.output.lower() or "running" in result.output.lower() or result.exit_code == 0
 
     def test_install_force_proxy_flag(self, runner, tmp_path):
-        """Test install with --force-proxy enables proxy override."""
+        """Test protect claude-code with --force-proxy enables proxy override."""
         openclaw_status = {
             "installed": True,
             "running": True,
@@ -156,7 +156,7 @@ class TestInstallCommand:
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
-                        ['install', '--skip-env-scan', '--force-proxy']
+                        ['protect', 'claude-code', '--skip-env-scan', '--force-proxy']
                     )
 
         # Should mention force/override
@@ -179,7 +179,7 @@ class TestInstallCommand:
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
-                        ['install', '--skip-env-scan', '--force-proxy']
+                        ['protect', 'claude-code', '--skip-env-scan', '--force-proxy']
                     )
 
         # Check config file was created
@@ -192,7 +192,7 @@ class TestInstallCommand:
             assert config.get("proxy", {}).get("override_openclaw") is True
 
     def test_install_user_accepts_proxy_override(self, runner, tmp_path):
-        """Test install when user accepts proxy override prompt."""
+        """Test protect claude-code when user accepts proxy override prompt."""
         openclaw_status = {
             "installed": True,
             "running": False,
@@ -206,7 +206,7 @@ class TestInstallCommand:
                 with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
                     result = runner.invoke(
                         main,
-                        ['install', '--skip-env-scan'],
+                        ['protect', 'claude-code', '--skip-env-scan'],
                         input='y\n'  # Answer 'yes' to proxy override prompt
                     )
 
@@ -215,21 +215,21 @@ class TestInstallCommand:
 
 
 class TestUninstallCommand:
-    """Tests for the uninstall command."""
+    """Tests for the unprotect command (formerly uninstall)."""
 
     @patch('tweek.cli.sys')
     def test_uninstall_not_installed(self, mock_sys, runner, tmp_path):
-        """Test uninstall when not installed (project scope, empty directory)."""
+        """Test unprotect when not installed (project scope, empty directory)."""
         mock_sys.stdin.isatty.return_value = True
         mock_sys.stderr = sys.stderr
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            result = runner.invoke(main, ['uninstall', '--confirm'])
+            result = runner.invoke(main, ['unprotect', '--confirm'])
 
         assert "No Tweek installation" in result.output or result.exit_code == 0
 
     @patch('tweek.cli.sys')
     def test_uninstall_removes_hooks(self, mock_sys, runner, tmp_path):
-        """Test uninstall removes Tweek hooks."""
+        """Test unprotect removes Tweek hooks."""
         mock_sys.stdin.isatty.return_value = True
         mock_sys.stderr = sys.stderr
         with runner.isolated_filesystem(temp_dir=tmp_path) as td:
@@ -249,7 +249,7 @@ class TestUninstallCommand:
                 }
             }))
 
-            result = runner.invoke(main, ['uninstall', '--confirm'])
+            result = runner.invoke(main, ['unprotect', '--confirm'])
 
             # Check hooks were removed
             if settings_file.exists():
@@ -450,9 +450,9 @@ class TestCLIHelp:
         assert result.exit_code == 0
         assert "Tweek" in result.output or "security" in result.output.lower()
 
-    def test_install_help(self, runner):
-        """Test install help message."""
-        result = runner.invoke(main, ['install', '--help'])
+    def test_protect_claude_code_help(self, runner):
+        """Test protect claude-code help message."""
+        result = runner.invoke(main, ['protect', 'claude-code', '--help'])
         assert result.exit_code == 0
         assert "global" in result.output.lower()
 

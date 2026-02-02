@@ -63,11 +63,11 @@ def format_command_example(command: str, description: str) -> str:
     Format a single command example line.
 
     Args:
-        command: The command string, e.g., "tweek install --scope global"
+        command: The command string, e.g., "tweek protect claude-code --scope global"
         description: Brief explanation of what it does.
 
     Returns:
-        Formatted string like "  tweek install --scope global    Install globally"
+        Formatted string like "  tweek protect claude-code --scope global    Install globally"
     """
     return f"  {command:<40s} {description}"
 

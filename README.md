@@ -53,11 +53,12 @@ pip install --user tweek
 ### Protect Your Tools
 
 ```bash
-tweek install                           # Claude Code (CLI hooks)
+tweek protect                           # Interactive wizard — detects and protects all tools
+tweek protect claude-code               # Claude Code (CLI hooks)
 tweek protect openclaw                  # OpenClaw (HTTP proxy)
-tweek mcp install claude-desktop        # Claude Desktop (MCP proxy)
-tweek mcp install chatgpt-desktop       # ChatGPT Desktop (MCP proxy)
-tweek mcp install gemini                # Gemini CLI (MCP proxy)
+tweek protect claude-desktop            # Claude Desktop (MCP proxy)
+tweek protect chatgpt                   # ChatGPT Desktop (MCP proxy)
+tweek protect gemini                    # Gemini CLI (MCP proxy)
 tweek proxy setup                       # Cursor, Windsurf, Continue.dev (HTTP proxy)
 ```
 
@@ -75,11 +76,11 @@ That's it. Tweek auto-detects your tools, applies all 259 attack patterns across
 
 | Client | Integration | Setup |
 |--------|------------|-------|
-| **Claude Code** | CLI hooks (native) | `tweek install` |
+| **Claude Code** | CLI hooks (native) | `tweek protect claude-code` |
 | **OpenClaw** | Proxy wrapping | `tweek protect openclaw` |
-| **Claude Desktop** | MCP proxy | `tweek mcp install claude-desktop` |
-| **ChatGPT Desktop** | MCP proxy | `tweek mcp install chatgpt-desktop` |
-| **Gemini CLI** | MCP proxy | `tweek mcp install gemini` |
+| **Claude Desktop** | MCP proxy | `tweek protect claude-desktop` |
+| **ChatGPT Desktop** | MCP proxy | `tweek protect chatgpt` |
+| **Gemini CLI** | MCP proxy | `tweek protect gemini` |
 | **Cursor** | HTTP proxy | `tweek proxy setup` |
 | **Windsurf** | HTTP proxy | `tweek proxy setup` |
 | **Continue.dev** | HTTP proxy | `tweek proxy setup` |
@@ -117,14 +118,16 @@ See the full [Attack Patterns Reference](docs/ATTACK_PATTERNS.md) for all 259 pa
 
 Most security tools that use AI send your data to an API. Tweek doesn't.
 
-Tweek ships with a **custom-trained prompt injection classifier** ([DeBERTa-v3-base](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2)) that runs entirely on your machine via ONNX Runtime. No API keys. No cloud calls. No data leaves your computer.
+Tweek uses [ProtectAI's DeBERTa-v3-base Prompt Injection v2](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2) classifier, fine-tuned from [Microsoft's DeBERTa-v3-base](https://huggingface.co/microsoft/deberta-v3-base), running entirely on your machine via [ONNX Runtime](https://onnxruntime.ai). No API keys. No cloud calls. No data leaves your computer.
 
 | Property | Value |
 |----------|-------|
-| **Model** | DeBERTa-v3-base, fine-tuned for prompt injection |
-| **Runtime** | ONNX (CPU-only, single thread) |
+| **Model** | [ProtectAI DeBERTa-v3-base Prompt Injection v2](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2) (Apache 2.0) |
+| **Base Model** | [Microsoft DeBERTa-v3-base](https://huggingface.co/microsoft/deberta-v3-base) (MIT) |
+| **Runtime** | ONNX Runtime (CPU-only, single thread) |
 | **Privacy** | 100% on-device — zero network calls |
-| **License** | Apache 2.0 |
+
+See [NOTICE](./NOTICE) for full third-party license texts and attribution.
 
 The local model handles the gray-area attacks that pattern matching alone cannot catch — encoded instructions, novel injection techniques, social engineering disguised as legitimate content. High-confidence results are returned instantly. Uncertain results can optionally escalate to a cloud LLM for deeper analysis (you bring your own API key).
 
@@ -226,4 +229,4 @@ To report a security vulnerability, email security@gettweek.com.
 
 ## License
 
-[Apache 2.0](LICENSE)
+[Apache 2.0](LICENSE) | [Third-Party Notices](NOTICE)

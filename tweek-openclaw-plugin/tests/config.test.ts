@@ -13,6 +13,16 @@ describe("resolveConfig", () => {
     expect(config.preset).toBe("cautious");
   });
 
+  it("defaults enabled to true", () => {
+    const config = resolveConfig({});
+    expect(config.enabled).toBe(true);
+  });
+
+  it("allows disabling the plugin", () => {
+    const config = resolveConfig({ enabled: false });
+    expect(config.enabled).toBe(false);
+  });
+
   it("uses default scanner port", () => {
     const config = resolveConfig({});
     expect(config.scannerPort).toBe(DEFAULT_SCANNER_PORT);

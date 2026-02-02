@@ -144,18 +144,18 @@ def check_installation():
         result["status"] = "fully_operational"
     elif result["tweek_in_path"] and not result["hooks_registered"]:
         result["status"] = "installed_no_hooks"
-        result["install_command"] = "tweek install"
+        result["install_command"] = "tweek protect claude-code"
     elif not result["tweek_in_path"] and result["hooks_registered"]:
         result["status"] = "hooks_only"
         result["install_command"] = "pip install tweek"
     else:
         result["status"] = "not_installed"
         if result["pipx_available"]:
-            result["install_command"] = "pipx install tweek && tweek install"
+            result["install_command"] = "pipx install tweek && tweek protect claude-code"
         elif result["pip_available"]:
-            result["install_command"] = "pip install tweek && tweek install"
+            result["install_command"] = "pip install tweek && tweek protect claude-code"
         else:
-            result["install_command"] = "python3 -m pip install tweek && tweek install"
+            result["install_command"] = "python3 -m pip install tweek && tweek protect claude-code"
 
     return result
 

@@ -176,7 +176,7 @@ Both macOS and Linux installation require `sudo` privileges.
 
 ## Conflict Detection
 
-During `tweek install`, Tweek detects existing proxy configurations that may conflict:
+During `tweek protect claude-code`, Tweek detects existing proxy configurations that may conflict:
 
 - Other HTTP proxies already set via environment variables
 - Tools like openclaw that manage their own proxy settings

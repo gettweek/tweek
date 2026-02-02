@@ -67,7 +67,7 @@ class TestQuickFlag:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--quick', '--skip-proxy-check'],
                     catch_exceptions=False,
                 )
 
@@ -80,7 +80,7 @@ class TestQuickFlag:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick'],
+                    ['protect', 'claude-code', '--quick'],
                     catch_exceptions=False,
                 )
 
@@ -92,7 +92,7 @@ class TestQuickFlag:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick'],
+                    ['protect', 'claude-code', '--quick'],
                     catch_exceptions=False,
                 )
 
@@ -105,7 +105,7 @@ class TestQuickFlag:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick'],
+                    ['protect', 'claude-code', '--quick'],
                     catch_exceptions=False,
                 )
 
@@ -117,7 +117,7 @@ class TestQuickFlag:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick', '--preset', 'paranoid'],
+                    ['protect', 'claude-code', '--quick', '--preset', 'paranoid'],
                     catch_exceptions=False,
                 )
 
@@ -129,7 +129,7 @@ class TestQuickFlag:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick'],
+                    ['protect', 'claude-code', '--quick'],
                     catch_exceptions=False,
                 )
 
@@ -142,7 +142,7 @@ class TestQuickFlag:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick'],
+                    ['protect', 'claude-code', '--quick'],
                     catch_exceptions=False,
                 )
 
@@ -163,7 +163,7 @@ class TestScopeSelection:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--skip-env-scan', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
                     input='1\n1\n',  # scope=project, llm=auto
                     catch_exceptions=False,
                 )
@@ -176,7 +176,7 @@ class TestScopeSelection:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--global', '--skip-env-scan', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--global', '--skip-env-scan', '--skip-proxy-check'],
                     input='1\n',  # llm=auto
                     catch_exceptions=False,
                 )
@@ -190,7 +190,7 @@ class TestScopeSelection:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--skip-env-scan', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
                     input='1\n1\n',  # Accept default scope (global), llm=auto
                     catch_exceptions=False,
                 )
@@ -204,7 +204,7 @@ class TestScopeSelection:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--skip-env-scan', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
                     input='2\n1\n',  # scope=project, llm=auto
                     catch_exceptions=False,
                 )
@@ -726,7 +726,7 @@ class TestInstallSummary:
 
         _print_install_summary(summary, target, tweek_dir, False)
         captured = capsys.readouterr()
-        assert "tweek status" in captured.out
+        assert "tweek doctor" in captured.out
         assert "tweek update" in captured.out
         assert "tweek config list" in captured.out
 
@@ -744,7 +744,7 @@ class TestEnvScanOrdering:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--preset', 'cautious', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--preset', 'cautious', '--skip-proxy-check'],
                     input='1\n1\n',  # scope=project, llm=auto
                     catch_exceptions=False,
                 )
@@ -770,7 +770,7 @@ class TestInteractiveInstallFlow:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--interactive', '--skip-env-scan', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--interactive', '--skip-env-scan', '--skip-proxy-check'],
                     input='1\n2\n1\n',  # scope=project, preset=cautious, llm=auto
                     catch_exceptions=False,
                 )
@@ -788,7 +788,7 @@ class TestInteractiveInstallFlow:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--skip-env-scan', '--skip-proxy-check'],
+                    ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check'],
                     input='1\n2\ncontinue\n',  # scope=project, llm=anthropic, continue
                     catch_exceptions=False,
                 )
@@ -802,7 +802,7 @@ class TestInteractiveInstallFlow:
             with patch('tweek.cli.Path.home', return_value=tmp_path):
                 result = runner.invoke(
                     main,
-                    ['install', '--quick'],
+                    ['protect', 'claude-code', '--quick'],
                     catch_exceptions=False,
                 )
 

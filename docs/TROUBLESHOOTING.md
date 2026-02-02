@@ -38,8 +38,8 @@ hook entries whose `command` field contains "tweek".
 
 **Fix:**
 ```bash
-tweek install                 # Install globally and in current project
-tweek install --scope global  # Install globally only
+tweek protect claude-code                 # Install globally and in current project
+tweek protect claude-code --scope global  # Install globally only
 ```
 
 ---
@@ -296,7 +296,7 @@ TWEEK_DEBUG=1 tweek doctor
 
 **Solution:**
 ```bash
-tweek install --scope global
+tweek protect claude-code --scope global
 tweek doctor     # Verify hooks_installed is OK
 ```
 

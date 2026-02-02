@@ -76,17 +76,17 @@ class TestFormatCommandExample:
     """Tests for format_command_example()."""
 
     def test_basic_example(self):
-        result = format_command_example("tweek install", "Install globally")
-        assert "tweek install" in result
-        assert "Install globally" in result
+        result = format_command_example("tweek protect claude-code", "Protect Claude Code globally")
+        assert "tweek protect claude-code" in result
+        assert "Protect Claude Code globally" in result
 
     def test_long_command(self):
         result = format_command_example(
-            "tweek install --scope project --force",
-            "Force install for project"
+            "tweek protect claude-code --scope project --force",
+            "Force protect for project"
         )
-        assert "tweek install --scope project --force" in result
-        assert "Force install for project" in result
+        assert "tweek protect claude-code --scope project --force" in result
+        assert "Force protect for project" in result
 
 
 class TestBuildExamplesEpilog:
@@ -94,13 +94,13 @@ class TestBuildExamplesEpilog:
 
     def test_builds_epilog(self):
         examples = [
-            ("tweek install", "Install globally"),
-            ("tweek install --scope project", "Install for project"),
+            ("tweek protect claude-code", "Protect Claude Code globally"),
+            ("tweek protect claude-code --scope project", "Protect for project"),
         ]
         result = build_examples_epilog(examples)
         assert "Examples:" in result
-        assert "tweek install" in result
-        assert "tweek install --scope project" in result
+        assert "tweek protect claude-code" in result
+        assert "tweek protect claude-code --scope project" in result
         assert result.endswith("\n")
 
     def test_empty_examples(self):

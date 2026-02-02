@@ -196,7 +196,7 @@ Tweek provides a workflow for migrating plaintext `.env` files to secure vault s
 
 ### Automatic Migration During Install
 
-When running `tweek install`, Tweek scans for `.env` files and offers to migrate them. Use `--skip-env-scan` to suppress this behavior.
+When running `tweek protect claude-code`, Tweek scans for `.env` files and offers to migrate them. Use `--skip-env-scan` to suppress this behavior.
 
 ### Manual Migration
 

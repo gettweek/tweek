@@ -10,9 +10,18 @@ Complete command reference for the Tweek command-line interface. Tweek provides 
 
 ## Top-Level Commands
 
-### `tweek install`
+### `tweek protect`
 
-Install Tweek hooks into Claude Code.
+Set up Tweek protection for AI tools. With no arguments, launches an interactive wizard that detects installed tools and guides you through setup.
+
+```bash
+tweek protect                          # Interactive wizard — detects and protects all tools
+tweek protect --status                 # Show protection status for all tools
+```
+
+#### `tweek protect claude-code`
+
+Install Tweek hooks into Claude Code (replaces the former `tweek install` command).
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -27,12 +36,12 @@ Install Tweek hooks into Claude Code.
 | `--skip-proxy-check` | off | Skip checking for existing proxy configurations |
 
 ```bash
-tweek install                          # Install globally with default settings
-tweek install --scope project          # Install for current project only
-tweek install --interactive            # Walk through configuration prompts
-tweek install --preset paranoid        # Apply paranoid security preset
-tweek install --with-sandbox           # Install sandbox tool if needed (Linux)
-tweek install --force-proxy            # Override existing proxy configurations
+tweek protect claude-code                          # Install globally with default settings
+tweek protect claude-code --scope project          # Install for current project only
+tweek protect claude-code --interactive            # Walk through configuration prompts
+tweek protect claude-code --preset paranoid        # Apply paranoid security preset
+tweek protect claude-code --with-sandbox           # Install sandbox tool if needed (Linux)
+tweek protect claude-code --force-proxy            # Override existing proxy configurations
 ```
 
 During installation, Tweek will:
@@ -42,21 +51,52 @@ During installation, Tweek will:
 4. Apply security configuration (preset, interactive, ai-defaults, or default cautious)
 5. On Linux, optionally install firejail for command sandboxing
 
+#### `tweek protect claude-desktop`
+
+Install Tweek as MCP server for Claude Desktop.
+
+```bash
+tweek protect claude-desktop           # Auto-configures Claude Desktop
+```
+
+#### `tweek protect chatgpt`
+
+Install Tweek as MCP server for ChatGPT Desktop.
+
+```bash
+tweek protect chatgpt                  # Provides Developer Mode instructions
+```
+
+#### `tweek protect gemini`
+
+Install Tweek as MCP server for Gemini CLI.
+
+```bash
+tweek protect gemini                   # Auto-configures Gemini CLI
+```
+
 ---
 
-### `tweek uninstall`
+### `tweek unprotect`
 
-Remove Tweek hooks from Claude Code.
+Remove Tweek protection from an AI tool (replaces the former `tweek uninstall` command).
+
+| Argument | Description |
+|----------|-------------|
+| `<tool>` | Tool to unprotect: `claude-code`, `claude-desktop`, `chatgpt`, `gemini` |
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--scope {global,project}` | `global` | Uninstall scope |
+| `--scope {global,project}` | `global` | Unprotect scope (for claude-code) |
 | `--confirm` | off | Skip confirmation prompt |
+| `--all` | off | Remove Tweek protection from all tools |
 
 ```bash
-tweek uninstall                        # Remove from global installation
-tweek uninstall --scope project        # Remove from current project only
-tweek uninstall --confirm              # Skip confirmation prompt
+tweek unprotect claude-code            # Remove Claude Code hooks
+tweek unprotect claude-code --scope project  # Remove from current project only
+tweek unprotect claude-desktop         # Remove from Claude Desktop
+tweek unprotect --all                  # Remove Tweek from all tools
+tweek unprotect --all --confirm        # Remove from all tools, skip confirmation
 ```
 
 The Tweek data directory (`~/.tweek`) is preserved. Remove manually if desired.
@@ -107,12 +147,6 @@ Interactive first-run setup wizard that walks through:
 ```bash
 tweek quickstart                       # Launch interactive setup wizard
 ```
-
----
-
-### `tweek status`
-
-Show current Tweek protection status.
 
 ---
 
@@ -811,27 +845,13 @@ Start MCP gateway server on stdio transport. Exposes `tweek_vault` and `tweek_st
 tweek mcp serve
 ```
 
-### `tweek mcp install`
+### `tweek mcp install` (deprecated)
 
-Install Tweek as MCP server for a desktop client.
+**Deprecated:** Use `tweek protect claude-desktop`, `tweek protect chatgpt`, or `tweek protect gemini` instead.
 
-| Argument | Description |
-|----------|-------------|
-| `{claude-desktop,chatgpt,gemini}` | Target client |
+### `tweek mcp uninstall` (deprecated)
 
-```bash
-tweek mcp install claude-desktop
-tweek mcp install chatgpt
-tweek mcp install gemini
-```
-
-### `tweek mcp uninstall`
-
-Remove Tweek MCP server from a desktop client.
-
-```bash
-tweek mcp uninstall claude-desktop
-```
+**Deprecated:** Use `tweek unprotect <tool>` instead (e.g., `tweek unprotect claude-desktop`).
 
 ### `tweek mcp proxy`
 

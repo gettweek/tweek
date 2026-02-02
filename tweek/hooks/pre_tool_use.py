@@ -925,10 +925,10 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                 }
             }
 
-        # Block AI from running tweek trust/untrust/uninstall — human-only commands
+        # Block AI from running tweek trust/untrust/uninstall/unprotect — human-only commands
         command_stripped = command.strip()
-        if re.match(r"tweek\s+(trust|untrust|uninstall)\b", command_stripped):
-            if "uninstall" in command_stripped:
+        if re.match(r"tweek\s+(trust|untrust|uninstall|unprotect)\b", command_stripped):
+            if "uninstall" in command_stripped or "unprotect" in command_stripped:
                 reason = (
                     "TWEEK SELF-PROTECTION: Uninstall must be done by a human.\n"
                     "Run this command directly in your terminal:\n"

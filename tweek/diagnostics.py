@@ -3,7 +3,7 @@
 Tweek Diagnostics Engine
 
 Health check system for verifying Tweek installation, configuration,
-and runtime dependencies. Used by `tweek doctor` and the status banner.
+and runtime dependencies. Used by `tweek doctor` and the health banner.
 """
 
 import json
@@ -30,7 +30,7 @@ class HealthCheck:
     label: str          # Human label: "Hook Installation"
     status: CheckStatus
     message: str        # Description: "Global hooks installed at ~/.claude/"
-    fix_hint: str = ""  # Recovery: "Run: tweek install --scope global"
+    fix_hint: str = ""  # Recovery: "Run: tweek protect claude-code --global"
 
 
 def run_health_checks(verbose: bool = False) -> List[HealthCheck]:
@@ -168,7 +168,7 @@ def _check_hooks_installed(verbose: bool = False) -> HealthCheck:
             label="Hook Installation",
             status=CheckStatus.WARNING,
             message="Installed in project only (./.claude)",
-            fix_hint="Run: tweek install --scope global  (to protect all projects)",
+            fix_hint="Run: tweek protect claude-code --global  (to protect all projects)",
         )
     else:
         return HealthCheck(
@@ -176,7 +176,7 @@ def _check_hooks_installed(verbose: bool = False) -> HealthCheck:
             label="Hook Installation",
             status=CheckStatus.ERROR,
             message="No hooks installed",
-            fix_hint="Run: tweek install",
+            fix_hint="Run: tweek protect claude-code",
         )
 
 
@@ -597,18 +597,53 @@ def _check_llm_review(verbose: bool = False) -> HealthCheck:
             get_llm_reviewer,
             _detect_local_server,
             FallbackReviewProvider,
+            DEFAULT_API_KEY_ENVS,
         )
+        from tweek.security.local_model import LOCAL_MODEL_AVAILABLE
 
         reviewer = get_llm_reviewer()
 
         if not reviewer.enabled:
+            # Check which env vars are missing to give specific guidance
+            missing_keys = []
+            for provider, env_names in DEFAULT_API_KEY_ENVS.items():
+                if isinstance(env_names, list):
+                    if not any(os.environ.get(e) for e in env_names):
+                        missing_keys.append(f"{' or '.join(env_names)} ({provider})")
+                else:
+                    if not os.environ.get(env_names):
+                        missing_keys.append(f"{env_names} ({provider})")
+
+            hint_parts = [
+                "To enable cloud LLM review for uncertain classifications:",
+                "  Set one of: " + ", ".join(
+                    k.split(" (")[0] for k in missing_keys
+                ),
+            ]
+
+            if not LOCAL_MODEL_AVAILABLE:
+                hint_parts.append(
+                    "  Or install the local model: pip install 'tweek[local]'"
+                )
+            else:
+                hint_parts.append(
+                    "  Local ONNX model is available but could not initialize"
+                )
+
+            hint_parts.append(
+                "  Or install Ollama (https://ollama.ai) for local LLM review"
+            )
+            hint_parts.append(
+                "  See: docs/CONFIGURATION.md or ~/.tweek/config.yaml"
+            )
+
             return HealthCheck(
                 name="llm_review",
                 label="LLM Review",
                 status=CheckStatus.WARNING,
-                message="No LLM provider available (review disabled)",
-                fix_hint="Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY. "
-                         "Or install Ollama: https://ollama.ai",
+                message="No LLM provider available — review disabled, "
+                        "pattern matching and heuristic scoring still active",
+                fix_hint="\n".join(hint_parts),
             )
 
         # Build status message
@@ -635,6 +670,23 @@ def _check_llm_review(verbose: bool = False) -> HealthCheck:
                     parts.append(f"local: {server.server_type}")
         except Exception:
             pass
+
+        # In verbose mode, report escalation path
+        if verbose:
+            if provider_name == "local":
+                # Check if cloud escalation is available
+                cloud_env_found = any(
+                    os.environ.get(e) if isinstance(e, str)
+                    else any(os.environ.get(v) for v in e)
+                    for e in DEFAULT_API_KEY_ENVS.values()
+                )
+                if cloud_env_found:
+                    parts.append("cloud escalation: available")
+                else:
+                    parts.append("cloud escalation: not configured")
+
+            if LOCAL_MODEL_AVAILABLE:
+                parts.append("local ONNX: available")
 
         return HealthCheck(
             name="llm_review",

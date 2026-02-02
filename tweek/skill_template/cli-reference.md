@@ -6,12 +6,21 @@ Complete command reference for the `tweek` command-line tool.
 
 ## Installation & Setup
 
-### `tweek install`
+### `tweek protect`
 
-Install Tweek hooks into the AI assistant's configuration.
+Set up Tweek protection for AI tools. With no arguments, launches an interactive wizard.
 
 ```
-tweek install [OPTIONS]
+tweek protect                          # Interactive wizard — detects and protects all tools
+tweek protect --status                 # Show protection status for all tools
+```
+
+### `tweek protect claude-code`
+
+Install Tweek hooks into Claude Code (replaces the former `tweek install` command).
+
+```
+tweek protect claude-code [OPTIONS]
 ```
 
 | Option | Description |
@@ -25,15 +34,29 @@ tweek install [OPTIONS]
 | `--skip-env-scan` | Skip scanning for credential files to migrate |
 | `--backup / --no-backup` | Backup existing hooks before installation (default: backup) |
 
-### `tweek uninstall`
+### `tweek protect claude-desktop`
 
-Remove Tweek hooks from configuration.
+Install Tweek as MCP server for Claude Desktop.
+
+### `tweek protect chatgpt`
+
+Install Tweek as MCP server for ChatGPT Desktop.
+
+### `tweek protect gemini`
+
+Install Tweek as MCP server for Gemini CLI.
+
+### `tweek unprotect`
+
+Remove Tweek protection from an AI tool (replaces the former `tweek uninstall` command).
 
 ```
-tweek uninstall [--global] [--confirm]
+tweek unprotect <tool> [--confirm]
+tweek unprotect --all [--confirm]
 ```
 
-By default removes from `./.claude/` (current project). Use `--global` to remove from `~/.claude/`.
+By default removes from `./.claude/` (current project). Use `--global` to remove from `~/.claude/` (for claude-code).
+Use `--all` to remove Tweek from all tools at once.
 
 ---
 
@@ -81,14 +104,6 @@ tweek untrust /path/to/project        # Untrust specific directory
 ---
 
 ## Diagnostics
-
-### `tweek status`
-
-Show installation status and active configuration.
-
-```
-tweek status
-```
 
 ### `tweek doctor`
 
@@ -313,12 +328,12 @@ tweek plugins search QUERY
 
 ## Proxy (API Interception)
 
-### `tweek protect`
+### `tweek protect openclaw`
 
-Set up protection for an AI gateway.
+Set up proxy protection for OpenClaw.
 
 ```
-tweek protect [openclaw|claude]
+tweek protect openclaw
 ```
 
 ### `tweek proxy start / stop`

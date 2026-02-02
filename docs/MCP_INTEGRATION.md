@@ -187,18 +187,18 @@ Environment variables in `env` values are expanded using `os.path.expandvars`.
 }
 ```
 
-**ChatGPT Desktop:** Requires Developer Mode. See `tweek mcp install chatgpt` for instructions.
+**ChatGPT Desktop:** Requires Developer Mode. See `tweek protect chatgpt` for instructions.
 
-**Gemini CLI:** Configured via `~/.gemini/settings.json`. Use `tweek mcp install gemini` for auto-configuration.
+**Gemini CLI:** Configured via `~/.gemini/settings.json`. Use `tweek protect gemini` for auto-configuration.
 
 ### Auto-Configuration
 
-Use the `tweek mcp install` command for automatic client configuration:
+Use the `tweek protect` command for automatic client configuration:
 
 ```bash
-tweek mcp install claude-desktop   # Auto-configures Claude Desktop
-tweek mcp install chatgpt          # Provides Developer Mode instructions
-tweek mcp install gemini           # Auto-configures Gemini CLI
+tweek protect claude-desktop       # Auto-configures Claude Desktop
+tweek protect chatgpt              # Provides Developer Mode instructions
+tweek protect gemini               # Auto-configures Gemini CLI
 ```
 
 ---

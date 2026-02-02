@@ -408,7 +408,7 @@ setup_hooks() {
     if [ "${TWEEK_SKIP_HOOKS:-}" = "1" ]; then
         echo ""
         warn "Skipping hook installation (TWEEK_SKIP_HOOKS=1)"
-        echo -e "  ${DIM}Run 'tweek install' later to activate protection${NC}"
+        echo -e "  ${DIM}Run 'tweek protect claude-code' later to activate protection${NC}"
         return
     fi
 
@@ -416,7 +416,7 @@ setup_hooks() {
     if ! command -v claude &>/dev/null; then
         echo ""
         warn "Claude Code not detected on this system"
-        echo -e "  ${DIM}Install Claude Code first, then run 'tweek install' to add hooks${NC}"
+        echo -e "  ${DIM}Install Claude Code first, then run 'tweek protect claude-code' to add hooks${NC}"
         echo -e "  ${DIM}https://docs.anthropic.com/en/docs/claude-code${NC}"
         return
     fi
@@ -430,7 +430,7 @@ setup_hooks() {
         read -r reply </dev/tty
         if [[ "$reply" =~ ^[Nn]$ ]]; then
             echo ""
-            echo -e "  ${DIM}Run 'tweek install' later to activate protection${NC}"
+            echo -e "  ${DIM}Run 'tweek protect claude-code' later to activate protection${NC}"
             return
         fi
     else
@@ -440,7 +440,7 @@ setup_hooks() {
             read -r reply </dev/tty 2>/dev/null || reply="y"
             if [[ "$reply" =~ ^[Nn]$ ]]; then
                 echo ""
-                echo -e "  ${DIM}Run 'tweek install' later to activate protection${NC}"
+                echo -e "  ${DIM}Run 'tweek protect claude-code' later to activate protection${NC}"
                 return
             fi
         else
@@ -468,13 +468,13 @@ setup_hooks() {
         echo ""
     fi
 
-    # ── Run tweek install with --quick (no further prompts) ──
+    # ── Run tweek protect claude-code with --quick (no further prompts) ──
     local preset_flag=""
     if [ -n "${TWEEK_PRESET:-}" ]; then
         preset_flag="--preset $TWEEK_PRESET"
     fi
 
-    $TWEEK_CMD install --quick $SCOPE_FLAG $preset_flag 2>/dev/null || true
+    $TWEEK_CMD protect claude-code --quick $SCOPE_FLAG $preset_flag 2>/dev/null || true
 }
 
 # ── Detect OpenClaw and offer protection ─────────────────────────
@@ -537,7 +537,6 @@ finish() {
     echo ""
     echo -e "  ${BOLD}Quick commands:${NC}"
     echo -e "  ${DIM}tweek doctor${NC}      Verify protection status"
-    echo -e "  ${DIM}tweek status${NC}      Show current configuration"
     echo -e "  ${DIM}tweek logs show${NC}   View security events"
     echo -e "  ${DIM}tweek --help${NC}      See all commands"
     echo ""

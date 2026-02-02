@@ -38,6 +38,8 @@ export interface OutputScanningConfig {
 
 /** Full Tweek plugin configuration */
 export interface TweekPluginConfig {
+  /** Master switch — when false, plugin registers but does not activate hooks */
+  enabled: boolean;
   preset: PresetName;
   scannerPort: number;
   skillGuard: SkillGuardConfig;
@@ -61,7 +63,7 @@ const DEFAULT_TIERS: Record<string, SecurityTier> = {
 };
 
 /** Security presets */
-const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort">> = {
+const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort" | "enabled">> = {
   trusted: {
     preset: "trusted",
     skillGuard: {
@@ -148,6 +150,7 @@ export function resolveConfig(
   }
 
   return {
+    enabled: userConfig.enabled ?? true,
     preset: presetName,
     scannerPort: userConfig.scannerPort ?? DEFAULT_SCANNER_PORT,
     skillGuard: {

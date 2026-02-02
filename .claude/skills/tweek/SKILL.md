@@ -28,7 +28,7 @@ The script returns JSON with these fields:
 | Field | Meaning |
 |-------|---------|
 | `status: "fully_operational"` | Tweek is installed and hooks are active. Proceed to help user with their question. |
-| `status: "installed_no_hooks"` | Tweek is installed but hooks are not registered. Tell user to run `tweek install`. |
+| `status: "installed_no_hooks"` | Tweek is installed but hooks are not registered. Tell user to run `tweek protect claude-code`. |
 | `status: "hooks_only"` | Hooks reference tweek but the package is missing. Tell user to reinstall. |
 | `status: "not_installed"` | Tweek is not present. Check `install_declined` before offering to install. |
 | `install_declined: true` | User previously declined installation. **Do not offer to install again** unless the user explicitly asks. |
@@ -142,7 +142,6 @@ Trust mode is auto-detected from the terminal environment. It can be overridden 
 
 | Command | What It Does |
 |---------|-------------|
-| `tweek status` | Show installation status and active configuration |
 | `tweek doctor` | Health check — verify all layers are active |
 | `tweek doctor --verbose` | Detailed diagnostics with fix suggestions |
 | `tweek logs show` | View recent security events |
@@ -185,7 +184,7 @@ For the full configuration format and examples, see `overrides-reference.md` in 
 | "Tweek isn't working" | Run `tweek doctor --verbose` and review the output. Common issues: hooks not registered, outdated patterns, missing dependencies. |
 | "How do I update patterns?" | Run `tweek update` to fetch the latest pattern definitions. |
 | "I want to pause tweek for this project" | Tell the user to run `tweek trust` in their terminal. This exempts the current project from screening. They can resume with `tweek untrust`. |
-| "I want to disable tweek entirely" | Tell the user to run `tweek uninstall` to remove hooks. Run `tweek install` to re-enable later. |
+| "I want to disable tweek entirely" | Tell the user to run `tweek unprotect claude-code` to remove hooks. Run `tweek protect claude-code` to re-enable later. |
 | "What has tweek blocked recently?" | Run `tweek logs show` to see recent security events with details. |
 
 ---
