@@ -49,7 +49,7 @@ We follow responsible disclosure practices and will credit reporters (unless ano
 
 ### Prerequisites
 
-- **Python 3.9+**
+- **uv** (recommended) or **pipx** or **Python 3.9+ with pip**
 - **Git**
 - **pipx** (recommended) or pip
 

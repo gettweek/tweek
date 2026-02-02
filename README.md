@@ -42,7 +42,12 @@ curl -sSL https://raw.githubusercontent.com/gettweek/tweek/main/scripts/install.
 ### Or Install Manually
 
 ```bash
+# Recommended (fastest, isolated)
+uv tool install tweek
+
+# Alternatives
 pipx install tweek
+pip install --user tweek
 ```
 
 ### Protect Your Tools

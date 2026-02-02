@@ -5,8 +5,10 @@
 #   curl -sSL https://raw.githubusercontent.com/gettweek/tweek/main/scripts/install.sh | bash
 #
 # Options (via environment variables):
-#   TWEEK_SKIP_HOOKS=1    Skip hook installation
-#   TWEEK_PRESET=paranoid Set security preset (paranoid, cautious, trusted)
+#   TWEEK_SKIP_HOOKS=1        Skip hook installation
+#   TWEEK_PRESET=paranoid     Set security preset (paranoid, cautious, trusted)
+#   TWEEK_PREFER=uv|pipx|pip  Force a specific install method
+#   TWEEK_UV_URL=<url>        Override uv installer URL (for mirrors/proxies)
 
 set -euo pipefail
 
@@ -28,6 +30,12 @@ INTERACTIVE=false
 if [ -t 0 ]; then
     INTERACTIVE=true
 fi
+
+# Global state
+PYTHON=""
+UV_CMD=""
+TWEEK_CMD=""
+INSTALL_METHOD=""
 
 info()  { echo -e "${GREEN}✓${NC} $*"; }
 warn()  { echo -e "${YELLOW}!${NC} $*"; }
@@ -51,14 +59,44 @@ cat << 'BANNER'
 BANNER
 echo -e "${NC}"
 
-# ── Check Python 3.9+ ──────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# Detection helpers
+# ═══════════════════════════════════════════════════════════════
+
+# ── Detect uv (standalone Python package manager) ─────────────
+check_uv() {
+    local uv_cmd=""
+
+    for cmd in uv "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv"; do
+        if command -v "$cmd" &>/dev/null || [ -x "$cmd" ]; then
+            uv_cmd="$cmd"
+            break
+        fi
+    done
+
+    [ -z "$uv_cmd" ] && return 1
+
+    # Validate version: uv tool install requires >= 0.4.0
+    local uv_ver
+    uv_ver=$("$uv_cmd" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "0.0.0")
+    local uv_major uv_minor
+    uv_major=$(echo "$uv_ver" | cut -d. -f1)
+    uv_minor=$(echo "$uv_ver" | cut -d. -f2)
+
+    if [ "${uv_major:-0}" -eq 0 ] && [ "${uv_minor:-0}" -lt 4 ]; then
+        warn "uv $uv_ver found but too old (need >= 0.4.0)"
+        return 1
+    fi
+
+    UV_CMD="$uv_cmd"
+    return 0
+}
+
+# ── Detect Python 3.9+ ────────────────────────────────────────
 check_python() {
     local py=""
     local ver=""
 
-    # Prefer newer versioned Pythons first, then fall back to generic python3.
-    # This avoids picking up macOS system Python 3.9 (ancient pip) when a
-    # newer Homebrew/pyenv Python is also available.
     for cmd in python3.13 python3.12 python3.11 python3.10 python3.9 python3 python; do
         if command -v "$cmd" &>/dev/null; then
             ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
@@ -73,189 +111,239 @@ check_python() {
     done
 
     if [ -z "$py" ]; then
-        echo -e "${RED}✗${NC} Python 3.9+ required (found: ${ver:-none})"
-        echo ""
-
-        # On macOS, offer to install via Homebrew
-        if [ "$(uname -s)" = "Darwin" ]; then
-            if command -v brew &>/dev/null; then
-                if [ "$INTERACTIVE" = true ]; then
-                    echo -ne "${CYAN}→${NC} Install Python 3.12 via Homebrew? ${DIM}[Y/n]${NC} "
-                    read -r reply </dev/tty
-                    if [[ ! "$reply" =~ ^[Nn]$ ]]; then
-                        step "Installing Python 3.12 via Homebrew..."
-                        brew install python@3.12
-                        brew link --overwrite python@3.12 2>/dev/null || true
-                        # Retry detection after install
-                        for cmd in python3 python; do
-                            if command -v "$cmd" &>/dev/null; then
-                                ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
-                                major=$(echo "$ver" | cut -d. -f1)
-                                minor=$(echo "$ver" | cut -d. -f2)
-                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 9 ]; then
-                                    py="$cmd"
-                                    break
-                                fi
-                            fi
-                        done
-                        if [ -z "$py" ]; then
-                            echo ""
-                            warn "Python installed but not on PATH. Try:"
-                            echo "  brew link python@3.12"
-                            echo "  Then re-run this installer."
-                            exit 1
-                        fi
-                    else
-                        echo ""
-                        echo "  To install manually:"
-                        echo "    brew install python@3.12"
-                        echo "    brew link python@3.12"
-                        echo ""
-                        echo "  Or visit: https://www.python.org/downloads/"
-                        exit 1
-                    fi
-                else
-                    echo "  Install Python 3.12 via Homebrew:"
-                    echo "    brew install python@3.12"
-                    echo "    brew link python@3.12"
-                    echo ""
-                    echo "  Then re-run this installer."
-                    exit 1
-                fi
-            else
-                # Homebrew not installed — offer to install it without admin
-                if [ "$INTERACTIVE" = true ] && command -v git &>/dev/null; then
-                    echo -e "  Homebrew is not installed. It can be installed ${BOLD}without admin access${NC}"
-                    echo -e "  to ${DIM}~/.homebrew${NC}, then used to install Python."
-                    echo ""
-                    echo -ne "${CYAN}→${NC} Install Homebrew to ~/.homebrew (no sudo required)? ${DIM}[Y/n]${NC} "
-                    read -r reply </dev/tty
-                    if [[ ! "$reply" =~ ^[Nn]$ ]]; then
-                        local brew_prefix="$HOME/.homebrew"
-                        if [ -d "$brew_prefix" ] && [ -x "$brew_prefix/bin/brew" ]; then
-                            info "Existing Homebrew found at $brew_prefix"
-                        else
-                            [ -d "$brew_prefix" ] && rm -rf "$brew_prefix"
-                            step "Cloning Homebrew into $brew_prefix..."
-                            git clone --depth=1 https://github.com/Homebrew/brew "$brew_prefix"
-                        fi
-
-                        # Make brew available in this session
-                        eval "$("$brew_prefix/bin/brew" shellenv)"
-
-                        # Persist to shell profile
-                        local shell_rc=""
-                        if [ -f "$HOME/.zshrc" ]; then
-                            shell_rc="$HOME/.zshrc"
-                        elif [ -f "$HOME/.bashrc" ]; then
-                            shell_rc="$HOME/.bashrc"
-                        elif [ -f "$HOME/.bash_profile" ]; then
-                            shell_rc="$HOME/.bash_profile"
-                        fi
-
-                        if [ -n "$shell_rc" ]; then
-                            if ! grep -q '.homebrew/bin/brew shellenv' "$shell_rc" 2>/dev/null; then
-                                echo '' >> "$shell_rc"
-                                echo '# Homebrew (user-local install)' >> "$shell_rc"
-                                echo "eval \"\$($brew_prefix/bin/brew shellenv)\"" >> "$shell_rc"
-                                info "Added Homebrew to $shell_rc"
-                            fi
-                        else
-                            warn "Could not detect shell profile. Add this to your shell config:"
-                            echo "  eval \"\$($brew_prefix/bin/brew shellenv)\""
-                        fi
-
-                        info "Homebrew installed to $brew_prefix"
-                        echo ""
-
-                        # Now install Python via the fresh Homebrew
-                        step "Installing Python 3.12 via Homebrew..."
-                        brew install python@3.12
-                        brew link --overwrite python@3.12 2>/dev/null || true
-
-                        # Retry detection
-                        for cmd in python3 python; do
-                            if command -v "$cmd" &>/dev/null; then
-                                ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
-                                major=$(echo "$ver" | cut -d. -f1)
-                                minor=$(echo "$ver" | cut -d. -f2)
-                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 9 ]; then
-                                    py="$cmd"
-                                    break
-                                fi
-                            fi
-                        done
-
-                        if [ -z "$py" ]; then
-                            echo ""
-                            warn "Python installed but not detected on PATH."
-                            echo "  Open a new terminal and re-run this installer."
-                            exit 1
-                        fi
-                    else
-                        echo ""
-                        echo "  Install Python manually via one of:"
-                        echo "    1. python.org: https://www.python.org/downloads/"
-                        echo "    2. pyenv: https://github.com/pyenv/pyenv#installation"
-                        exit 1
-                    fi
-                else
-                    echo "  Install Python via one of:"
-                    echo "    1. Homebrew: https://brew.sh"
-                    echo "       Then: brew install python@3.12"
-                    echo "    2. python.org: https://www.python.org/downloads/"
-                    echo "    3. pyenv: https://github.com/pyenv/pyenv#installation"
-                    exit 1
-                fi
-            fi
-        elif [ "$(uname -s)" = "Linux" ]; then
-            echo "  Install Python 3.9+:"
-            if command -v apt &>/dev/null; then
-                echo "    sudo apt update && sudo apt install python3.12 python3.12-venv"
-            elif command -v dnf &>/dev/null; then
-                echo "    sudo dnf install python3.12"
-            elif command -v pacman &>/dev/null; then
-                echo "    sudo pacman -S python"
-            else
-                echo "    Install python3.12 via your package manager"
-            fi
-            echo "  Or use pyenv: https://github.com/pyenv/pyenv#installation"
-            exit 1
-        else
-            echo "  Download Python 3.9+: https://www.python.org/downloads/"
-            exit 1
-        fi
+        return 1
     fi
 
     info "Python $ver found ($py)"
     PYTHON="$py"
+    return 0
 }
 
-# ── Install via pipx (preferred) or pip ─────────────────────────
-install_tweek() {
+# ═══════════════════════════════════════════════════════════════
+# Install methods (tried in priority order)
+# ═══════════════════════════════════════════════════════════════
+
+# ── Method 1: uv tool install (fastest, isolated, no Python needed) ──
+try_uv() {
+    check_uv || return 1
+
+    info "Using uv (recommended)"
+
+    if "$UV_CMD" tool list 2>/dev/null | grep -q "^tweek "; then
+        step "Upgrading existing installation..."
+        "$UV_CMD" tool upgrade tweek 2>/dev/null || "$UV_CMD" tool install --force tweek
+    else
+        "$UV_CMD" tool install tweek
+    fi
+
+    INSTALL_METHOD="uv"
+    return 0
+}
+
+# ── Method 2: pipx install (isolated, requires Python) ───────
+try_pipx() {
+    command -v pipx &>/dev/null || return 1
+
+    info "Using pipx"
+    if pipx list 2>/dev/null | grep -q "tweek"; then
+        step "Upgrading existing installation..."
+        pipx upgrade tweek 2>/dev/null || pipx install --force tweek
+    else
+        pipx install tweek
+    fi
+    INSTALL_METHOD="pipx"
+    return 0
+}
+
+# ── Method 3: pip install --user (requires Python + pip >= 22) ──
+try_pip() {
+    check_python || return 1
+
+    # Check pip version — macOS system Python ships pip 21 which
+    # cannot reliably resolve modern packages
+    local pip_ver
+    pip_ver=$("$PYTHON" -m pip --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1 || echo "0.0")
+    local pip_major
+    pip_major=$(echo "$pip_ver" | cut -d. -f1)
+
+    if [ "${pip_major:-0}" -lt 22 ]; then
+        warn "pip $pip_ver is too old to install packages reliably"
+        return 1
+    fi
+
+    warn "Using $PYTHON -m pip (consider installing uv: https://docs.astral.sh/uv/)"
+    "$PYTHON" -m pip install --user tweek || return 1
+    INSTALL_METHOD="pip"
+    return 0
+}
+
+# ── Method 4: Bootstrap uv then install ──────────────────────
+bootstrap_uv() {
+    local uv_install_url="${TWEEK_UV_URL:-https://astral.sh/uv/install.sh}"
+
+    echo ""
+    step "No suitable package manager found."
+    echo ""
+    echo -e "  Tweek can install ${BOLD}uv${NC} — a fast Python package manager"
+    echo -e "  that requires ${BOLD}no dependencies${NC} and ${BOLD}no sudo${NC}."
+    echo -e "  ${DIM}https://docs.astral.sh/uv/${NC}"
+    echo ""
+
+    if [ "$INTERACTIVE" = true ]; then
+        echo -ne "${CYAN}→${NC} Install uv to ~/.local/bin? ${DIM}[Y/n]${NC} "
+        read -r reply </dev/tty
+        if [[ "$reply" =~ ^[Nn]$ ]]; then
+            return 1
+        fi
+    else
+        step "Installing uv (standalone binary, no sudo)..."
+    fi
+
+    # Verify we can download
+    if ! command -v curl &>/dev/null && ! command -v wget &>/dev/null; then
+        warn "Neither curl nor wget found. Cannot download uv."
+        return 1
+    fi
+
+    # Download and run the uv installer
+    if command -v curl &>/dev/null; then
+        curl -LsSf "$uv_install_url" | sh 2>&1
+    else
+        wget -qO- "$uv_install_url" | sh 2>&1
+    fi
+
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        warn "uv installation failed (exit code $exit_code)"
+        echo -e "  ${DIM}Check your network connection or try manually:${NC}"
+        echo -e "  ${DIM}curl -LsSf $uv_install_url | sh${NC}"
+        return 1
+    fi
+
+    # Make uv available in this session
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+    if ! command -v uv &>/dev/null; then
+        warn "uv installed but not found on PATH"
+        echo -e "  ${DIM}Try opening a new terminal and re-running the installer${NC}"
+        return 1
+    fi
+
+    info "uv installed successfully"
+    UV_CMD="uv"
+
+    # Install tweek via uv (uv downloads Python automatically if needed)
+    echo ""
+    step "Installing Tweek via uv..."
+    "$UV_CMD" tool install tweek || {
+        warn "uv tool install tweek failed"
+        return 1
+    }
+
+    INSTALL_METHOD="uv"
+    return 0
+}
+
+# ── Method 5: Homebrew (macOS) or manual instructions (last resort) ──
+fallback_homebrew_or_manual() {
+    echo ""
+    warn "Could not install via uv, pipx, or pip."
+    echo ""
+
+    if [ "$(uname -s)" = "Darwin" ]; then
+        if command -v brew &>/dev/null; then
+            if [ "$INTERACTIVE" = true ]; then
+                echo -ne "${CYAN}→${NC} Install Python 3.12 via Homebrew? ${DIM}[Y/n]${NC} "
+                read -r reply </dev/tty
+                if [[ ! "$reply" =~ ^[Nn]$ ]]; then
+                    step "Installing Python 3.12 via Homebrew..."
+                    brew install python@3.12
+                    brew link --overwrite python@3.12 2>/dev/null || true
+
+                    # Retry with pipx or pip
+                    check_python || fail "Python installed but not on PATH. Try: brew link python@3.12"
+                    step "Installing pipx..."
+                    brew install pipx 2>/dev/null || true
+                    try_pipx && return 0
+                    try_pip && return 0
+                    fail "Python installed but tweek installation failed"
+                else
+                    echo ""
+                    echo "  To install manually:"
+                    echo "    brew install python@3.12 pipx"
+                    echo "    pipx install tweek"
+                    exit 1
+                fi
+            else
+                echo "  Install via Homebrew:"
+                echo "    brew install python@3.12 pipx"
+                echo "    pipx install tweek"
+                exit 1
+            fi
+        else
+            echo "  Install one of:"
+            echo "    1. uv (recommended, no sudo): curl -LsSf https://astral.sh/uv/install.sh | sh"
+            echo "    2. Homebrew: https://brew.sh → brew install python@3.12 pipx"
+            echo "    3. python.org: https://www.python.org/downloads/"
+            exit 1
+        fi
+    elif [ "$(uname -s)" = "Linux" ]; then
+        echo "  Install one of:"
+        echo "    1. uv (recommended, no sudo): curl -LsSf https://astral.sh/uv/install.sh | sh"
+        if command -v apt &>/dev/null; then
+            echo "    2. Python: sudo apt update && sudo apt install python3.12 python3.12-venv pipx"
+        elif command -v dnf &>/dev/null; then
+            echo "    2. Python: sudo dnf install python3.12 pipx"
+        elif command -v pacman &>/dev/null; then
+            echo "    2. Python: sudo pacman -S python python-pipx"
+        else
+            echo "    2. Python 3.9+ via your package manager"
+        fi
+        echo "    3. pyenv: https://github.com/pyenv/pyenv"
+        exit 1
+    else
+        echo "  Install one of:"
+        echo "    1. uv: https://docs.astral.sh/uv/"
+        echo "    2. Python 3.9+: https://www.python.org/downloads/"
+        exit 1
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Orchestrator: tries each method in priority order
+# ═══════════════════════════════════════════════════════════════
+
+install_tweek_package() {
     echo ""
     step "Installing Tweek..."
     echo ""
 
-    # Prefer pipx > pip
-    if command -v pipx &>/dev/null; then
-        info "Using pipx (recommended)"
-        if pipx list 2>/dev/null | grep -q "tweek"; then
-            step "Upgrading existing installation..."
-            pipx upgrade tweek 2>/dev/null || pipx install --force tweek
-        else
-            pipx install tweek
-        fi
-        INSTALL_METHOD="pipx"
-        return
-    fi
+    # Respect explicit preference
+    case "${TWEEK_PREFER:-}" in
+        uv)
+            try_uv && return
+            fail "TWEEK_PREFER=uv set but uv is not available. Install: https://docs.astral.sh/uv/"
+            ;;
+        pipx)
+            try_pipx && return
+            fail "TWEEK_PREFER=pipx set but pipx is not available."
+            ;;
+        pip)
+            try_pip && return
+            fail "TWEEK_PREFER=pip set but pip install failed."
+            ;;
+    esac
 
-    # Fall back to pip via the detected Python (avoids pip/Python mismatch)
-    warn "pipx not found, using $PYTHON -m pip (consider: brew install pipx)"
-    "$PYTHON" -m pip install --user tweek || {
-        fail "pip install failed. Try upgrading pip first: $PYTHON -m pip install --upgrade pip"
-    }
-    INSTALL_METHOD="pip"
+    # Auto-detect: try each method in priority order
+    try_uv && return
+    try_pipx && return
+    try_pip && return
+
+    # Nothing on the system works. Bootstrap uv (downloads a single binary).
+    bootstrap_uv && return
+
+    # uv bootstrap failed (offline, proxy, user declined). Last resort.
+    fallback_homebrew_or_manual
 }
 
 # ── Verify tweek is in PATH ────────────────────────────────────
@@ -270,9 +358,15 @@ verify_install() {
         return
     fi
 
-    # Check common locations
-    for path in "$HOME/.local/bin/tweek" "$HOME/.local/pipx/venvs/tweek/bin/tweek"; do
-        if [ -x "$path" ]; then
+    # Check common locations including uv tool bin
+    local uv_bin_dir=""
+    uv_bin_dir=$(uv tool dir --bin 2>/dev/null || true)
+
+    for path in \
+        "$HOME/.local/bin/tweek" \
+        "$HOME/.local/pipx/venvs/tweek/bin/tweek" \
+        "${uv_bin_dir:+$uv_bin_dir/tweek}"; do
+        if [ -n "$path" ] && [ -x "$path" ]; then
             info "Tweek installed at $path"
             TWEEK_CMD="$path"
 
@@ -406,8 +500,7 @@ finish() {
 
 # ── Main ────────────────────────────────────────────────────────
 main() {
-    check_python
-    install_tweek
+    install_tweek_package
     verify_install
     setup_hooks
     setup_moltbot
