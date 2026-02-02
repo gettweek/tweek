@@ -1,5 +1,5 @@
 """
-Tweek - Security sandboxing for Claude Code skills.
+Tweek - Security for AI agents.
 
 GAH! Because paranoia is a feature, not a bug.
 

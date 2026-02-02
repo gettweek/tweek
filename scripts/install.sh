@@ -133,7 +133,7 @@ try_uv() {
         step "Upgrading existing installation..."
         "$UV_CMD" tool upgrade tweek 2>/dev/null || "$UV_CMD" tool install --force tweek || return 1
     else
-        "$UV_CMD" tool install tweek || return 1
+        "$UV_CMD" tool install tweek 2>/dev/null || "$UV_CMD" tool install --force tweek || return 1
     fi
 
     INSTALL_METHOD="uv"
@@ -149,7 +149,7 @@ try_pipx() {
         step "Upgrading existing installation..."
         pipx upgrade tweek 2>/dev/null || pipx install --force tweek || return 1
     else
-        pipx install tweek || return 1
+        pipx install tweek 2>/dev/null || pipx install --force tweek || return 1
     fi
     INSTALL_METHOD="pipx"
     return 0
@@ -317,6 +317,22 @@ fallback_homebrew_or_manual() {
 
 install_tweek_package() {
     echo ""
+
+    # If tweek is already installed and working, skip package installation.
+    # This handles the re-install-after-uninstall case where uninstall only
+    # removed hooks/skills but the pipx/uv package is still present.
+    if command -v tweek &>/dev/null; then
+        local existing_ver
+        existing_ver=$(tweek --version 2>/dev/null || echo "")
+        if [ -n "$existing_ver" ]; then
+            info "Tweek $existing_ver is already installed"
+            step "Skipping package installation (already present)"
+            echo -e "  ${DIM}To upgrade: pipx upgrade tweek  or  uv tool upgrade tweek${NC}"
+            INSTALL_METHOD="existing"
+            return 0
+        fi
+    fi
+
     step "Installing Tweek..."
     echo ""
 
