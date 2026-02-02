@@ -9,6 +9,7 @@ Database location: ~/.tweek/security.db
 
 Includes log redaction for sensitive data based on moltbot's security hardening.
 """
+from __future__ import annotations
 
 import json
 import os

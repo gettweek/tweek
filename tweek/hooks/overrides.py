@@ -13,6 +13,7 @@ IMPORTANT: The overrides.yaml file is protected from AI modification.
 The PreToolUse hook blocks Write/Edit/Bash commands that target this file.
 Only a human editing the file directly can change security overrides.
 """
+from __future__ import annotations
 
 import os
 import re

@@ -14,6 +14,7 @@ proxy mode: tweek mcp proxy
 Usage:
     tweek mcp serve       # stdio mode (desktop clients)
 """
+from __future__ import annotations
 
 import json
 import logging

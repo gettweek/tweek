@@ -25,6 +25,7 @@ Claude Code Hook Protocol:
 - "permissionDecision": "ask" - prompt user for confirmation
 - "permissionDecision": "deny" - block execution
 """
+from __future__ import annotations
 
 import json
 import os

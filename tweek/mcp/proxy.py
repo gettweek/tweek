@@ -12,6 +12,7 @@ Architecture:
 Usage:
     tweek mcp proxy       # Start proxy on stdio transport
 """
+from __future__ import annotations
 
 import asyncio
 import json

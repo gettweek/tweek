@@ -4,6 +4,7 @@ LLM API Interceptor - Screens requests and responses to LLM APIs.
 This module provides the core interception logic for the Tweek proxy,
 analyzing LLM API traffic for security threats.
 """
+from __future__ import annotations
 
 import json
 import re

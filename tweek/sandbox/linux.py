@@ -7,6 +7,7 @@ seccomp-bpf, and capabilities to restrict process execution.
 If firejail is not available, falls back to bubblewrap (bwrap)
 which is often installed with Flatpak.
 """
+from __future__ import annotations
 
 import shutil
 import subprocess

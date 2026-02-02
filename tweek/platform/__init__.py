@@ -6,6 +6,7 @@ Tweek supports:
 - Linux: Full support (Secret Service via keyring, firejail optional)
 - Windows: Partial support (Credential Locker via keyring, no sandbox)
 """
+from __future__ import annotations
 
 import platform
 import shutil

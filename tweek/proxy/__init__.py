@@ -16,6 +16,7 @@ Usage:
 The proxy is DISABLED by default. Enable with:
     tweek proxy enable
 """
+from __future__ import annotations
 
 import shutil
 import socket

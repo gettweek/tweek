@@ -19,6 +19,7 @@ Usage:
     tweek skills status
     tweek skills config [--mode auto|manual]
 """
+from __future__ import annotations
 
 import click
 import json

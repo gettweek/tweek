@@ -9,6 +9,7 @@ Backends by platform:
 This replaces the macOS-specific keychain.py with a single implementation
 that works across all platforms.
 """
+from __future__ import annotations
 
 import re
 from dataclasses import dataclass
