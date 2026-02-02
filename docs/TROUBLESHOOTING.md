@@ -446,6 +446,6 @@ Send the zip file to Tweek support or attach it to your GitHub issue.
 ## Cross-References
 
 - [LOGGING.md](./LOGGING.md) -- Full logging system documentation
-- [SANDBOX.md](./SANDBOX.md) -- Sandbox configuration and troubleshooting
+- [DRY_RUN.md](./DRY_RUN.md) -- Dry-run configuration and troubleshooting
 - [ATTACK_PATTERNS.md](./ATTACK_PATTERNS.md) -- Pattern library details
 - [LICENSING.md](./LICENSING.md) -- License tier information

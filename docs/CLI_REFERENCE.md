@@ -135,9 +135,9 @@ tweek doctor --json                    # Output results as JSON for scripting
 
 ---
 
-### `tweek quickstart`
+### `tweek install`
 
-Interactive first-run setup wizard that walks through:
+Interactive setup wizard that walks through:
 
 1. Installing hooks (global, project, or both)
 2. Choosing a security preset (paranoid, cautious, trusted)
@@ -145,7 +145,10 @@ Interactive first-run setup wizard that walks through:
 4. Optional MCP proxy setup
 
 ```bash
-tweek quickstart                       # Launch interactive setup wizard
+tweek install                          # Launch interactive setup wizard
+tweek install --scope global           # Install globally (all projects)
+tweek install --preset paranoid        # Apply paranoid security preset
+tweek install --quick                  # Zero-prompt install with defaults
 ```
 
 ---

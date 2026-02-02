@@ -504,7 +504,7 @@ count = logger.export_csv(Path("audit.csv"), days=7)
 
 ## Cross-References
 
-- [SANDBOX.md](./SANDBOX.md) -- Sandbox events and preview logging
+- [DRY_RUN.md](./DRY_RUN.md) -- Dry-run events and preview logging
 - [ATTACK_PATTERNS.md](./ATTACK_PATTERNS.md) -- Patterns that generate PATTERN_MATCH events
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) -- Diagnosing logging issues
 - [LICENSING.md](./LICENSING.md) -- All logging features are free and open source
