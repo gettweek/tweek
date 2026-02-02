@@ -1168,6 +1168,19 @@ def _print_install_summary(
     console.print(f"  Sandbox:  {'available' if caps.sandbox_available else 'not available'}")
     console.print(f"  Proxy:    {'configured' if proxy_override_enabled else 'not configured'}")
 
+    # Scope-specific guidance
+    scope = summary.get("scope", "project")
+    if scope == "project":
+        console.print()
+        console.print("[white]This installation protects only the current project.[/white]")
+        console.print("[white]To protect all projects on this machine, run:[/white]")
+        console.print("[bold]  tweek protect claude-code --global[/bold]")
+    elif scope == "global":
+        console.print()
+        console.print("[white]This installation protects all projects globally.[/white]")
+        console.print("[white]To protect only a specific project instead, run from that directory:[/white]")
+        console.print("[bold]  tweek protect claude-code[/bold]")
+
     # Next steps
     console.print()
     console.print("[white]Next steps:[/white]")
@@ -1181,26 +1194,27 @@ def _print_install_summary(
 @main.command(
     epilog="""\b
 Examples:
-  tweek unprotect                          Interactive — choose what to remove
+  tweek unprotect                          Interactive — choose what to unprotect
   tweek unprotect claude-code              Remove Claude Code hooks
   tweek unprotect claude-code --global     Remove global Claude Code hooks
   tweek unprotect claude-desktop           Remove from Claude Desktop
-  tweek unprotect --all                    Remove ALL Tweek data system-wide
 """
 )
 @click.argument("tool", required=False, type=click.Choice(
     ["claude-code", "openclaw", "claude-desktop", "chatgpt", "gemini"]))
-@click.option("--all", "remove_all", is_flag=True, default=False,
-              help="Remove ALL Tweek data: hooks, skills, config, patterns, logs, MCP integrations")
 @click.option("--global", "unprotect_global", is_flag=True, default=False,
               help="Remove from ~/.claude/ (global installation)")
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
-def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool):
+def unprotect(tool: str, unprotect_global: bool, confirm: bool):
     """Remove Tweek protection from an AI tool.
+
+    This removes hooks and MCP configuration for a specific tool
+    but keeps Tweek installed on your system. Use `tweek uninstall`
+    to fully remove Tweek.
 
     When run without arguments, launches an interactive wizard
     that walks through each protected tool asking if you want
-    to remove protection. Use --all to remove everything at once.
+    to remove protection.
 
     This command can only be run from an interactive terminal.
     AI agents are blocked from running it.
@@ -1217,8 +1231,8 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
         console.print("[white]Open a terminal and run the command directly.[/white]")
         raise SystemExit(1)
 
-    # No tool and no --all: run interactive wizard
-    if not tool and not remove_all:
+    # No tool: run interactive wizard
+    if not tool:
         _run_unprotect_wizard()
         return
 
@@ -1228,17 +1242,11 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
     global_target = Path("~/.claude").expanduser()
     project_target = Path.cwd() / ".claude"
 
-    if remove_all:
-        _uninstall_everything(global_target, project_target, tweek_dir, confirm)
-        _show_package_removal_hint()
-        return
-
     if tool == "claude-code":
         if unprotect_global:
             _uninstall_scope(global_target, tweek_dir, confirm, scope_label="global")
         else:
             _uninstall_scope(project_target, tweek_dir, confirm, scope_label="project")
-        _show_package_removal_hint()
         return
 
     if tool in ("claude-desktop", "chatgpt", "gemini"):
@@ -1266,6 +1274,57 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
         console.print("[white]Manual step: remove tweek plugin from openclaw.json[/white]")
         return
 
+
+@main.command(
+    epilog="""\b
+Examples:
+  tweek uninstall                          Interactive full removal
+  tweek uninstall --all                    Remove ALL Tweek data system-wide
+  tweek uninstall --all --confirm          Remove everything without prompts
+"""
+)
+@click.option("--all", "remove_all", is_flag=True, default=False,
+              help="Remove ALL Tweek data: hooks, skills, config, patterns, logs, MCP integrations")
+@click.option("--confirm", is_flag=True, help="Skip confirmation prompts")
+def uninstall(remove_all: bool, confirm: bool):
+    """Fully remove Tweek from your system.
+
+    Removes all hooks, skills, configuration, data, and optionally
+    the Tweek package itself. For removing protection from a single
+    tool without uninstalling, use `tweek unprotect` instead.
+
+    This command can only be run from an interactive terminal.
+    AI agents are blocked from running it.
+    """
+    # ─────────────────────────────────────────────────────────────
+    # HUMAN-ONLY GATE: Block non-interactive execution
+    # ─────────────────────────────────────────────────────────────
+    if not sys.stdin.isatty():
+        console.print("[red]ERROR: tweek uninstall must be run from an interactive terminal.[/red]")
+        console.print("[white]This command cannot be run by AI agents or automated scripts.[/white]")
+        console.print("[white]Open a terminal and run the command directly.[/white]")
+        raise SystemExit(1)
+
+    console.print(TWEEK_BANNER, style="cyan")
+
+    tweek_dir = Path("~/.tweek").expanduser()
+    global_target = Path("~/.claude").expanduser()
+    project_target = Path.cwd() / ".claude"
+
+    if not remove_all:
+        # Interactive: ask what to remove
+        console.print("[bold]What would you like to remove?[/bold]")
+        console.print()
+        console.print("  [bold]1.[/bold] Everything (all hooks, data, config, and package)")
+        console.print("  [bold]2.[/bold] Cancel")
+        console.print()
+        choice = click.prompt("Select", type=click.IntRange(1, 2), default=2)
+        if choice == 2:
+            console.print("[white]Cancelled[/white]")
+            return
+        console.print()
+
+    _uninstall_everything(global_target, project_target, tweek_dir, confirm)
     _show_package_removal_hint()
 
 
