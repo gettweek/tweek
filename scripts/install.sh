@@ -51,7 +51,7 @@ cat << 'BANNER'
 BANNER
 echo -e "${NC}"
 
-# ── Check Python 3.10+ ─────────────────────────────────────────
+# ── Check Python 3.9+ ──────────────────────────────────────────
 check_python() {
     local py=""
     local ver=""
@@ -62,7 +62,7 @@ check_python() {
             local major minor
             major=$(echo "$ver" | cut -d. -f1)
             minor=$(echo "$ver" | cut -d. -f2)
-            if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 10 ]; then
+            if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 9 ]; then
                 py="$cmd"
                 break
             fi
@@ -70,7 +70,7 @@ check_python() {
     done
 
     if [ -z "$py" ]; then
-        echo -e "${RED}✗${NC} Python 3.10+ required (found: ${ver:-none})"
+        echo -e "${RED}✗${NC} Python 3.9+ required (found: ${ver:-none})"
         echo ""
 
         # On macOS, offer to install via Homebrew
@@ -89,7 +89,7 @@ check_python() {
                                 ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
                                 major=$(echo "$ver" | cut -d. -f1)
                                 minor=$(echo "$ver" | cut -d. -f2)
-                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 10 ]; then
+                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 9 ]; then
                                     py="$cmd"
                                     break
                                 fi
@@ -176,7 +176,7 @@ check_python() {
                                 ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
                                 major=$(echo "$ver" | cut -d. -f1)
                                 minor=$(echo "$ver" | cut -d. -f2)
-                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 10 ]; then
+                                if [ "${major:-0}" -ge 3 ] && [ "${minor:-0}" -ge 9 ]; then
                                     py="$cmd"
                                     break
                                 fi
@@ -206,7 +206,7 @@ check_python() {
                 fi
             fi
         elif [ "$(uname -s)" = "Linux" ]; then
-            echo "  Install Python 3.10+:"
+            echo "  Install Python 3.9+:"
             if command -v apt &>/dev/null; then
                 echo "    sudo apt update && sudo apt install python3.12 python3.12-venv"
             elif command -v dnf &>/dev/null; then
@@ -219,7 +219,7 @@ check_python() {
             echo "  Or use pyenv: https://github.com/pyenv/pyenv#installation"
             exit 1
         else
-            echo "  Download Python 3.10+: https://www.python.org/downloads/"
+            echo "  Download Python 3.9+: https://www.python.org/downloads/"
             exit 1
         fi
     fi

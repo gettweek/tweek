@@ -85,7 +85,7 @@ Tweek writes its config to `~/.tweek/config.yaml`. You can customize:
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.9+
 - macOS, Linux, or Windows (WSL)
 - Moltbot with gateway enabled
 

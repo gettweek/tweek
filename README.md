@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/tweek/"><img src="https://img.shields.io/pypi/v/tweek" alt="PyPI version"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python 3.9+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License: Apache 2.0"></a>
   <img src="https://img.shields.io/badge/tests-1893%20passing-brightgreen" alt="Tests">
 </p>

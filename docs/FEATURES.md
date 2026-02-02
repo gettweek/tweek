@@ -84,4 +84,4 @@ The enforcement matrix is fully configurable via `overrides.yaml`. Project-level
 | HTTP Proxy | Yes | Yes | Yes |
 | MCP Proxy | Yes | Yes | Yes |
 
-**Requirements:** Python 3.10+
+**Requirements:** Python 3.9+
