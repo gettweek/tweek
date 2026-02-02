@@ -56,7 +56,10 @@ check_python() {
     local py=""
     local ver=""
 
-    for cmd in python3 python; do
+    # Prefer newer versioned Pythons first, then fall back to generic python3.
+    # This avoids picking up macOS system Python 3.9 (ancient pip) when a
+    # newer Homebrew/pyenv Python is also available.
+    for cmd in python3.13 python3.12 python3.11 python3.10 python3.9 python3 python; do
         if command -v "$cmd" &>/dev/null; then
             ver=$("$cmd" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)
             local major minor
@@ -247,22 +250,12 @@ install_tweek() {
         return
     fi
 
-    # Fall back to pip
-    if command -v pip3 &>/dev/null; then
-        warn "pipx not found, using pip3 (consider: brew install pipx)"
-        pip3 install --user tweek
-        INSTALL_METHOD="pip"
-        return
-    fi
-
-    if command -v pip &>/dev/null; then
-        warn "pipx not found, using pip"
-        pip install --user tweek
-        INSTALL_METHOD="pip"
-        return
-    fi
-
-    fail "No package manager found. Install pipx or pip first."
+    # Fall back to pip via the detected Python (avoids pip/Python mismatch)
+    warn "pipx not found, using $PYTHON -m pip (consider: brew install pipx)"
+    "$PYTHON" -m pip install --user tweek || {
+        fail "pip install failed. Try upgrading pip first: $PYTHON -m pip install --upgrade pip"
+    }
+    INSTALL_METHOD="pip"
 }
 
 # ── Verify tweek is in PATH ────────────────────────────────────
