@@ -131,9 +131,9 @@ try_uv() {
 
     if "$UV_CMD" tool list 2>/dev/null | grep -q "^tweek "; then
         step "Upgrading existing installation..."
-        "$UV_CMD" tool upgrade tweek 2>/dev/null || "$UV_CMD" tool install --force tweek
+        "$UV_CMD" tool upgrade tweek 2>/dev/null || "$UV_CMD" tool install --force tweek || return 1
     else
-        "$UV_CMD" tool install tweek
+        "$UV_CMD" tool install tweek || return 1
     fi
 
     INSTALL_METHOD="uv"
@@ -147,9 +147,9 @@ try_pipx() {
     info "Using pipx"
     if pipx list 2>/dev/null | grep -q "tweek"; then
         step "Upgrading existing installation..."
-        pipx upgrade tweek 2>/dev/null || pipx install --force tweek
+        pipx upgrade tweek 2>/dev/null || pipx install --force tweek || return 1
     else
-        pipx install tweek
+        pipx install tweek || return 1
     fi
     INSTALL_METHOD="pipx"
     return 0
@@ -205,14 +205,16 @@ bootstrap_uv() {
         return 1
     fi
 
-    # Download and run the uv installer
+    # Download and run the uv installer.
+    # The || true prevents set -euo pipefail from aborting the script
+    # if the download or installer fails — we handle the error below.
+    local exit_code=0
     if command -v curl &>/dev/null; then
-        curl -LsSf "$uv_install_url" | sh 2>&1
+        curl -LsSf "$uv_install_url" | sh 2>&1 || exit_code=$?
     else
-        wget -qO- "$uv_install_url" | sh 2>&1
+        wget -qO- "$uv_install_url" | sh 2>&1 || exit_code=$?
     fi
 
-    local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         warn "uv installation failed (exit code $exit_code)"
         echo -e "  ${DIM}Check your network connection or try manually:${NC}"
