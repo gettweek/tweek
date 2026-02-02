@@ -1182,9 +1182,10 @@ def _print_install_summary(
     epilog="""\b
 Examples:
   tweek unprotect claude-code              Remove Claude Code hooks
+  tweek unprotect claude-code --global     Remove global Claude Code hooks
   tweek unprotect claude-desktop           Remove from Claude Desktop
+  tweek unprotect chatgpt                  Remove from ChatGPT Desktop
   tweek unprotect --all                    Remove ALL Tweek data system-wide
-  tweek unprotect --confirm                Skip confirmation prompt
 """
 )
 @click.argument("tool", required=False, type=click.Choice(
@@ -1198,7 +1199,6 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
     """Remove Tweek protection from an AI tool.
 
     Specify which tool to unprotect, or use --all to remove everything.
-    When run without arguments, presents an interactive menu.
 
     This command can only be run from an interactive terminal.
     AI agents are blocked from running it.
@@ -1213,6 +1213,19 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
         console.print("[red]ERROR: tweek unprotect must be run from an interactive terminal.[/red]")
         console.print("[white]This command cannot be run by AI agents or automated scripts.[/white]")
         console.print("[white]Open a terminal and run the command directly.[/white]")
+        raise SystemExit(1)
+
+    # Require either a tool or --all
+    if not tool and not remove_all:
+        console.print("[red]Error: specify which tool to unprotect.[/red]")
+        console.print()
+        console.print("[white]Usage:[/white]")
+        console.print("  tweek unprotect claude-code")
+        console.print("  tweek unprotect claude-desktop")
+        console.print("  tweek unprotect chatgpt")
+        console.print("  tweek unprotect gemini")
+        console.print("  tweek unprotect openclaw")
+        console.print("  tweek unprotect --all")
         raise SystemExit(1)
 
     console.print(TWEEK_BANNER, style="cyan")
@@ -1258,45 +1271,6 @@ def unprotect(tool: str, remove_all: bool, unprotect_global: bool, confirm: bool
         # TODO: implement openclaw unprotect
         console.print("[white]Manual step: remove tweek plugin from openclaw.json[/white]")
         return
-
-    # No tool specified — interactive menu
-    has_project = _has_tweek_at(project_target)
-    has_global = _has_tweek_at(global_target)
-    has_data = tweek_dir.exists() and any(tweek_dir.iterdir()) if tweek_dir.exists() else False
-
-    if not has_project and not has_global and not has_data:
-        console.print("[yellow]No Tweek installation found.[/yellow]")
-        console.print(f"  Checked project:  {project_target}")
-        console.print(f"  Checked global:   {global_target}")
-        console.print(f"  Checked data:     {tweek_dir}")
-        _show_package_removal_hint()
-        return
-
-    console.print("[bold]What would you like to remove?[/bold]\n")
-
-    options = []
-    if has_project:
-        options.append(("project", f"This project only ({project_target})"))
-    if has_global:
-        options.append(("global", f"Global installation (~/.claude/)"))
-    if has_project or has_global or has_data:
-        options.append(("everything", "Everything — all hooks, skills, config, data, and MCP integrations"))
-
-    for i, (_, label) in enumerate(options, 1):
-        console.print(f"  [bold]{i}.[/bold] {label}")
-
-    console.print()
-    choice = click.prompt("Select", type=click.IntRange(1, len(options)), default=len(options))
-
-    selected = options[choice - 1][0]
-    console.print()
-
-    if selected == "project":
-        _uninstall_scope(project_target, tweek_dir, confirm, scope_label="project")
-    elif selected == "global":
-        _uninstall_scope(global_target, tweek_dir, confirm, scope_label="global")
-    elif selected == "everything":
-        _uninstall_everything(global_target, project_target, tweek_dir, confirm)
 
     _show_package_removal_hint()
 

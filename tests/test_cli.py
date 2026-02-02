@@ -223,7 +223,7 @@ class TestUninstallCommand:
         mock_sys.stdin.isatty.return_value = True
         mock_sys.stderr = sys.stderr
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            result = runner.invoke(main, ['unprotect', '--confirm'])
+            result = runner.invoke(main, ['unprotect', 'claude-code', '--confirm'])
 
         assert "No Tweek installation" in result.output or result.exit_code == 0
 
@@ -249,7 +249,7 @@ class TestUninstallCommand:
                 }
             }))
 
-            result = runner.invoke(main, ['unprotect', '--confirm'])
+            result = runner.invoke(main, ['unprotect', 'claude-code', '--confirm'])
 
             # Check hooks were removed
             if settings_file.exists():
