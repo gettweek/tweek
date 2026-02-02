@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tweek"
-version = "0.1.0"
+version = "0.2.0"
 description = "Defense-in-depth security for AI coding assistants - protect credentials, code, and system from prompt injection attacks"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -73,21 +73,27 @@ gov = "tweek.plugins.compliance:GovCompliancePlugin"
 hipaa = "tweek.plugins.compliance:HIPAACompliancePlugin"
 pci = "tweek.plugins.compliance:PCICompliancePlugin"
 legal = "tweek.plugins.compliance:LegalCompliancePlugin"
+soc2 = "tweek.plugins.compliance:SOC2CompliancePlugin"
+gdpr = "tweek.plugins.compliance:GDPRCompliancePlugin"
 
 [project.entry-points."tweek.llm_providers"]
 anthropic = "tweek.plugins.providers:AnthropicProvider"
 openai = "tweek.plugins.providers:OpenAIProvider"
+azure_openai = "tweek.plugins.providers:AzureOpenAIProvider"
 google = "tweek.plugins.providers:GoogleProvider"
 bedrock = "tweek.plugins.providers:BedrockProvider"
 
 [project.entry-points."tweek.tool_detectors"]
-moltbot = "tweek.plugins.detectors:MoltbotDetector"
+openclaw = "tweek.plugins.detectors:OpenClawDetector"
 cursor = "tweek.plugins.detectors:CursorDetector"
 continue = "tweek.plugins.detectors:ContinueDetector"
+copilot = "tweek.plugins.detectors:CopilotDetector"
+windsurf = "tweek.plugins.detectors:WindsurfDetector"
 
 [project.entry-points."tweek.screening"]
 rate_limiter = "tweek.plugins.screening:RateLimiterPlugin"
 pattern_matcher = "tweek.plugins.screening:PatternMatcherPlugin"
+heuristic_scorer = "tweek.plugins.screening:HeuristicScorerPlugin"
 llm_reviewer = "tweek.plugins.screening:LLMReviewerPlugin"
 local_model_reviewer = "tweek.plugins.screening:LocalModelReviewerPlugin"
 session_analyzer = "tweek.plugins.screening:SessionAnalyzerPlugin"
@@ -105,6 +111,7 @@ exclude = ["website*", "tests*", "scripts*", "test-environment*", "docs*"]
 [tool.setuptools.package-data]
 tweek = [
     "config/*.yaml",
+    "config/_integrity.json",
     "skill_template/*.md",
     "skill_template/scripts/*.py",
 ]

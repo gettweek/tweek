@@ -545,9 +545,9 @@ def _check_proxy_config(verbose: bool = False) -> HealthCheck:
 def _check_plugin_integrity(verbose: bool = False) -> HealthCheck:
     """Check installed plugin integrity."""
     try:
-        from tweek.plugins import get_registry
+        from tweek.plugins import init_plugins
 
-        registry = get_registry()
+        registry = init_plugins()
         stats = registry.get_stats()
         total = stats.get("total", 0)
         enabled = stats.get("enabled", 0)

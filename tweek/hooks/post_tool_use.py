@@ -367,6 +367,17 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass
 
+    # SELF-TRUST: Skip post-screening for verified Tweek source files.
+    # Content-based (SHA-256), not path-based.
+    if tool_name in ("Read", "Grep"):
+        try:
+            from tweek.security.integrity import is_trusted_tweek_file
+            source_path = tool_input.get("file_path") or tool_input.get("path") or ""
+            if source_path and is_trusted_tweek_file(source_path):
+                return {}
+        except Exception:
+            pass  # Best-effort — fall through to normal screening
+
     # WHITELIST CHECK: Skip post-screening for whitelisted sources
     overrides = _sandbox.get_overrides() if _sandbox else get_overrides()
     if overrides:

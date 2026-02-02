@@ -1046,6 +1046,28 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         return {}
 
     # =========================================================================
+    # SELF-TRUST: Skip screening when reading verified Tweek source files.
+    # Content-based (SHA-256), not path-based. Prevents false positives
+    # when AI reads Tweek's own patterns, hooks, and security modules.
+    # =========================================================================
+    if tool_name in ("Read", "Grep"):
+        try:
+            from tweek.security.integrity import is_trusted_tweek_file
+            read_path = tool_input.get("file_path") or tool_input.get("path") or ""
+            if read_path and is_trusted_tweek_file(read_path):
+                _log(
+                    EventType.ALLOWED,
+                    tool_name,
+                    tier="self_trust",
+                    decision="allow",
+                    decision_reason=f"Self-trust: verified Tweek file {Path(read_path).name}",
+                    metadata={"self_trust": True, "file": read_path},
+                )
+                return {}
+        except Exception:
+            pass  # Best-effort — fall through to normal screening
+
+    # =========================================================================
     # WHITELIST CHECK: Skip screening for whitelisted tool+path combinations
     # Uses project-scoped overrides (additive-only merge) if sandbox active
     # =========================================================================

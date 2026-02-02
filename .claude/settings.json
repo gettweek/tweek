@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|Read|WebFetch|NotebookEdit|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/tmancino/.pyenv/versions/3.12.10/bin/python /Users/tmancino/AI/tweek-public/tweek/hooks/pre_tool_use.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read|WebFetch|Bash|Grep|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/tmancino/.pyenv/versions/3.12.10/bin/python /Users/tmancino/AI/tweek-public/tweek/hooks/post_tool_use.py"
+          }
+        ]
+      }
+    ]
+  }
+}
