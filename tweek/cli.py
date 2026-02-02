@@ -236,13 +236,13 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
     else:
         console.print()
         console.print("[yellow]⚠ Claude Code not detected on this system[/yellow]")
-        console.print("  [dim]Tweek hooks require Claude Code to function.[/dim]")
-        console.print("  [dim]https://docs.anthropic.com/en/docs/claude-code[/dim]")
+        console.print("  [white]Tweek hooks require Claude Code to function.[/white]")
+        console.print("  [white]https://docs.anthropic.com/en/docs/claude-code[/white]")
         console.print()
         if quick or not click.confirm("Continue installing hooks anyway?", default=False):
             if not quick:
                 console.print()
-                console.print("[dim]Run 'tweek install' later after installing Claude Code.[/dim]")
+                console.print("[white]Run 'tweek install' later after installing Claude Code.[/white]")
             return
         console.print()
 
@@ -250,25 +250,16 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
     # Step 2: Scope selection (always shown unless --global or --quick)
     # ─────────────────────────────────────────────────────────────
     if not install_global and not dev_test and not quick:
-        # Smart default: if in a git repo, default to project; otherwise global
-        in_git_repo = (Path.cwd() / ".git").exists()
-        default_scope = 1 if in_git_repo else 2
-
         console.print()
         console.print("[bold]Installation Scope[/bold]")
         console.print()
-        console.print("  [cyan]1.[/cyan] This project only (./.claude/)")
-        console.print("     [dim]Protects only the current project[/dim]")
-        console.print("  [cyan]2.[/cyan] All projects globally (~/.claude/)")
-        console.print("     [dim]Protects every project on this machine[/dim]")
+        console.print("  [cyan]1.[/cyan] All projects globally (~/.claude/) [green](recommended)[/green]")
+        console.print("     [white]Protects every project on this machine[/white]")
+        console.print("  [cyan]2.[/cyan] This directory only (./.claude/)")
+        console.print("     [white]Protects only the current directory[/white]")
         console.print()
-        if in_git_repo:
-            console.print(f"  [dim]Git repo detected — defaulting to project scope[/dim]")
-        else:
-            console.print(f"  [dim]No git repo — defaulting to global scope[/dim]")
-        console.print()
-        scope_choice = click.prompt("Select", type=click.IntRange(1, 2), default=default_scope)
-        if scope_choice == 2:
+        scope_choice = click.prompt("Select", type=click.IntRange(1, 2), default=1)
+        if scope_choice == 1:
             install_global = True
         console.print()
 
@@ -298,8 +289,8 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                     with open(project_settings) as f:
                         project_config = json.load(f)
                     if _has_tweek_hooks(project_config):
-                        console.print("[dim]Note: Tweek is also installed in this project.[/dim]")
-                        console.print("[dim]Project-level settings take precedence over global.[/dim]")
+                        console.print("[white]Note: Tweek is also installed in this project.[/white]")
+                        console.print("[white]Project-level settings take precedence over global.[/white]")
                         console.print()
             else:
                 # Installing per-project — check if global hooks exist
@@ -308,8 +299,8 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                     with open(global_settings) as f:
                         global_config = json.load(f)
                     if _has_tweek_hooks(global_config):
-                        console.print("[dim]Note: Tweek is also installed globally.[/dim]")
-                        console.print("[dim]Project-level settings will take precedence in this directory.[/dim]")
+                        console.print("[white]Note: Tweek is also installed globally.[/white]")
+                        console.print("[white]Project-level settings will take precedence in this directory.[/white]")
                         console.print()
         except (json.JSONDecodeError, IOError):
             pass
@@ -804,14 +795,14 @@ def _check_python_version(console: Console, quick: bool) -> None:
             resolved_system = Path(system_python3).resolve()
 
             if resolved_install != resolved_system:
-                console.print(f"[dim]  Note: system python3 is {resolved_system}[/dim]")
-                console.print(f"[dim]  Hooks will use {resolved_install} (the Python running this install)[/dim]")
+                console.print(f"[white]  Note: system python3 is {resolved_system}[/white]")
+                console.print(f"[white]  Hooks will use {resolved_install} (the Python running this install)[/white]")
         except (OSError, ValueError):
             pass
     else:
         if not quick:
             console.print("[yellow]  Note: python3 not found on PATH[/yellow]")
-            console.print(f"[dim]  Hooks will use {sys.executable} directly[/dim]")
+            console.print(f"[white]  Hooks will use {sys.executable} directly[/white]")
 
 
 def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> dict:
@@ -2183,6 +2174,114 @@ def status(verbose: bool, json_out: bool):
         print_doctor_json(checks)
     else:
         print_doctor_results(checks)
+
+
+@main.command("upgrade")
+def upgrade():
+    """Upgrade Tweek to the latest version from PyPI.
+
+    Detects how Tweek was installed (uv, pipx, or pip) and runs
+    the appropriate upgrade command.
+    """
+    import subprocess
+
+    console.print("[cyan]Checking for updates...[/cyan]")
+    console.print()
+
+    current_version = None
+    try:
+        from tweek import __version__
+        current_version = __version__
+        console.print(f"  Current version: [bold]{current_version}[/bold]")
+    except ImportError:
+        pass
+
+    # Detect install method and upgrade
+    upgraded = False
+
+    # Try uv first
+    try:
+        result = subprocess.run(
+            ["uv", "tool", "list"], capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0 and "tweek" in result.stdout:
+            console.print("  Install method: [cyan]uv[/cyan]")
+            console.print()
+            console.print("[white]Upgrading via uv...[/white]")
+            proc = subprocess.run(
+                ["uv", "tool", "upgrade", "tweek"],
+                capture_output=False, timeout=120
+            )
+            if proc.returncode == 0:
+                upgraded = True
+            else:
+                console.print("[yellow]uv upgrade failed, trying reinstall...[/yellow]")
+                subprocess.run(
+                    ["uv", "tool", "install", "--force", "tweek"],
+                    capture_output=False, timeout=120
+                )
+                upgraded = True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Try pipx
+    if not upgraded:
+        try:
+            result = subprocess.run(
+                ["pipx", "list"], capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and "tweek" in result.stdout:
+                console.print("  Install method: [cyan]pipx[/cyan]")
+                console.print()
+                console.print("[white]Upgrading via pipx...[/white]")
+                proc = subprocess.run(
+                    ["pipx", "upgrade", "tweek"],
+                    capture_output=False, timeout=120
+                )
+                upgraded = proc.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+    # Try pip
+    if not upgraded:
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "show", "tweek"],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                console.print("  Install method: [cyan]pip[/cyan]")
+                console.print()
+                console.print("[white]Upgrading via pip...[/white]")
+                proc = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "--upgrade", "tweek"],
+                    capture_output=False, timeout=120
+                )
+                upgraded = proc.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+    if not upgraded:
+        console.print("[red]Could not determine install method.[/red]")
+        console.print("[white]Try manually:[/white]")
+        console.print("  uv tool upgrade tweek")
+        console.print("  pipx upgrade tweek")
+        console.print("  pip install --upgrade tweek")
+        return
+
+    # Show new version
+    console.print()
+    try:
+        result = subprocess.run(
+            ["tweek", "--version"], capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            new_version = result.stdout.strip()
+            console.print(f"[green]✓[/green] Updated to {new_version}")
+        else:
+            console.print("[green]✓[/green] Update complete")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        console.print("[green]✓[/green] Update complete")
 
 
 @main.command(

@@ -184,41 +184,32 @@ class TestScopeSelection:
         assert "Installation Scope" not in result.output
         assert "global" in result.output.lower()
 
-    def test_scope_defaults_to_project_in_git_repo(self, runner, tmp_path):
-        """In a git repo, scope should default to project."""
-        # Create a .git directory to simulate a git repo
-        git_dir = tmp_path / "project" / ".git"
-        git_dir.mkdir(parents=True)
-        project_dir = tmp_path / "project"
-
+    def test_scope_defaults_to_global(self, runner, tmp_path):
+        """Scope should default to global (recommended)."""
         with patch.object(Path, 'home', return_value=tmp_path):
             with patch('tweek.cli.Path.home', return_value=tmp_path):
-                with patch('tweek.cli.Path.cwd', return_value=project_dir):
-                    result = runner.invoke(
-                        main,
-                        ['install', '--skip-env-scan', '--skip-proxy-check'],
-                        input='1\n1\n',  # Accept default scope (project), llm=auto
-                        catch_exceptions=False,
-                    )
+                result = runner.invoke(
+                    main,
+                    ['install', '--skip-env-scan', '--skip-proxy-check'],
+                    input='1\n1\n',  # Accept default scope (global), llm=auto
+                    catch_exceptions=False,
+                )
 
-        assert "Git repo detected" in result.output
+        assert "recommended" in result.output.lower()
+        assert "global" in result.output.lower()
 
-    def test_scope_defaults_to_global_without_git(self, runner, tmp_path):
-        """Without a git repo, scope should default to global."""
-        no_git_dir = tmp_path / "no-git-project"
-        no_git_dir.mkdir(parents=True)
-
+    def test_scope_option_2_is_project(self, runner, tmp_path):
+        """Selecting option 2 should install to project only."""
         with patch.object(Path, 'home', return_value=tmp_path):
             with patch('tweek.cli.Path.home', return_value=tmp_path):
-                with patch('tweek.cli.Path.cwd', return_value=no_git_dir):
-                    result = runner.invoke(
-                        main,
-                        ['install', '--skip-env-scan', '--skip-proxy-check'],
-                        input='2\n1\n',  # Accept default scope (global), llm=auto
-                        catch_exceptions=False,
-                    )
+                result = runner.invoke(
+                    main,
+                    ['install', '--skip-env-scan', '--skip-proxy-check'],
+                    input='2\n1\n',  # scope=project, llm=auto
+                    catch_exceptions=False,
+                )
 
-        assert "No git repo" in result.output
+        assert "project" in result.output.lower()
 
 
 # ═══════════════════════════════════════════════════════════════

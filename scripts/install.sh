@@ -18,7 +18,7 @@ if [ -t 1 ]; then
     GREEN='\033[0;32m'
     YELLOW='\033[1;33m'
     CYAN='\033[0;36m'
-    DIM='\033[2m'
+    DIM='\033[0;37m'
     BOLD='\033[1m'
     NC='\033[0m'
 else
@@ -424,8 +424,8 @@ setup_hooks() {
     info "Claude Code detected"
     echo ""
 
+    # ── Ask: install hooks? ──
     if [ "$INTERACTIVE" = true ]; then
-        # Interactive: ask the user
         echo -ne "${CYAN}→${NC} Install Claude Code hooks now? ${DIM}[Y/n]${NC} "
         read -r reply </dev/tty
         if [[ "$reply" =~ ^[Nn]$ ]]; then
@@ -434,17 +434,47 @@ setup_hooks() {
             return
         fi
     else
-        # Non-interactive (piped from curl): auto-install
-        step "Installing Claude Code hooks..."
+        # Non-interactive (piped from curl): still ask via /dev/tty if available
+        if [ -e /dev/tty ]; then
+            echo -ne "${CYAN}→${NC} Install Claude Code hooks now? ${DIM}[Y/n]${NC} "
+            read -r reply </dev/tty 2>/dev/null || reply="y"
+            if [[ "$reply" =~ ^[Nn]$ ]]; then
+                echo ""
+                echo -e "  ${DIM}Run 'tweek install' later to activate protection${NC}"
+                return
+            fi
+        else
+            step "Installing Claude Code hooks..."
+        fi
     fi
 
     echo ""
 
-    if [ -n "${TWEEK_PRESET:-}" ]; then
-        $TWEEK_CMD install --preset "$TWEEK_PRESET" --non-interactive 2>/dev/null || $TWEEK_CMD install 2>/dev/null || true
-    else
-        $TWEEK_CMD install --non-interactive 2>/dev/null || $TWEEK_CMD install 2>/dev/null || true
+    # ── Ask: scope (global vs project) ──
+    SCOPE_FLAG="--global"
+    if [ -e /dev/tty ]; then
+        echo -e "${BOLD}Installation Scope${NC}"
+        echo ""
+        echo -e "  ${CYAN}1.${NC} All projects globally (~/.claude/) ${GREEN}(recommended)${NC}"
+        echo -e "     ${DIM}Protects every project on this machine${NC}"
+        echo -e "  ${CYAN}2.${NC} This directory only (./.claude/)"
+        echo -e "     ${DIM}Protects only the current directory${NC}"
+        echo ""
+        echo -ne "${CYAN}→${NC} Select ${DIM}[1]${NC}: "
+        read -r scope_choice </dev/tty 2>/dev/null || scope_choice="1"
+        if [ "$scope_choice" = "2" ]; then
+            SCOPE_FLAG=""
+        fi
+        echo ""
     fi
+
+    # ── Run tweek install with --quick (no further prompts) ──
+    local preset_flag=""
+    if [ -n "${TWEEK_PRESET:-}" ]; then
+        preset_flag="--preset $TWEEK_PRESET"
+    fi
+
+    $TWEEK_CMD install --quick $SCOPE_FLAG $preset_flag 2>/dev/null || true
 }
 
 # ── Detect OpenClaw and offer protection ─────────────────────────
