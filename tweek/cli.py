@@ -2030,7 +2030,7 @@ def update(check: bool):
     import subprocess
 
     patterns_dir = Path("~/.tweek/patterns").expanduser()
-    patterns_repo = "https://github.com/gettweek/tweek-patterns.git"
+    patterns_repo = "https://github.com/gettweek/tweek.git"
 
     console.print(TWEEK_BANNER, style="cyan")
 

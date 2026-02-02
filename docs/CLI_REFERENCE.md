@@ -65,7 +65,7 @@ The Tweek data directory (`~/.tweek`) is preserved. Remove manually if desired.
 
 ### `tweek update`
 
-Update attack patterns from GitHub. Patterns are stored in `~/.tweek/patterns/` and cloned from `https://github.com/gettweek/tweek-patterns.git`.
+Update attack patterns from GitHub. Patterns are stored in `~/.tweek/patterns/` and updated from `https://github.com/gettweek/tweek.git`.
 
 | Option | Default | Description |
 |--------|---------|-------------|

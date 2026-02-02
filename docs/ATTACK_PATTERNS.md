@@ -17,7 +17,7 @@ are updated via `tweek update`.
 | Pattern version   | 3                                          |
 | Categories        | 9                                          |
 | Severity levels   | 4 (critical, high, medium, low)            |
-| Update source     | `github.com/gettweek/tweek-patterns`       |
+| Update source     | `github.com/gettweek/tweek`                |
 | Available in      | All users (free and open source)           |
 
 ---
@@ -462,7 +462,7 @@ tweek update                  # Pull latest patterns from GitHub
 tweek update --force          # Force re-download even if up-to-date
 ```
 
-The update source is `github.com/gettweek/tweek-patterns`. Updated patterns
+The update source is `github.com/gettweek/tweek`. Updated patterns
 are stored at `~/.tweek/patterns/patterns.yaml`, which takes precedence over
 the bundled copy at `tweek/config/patterns.yaml`.
 
