@@ -57,6 +57,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.5.0",
+    "hypothesis>=6.98.0",
     "black>=23.0",
     "ruff>=0.1.0",
     "twine>=4.0",
