@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tweek"
-version = "0.2.1"
+version = "0.3.0"
 description = "Defense-in-depth security for AI coding assistants - protect credentials, code, and system from prompt injection attacks"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,6 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.0",
+    "pydantic>=2.0",
     "pyyaml>=6.0",
     "rich>=13.0",
     "keyring>=25.0",
@@ -55,6 +56,7 @@ proxy = [
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "pytest-xdist>=3.5.0",
     "black>=23.0",
     "ruff>=0.1.0",
     "twine>=4.0",
@@ -119,7 +121,7 @@ tweek = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=tweek --cov-report=term-missing"
+addopts = "-v --cov=tweek --cov-report=term-missing --cov-fail-under=65"
 markers = [
     "patterns: Regex pattern matching and prompt injection detection (slow, ~37s)",
     "hooks: Pre/post tool use hook pipeline and path boundary escalation",
@@ -170,3 +172,21 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S106", "T201"]
 "tweek/hooks/**" = ["T201"]  # Hooks communicate via stdout
+
+[tool.coverage.run]
+branch = true
+source = ["tweek"]
+omit = [
+    "tweek/sandbox/linux.py",
+    "tweek/skill_template/*",
+]
+
+[tool.coverage.report]
+fail_under = 65
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__",
+    "@overload",
+]

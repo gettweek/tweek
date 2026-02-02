@@ -149,9 +149,63 @@ Join the waitlist at [gettweek.com](https://gettweek.com) for updates.
 
 ---
 
+## Third-Party Model Attribution
+
+Tweek's local AI classifier uses third-party models and libraries licensed
+under permissive open-source licenses. Full license texts and copyright
+notices are in the [NOTICE](../NOTICE) file at the project root.
+
+| Component | License | Copyright | Usage |
+|-----------|---------|-----------|-------|
+| [ProtectAI DeBERTa-v3-base Prompt Injection v2](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2) | Apache 2.0 | Protect AI, Inc. | On-device prompt injection classifier |
+| [Microsoft DeBERTa-v3-base](https://huggingface.co/microsoft/deberta-v3-base) | MIT | Microsoft Corporation | Upstream base model (fine-tuned by ProtectAI) |
+| [ONNX Runtime](https://github.com/microsoft/onnxruntime) | MIT | Microsoft Corporation | Local inference engine |
+| [HuggingFace Tokenizers](https://github.com/huggingface/tokenizers) | Apache 2.0 | HuggingFace Inc. | Text tokenization for local model |
+| [NumPy](https://github.com/numpy/numpy) | BSD-3-Clause | NumPy Developers | Numerical operations in inference pipeline |
+
+Tweek does not redistribute model weights. The local model is downloaded
+directly from HuggingFace by the end user via `tweek model download`.
+
+---
+
+## Runtime Dependencies
+
+These packages are installed via pip and carry their own licenses in their
+distributions. They are NOT bundled or vendored into Tweek. Listed here
+for transparency.
+
+### Core (always installed)
+
+| Package | License | Copyright |
+|---------|---------|-----------|
+| [Click](https://github.com/pallets/click) | BSD-3-Clause | Pallets Projects |
+| [PyYAML](https://github.com/yaml/pyyaml) | MIT | Kirill Simonov / YAML community |
+| [Rich](https://github.com/Textualize/rich) | MIT | Will McGugan |
+| [keyring](https://github.com/jaraco/keyring) | MIT | Jason R. Coombs |
+
+### Optional (installed when user requests specific features)
+
+| Package | Extra | License | Copyright |
+|---------|-------|---------|-----------|
+| [anthropic](https://github.com/anthropics/anthropic-sdk-python) | `llm` | MIT | Anthropic, PBC |
+| [openai](https://github.com/openai/openai-python) | `llm` | MIT | OpenAI |
+| [google-generativeai](https://github.com/google-gemini/generative-ai-python) | `llm` | Apache 2.0 | Google LLC |
+| [onnxruntime](https://github.com/microsoft/onnxruntime) | `local-models` | MIT | Microsoft Corporation |
+| [tokenizers](https://github.com/huggingface/tokenizers) | `local-models` | Apache 2.0 | HuggingFace Inc. |
+| [numpy](https://github.com/numpy/numpy) | `local-models` | BSD-3-Clause | NumPy Developers |
+| [mcp](https://github.com/modelcontextprotocol/python-sdk) | `mcp` | MIT | Anthropic, PBC |
+| [mitmproxy](https://github.com/mitmproxy/mitmproxy) | `proxy` | MIT | mitmproxy contributors |
+| [secretstorage](https://github.com/mitya57/secretstorage) | `linux` | BSD-3-Clause | Dmitry Shachnev |
+
+All dependencies use permissive licenses (MIT, BSD-3-Clause, or Apache 2.0)
+that are compatible with Tweek's Apache 2.0 license.
+
+---
+
 ## Cross-References
 
 - [ATTACK_PATTERNS.md](./ATTACK_PATTERNS.md) -- Pattern library (all free)
 - [LOGGING.md](./LOGGING.md) -- All logging features are free
 - [SANDBOX.md](./SANDBOX.md) -- Sandbox is free
 - [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) -- Diagnostic details
+- [NOTICE](../NOTICE) -- Third-party license texts and copyright notices

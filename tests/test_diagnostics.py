@@ -209,8 +209,15 @@ class TestCheckConfigValid:
     """Tests for _check_config_valid()."""
 
     def test_valid_config(self):
-        result = _check_config_valid()
-        # Should succeed with the real config
+        # Use a mock ConfigManager with a clean config so this test doesn't
+        # depend on the user's actual ~/.tweek/config.yaml contents
+        mock_cm = MagicMock()
+        mock_cm.list_tools.return_value = {"Bash": "dangerous", "Read": "safe"}
+        mock_cm.list_skills.return_value = {}
+        mock_cm.validate_config.return_value = []  # No issues
+
+        with patch("tweek.config.ConfigManager", return_value=mock_cm):
+            result = _check_config_valid()
         assert result.status in (CheckStatus.OK, CheckStatus.WARNING)
         assert result.name == "config_valid"
 

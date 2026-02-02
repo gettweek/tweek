@@ -173,7 +173,7 @@ class ConfigManager:
         "plugins", "mcp", "proxy", "sandbox", "isolation_chamber",
         "llm_review", "local_model", "rate_limiting", "session_analysis",
         "path_boundary", "non_english_handling", "version", "tiers",
-        "heuristic_scorer",
+        "heuristic_scorer", "openclaw",
     }
 
     def __init__(
@@ -685,7 +685,39 @@ class ConfigManager:
                     suggestion=suggestion,
                 ))
 
+        # Run Pydantic structural validation on merged config
+        try:
+            merged = self._get_merged()
+            pydantic_issues = self._validate_with_pydantic(merged)
+            # Deduplicate: only add Pydantic issues not already caught above
+            existing_messages = {i.message for i in issues}
+            for pi in pydantic_issues:
+                if pi.message not in existing_messages:
+                    issues.append(pi)
+        except Exception:
+            pass  # Pydantic validation is additive, never blocks
+
         return issues
+
+    def _validate_with_pydantic(self, config: Dict) -> List[ConfigIssue]:
+        """Run Pydantic model validation on merged config."""
+        from pydantic import ValidationError
+        from tweek.config.models import TweekConfig
+
+        try:
+            TweekConfig.model_validate(config)
+            return []
+        except ValidationError as e:
+            issues = []
+            for err in e.errors():
+                loc = ".".join(str(p) for p in err["loc"])
+                issues.append(ConfigIssue(
+                    level="error",
+                    key=loc,
+                    message=err["msg"],
+                    suggestion="",
+                ))
+            return issues
 
     def diff_preset(self, preset_name: str) -> List[ConfigChange]:
         """
