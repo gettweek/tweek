@@ -34,9 +34,6 @@ def model_download(name: str, force: bool):
 
     Downloads the model files (ONNX + tokenizer) to ~/.tweek/models/.
     Default model: deberta-v3-injection (no auth required, ~750MB).
-
-    For the Meta Prompt Guard model, use: tweek model download prompt-guard-86m
-    (requires HuggingFace approval — see 'tweek model list --available').
     """
     from tweek.security.model_registry import (
         MODEL_CATALOG,
@@ -63,28 +60,6 @@ def model_download(name: str, force: bool):
     console.print(f"  Size: ~{definition.size_mb:.0f} MB")
     console.print(f"  License: {definition.license}")
     console.print()
-
-    if definition.requires_auth:
-        import os
-
-        console.print("[yellow]This is a gated model — approval required.[/yellow]")
-        console.print()
-        console.print("  [bold]Before downloading, you must:[/bold]")
-        console.print(f"  1. Go to [cyan]https://huggingface.co/{definition.hf_repo}[/cyan]")
-        console.print(f"  2. Sign in and click [bold]\"Agree and access\"[/bold] to accept the {definition.license} license")
-        console.print("  3. Create a token at [cyan]https://huggingface.co/settings/tokens[/cyan]")
-        console.print("  4. Set it: [dim]export HF_TOKEN=hf_your_token_here[/dim]")
-        console.print()
-        console.print("  [dim]Note: Most users don't need this model. The default (deberta-v3-injection)[/dim]")
-        console.print("  [dim]works without authentication and covers the primary threat (prompt injection).[/dim]")
-        console.print()
-
-        hf_token = os.environ.get("HF_TOKEN") or os.environ.get(
-            "HUGGING_FACE_HUB_TOKEN"
-        )
-        if not hf_token:
-            console.print("[red]HF_TOKEN not found in environment.[/red]")
-            raise SystemExit(1)
 
     # Download with progress
     from rich.progress import Progress, BarColumn, DownloadColumn, TransferSpeedColumn
@@ -143,21 +118,18 @@ def model_list(available: bool):
         table.add_column("Display Name")
         table.add_column("Size")
         table.add_column("License")
-        table.add_column("Auth", justify="center")
         table.add_column("Installed", justify="center")
         table.add_column("Active", justify="center")
 
         for name, defn in MODEL_CATALOG.items():
             installed = is_model_installed(name)
             active = name == default_name and installed
-            auth = "[yellow]required[/yellow]" if defn.requires_auth else "[dim]none[/dim]"
 
             table.add_row(
                 name,
                 defn.display_name,
                 f"~{defn.size_mb:.0f} MB",
                 defn.license,
-                auth,
                 "[green]yes[/green]" if installed else "[dim]no[/dim]",
                 "[green]yes[/green]" if active else "[dim]-[/dim]",
             )

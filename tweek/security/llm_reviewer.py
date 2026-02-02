@@ -932,7 +932,7 @@ def _create_explicit_provider(
             if not LOCAL_MODEL_AVAILABLE:
                 return None
 
-            local_model_name = resolved_model if resolved_model != "auto" else DEFAULT_MODELS.get("local", "prompt-guard-86m")
+            local_model_name = resolved_model if resolved_model != "auto" else DEFAULT_MODELS.get("local", "deberta-v3-injection")
             if not is_model_installed(local_model_name):
                 return None
 

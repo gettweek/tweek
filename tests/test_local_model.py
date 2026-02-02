@@ -104,10 +104,9 @@ class TestModelCatalog:
     def test_default_model_is_deberta(self):
         assert DEFAULT_MODEL == "deberta-v3-injection"
 
-    def test_catalog_has_two_models(self):
-        assert len(MODEL_CATALOG) == 2
+    def test_catalog_has_one_model(self):
+        assert len(MODEL_CATALOG) == 1
         assert "deberta-v3-injection" in MODEL_CATALOG
-        assert "prompt-guard-86m" in MODEL_CATALOG
 
     def test_deberta_definition(self):
         defn = MODEL_CATALOG["deberta-v3-injection"]
@@ -121,14 +120,6 @@ class TestModelCatalog:
         assert defn.hf_subfolder == "onnx"
         assert "model.onnx" in defn.files
         assert "tokenizer.json" in defn.files
-
-    def test_prompt_guard_definition(self):
-        defn = MODEL_CATALOG["prompt-guard-86m"]
-        assert defn.name == "prompt-guard-86m"
-        assert defn.num_labels == 3
-        assert defn.label_map == {0: "benign", 1: "injection", 2: "jailbreak"}
-        assert defn.requires_auth is True
-        assert defn.default is False
 
     def test_get_model_definition_found(self):
         defn = get_model_definition("deberta-v3-injection")
@@ -164,11 +155,11 @@ class TestModelCatalog:
 
     def test_build_hf_url_without_subfolder(self):
         url = _build_hf_url(
-            "meta-llama/Llama-Prompt-Guard-2-86M",
+            "protectai/deberta-v3-base-prompt-injection-v2",
             "tokenizer.json",
         )
         assert url == (
-            "https://huggingface.co/meta-llama/Llama-Prompt-Guard-2-86M"
+            "https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2"
             "/resolve/main/tokenizer.json"
         )
 

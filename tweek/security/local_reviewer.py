@@ -29,7 +29,7 @@ class LocalModelReviewProvider(ReviewProvider):
 
     def __init__(
         self,
-        model_name: str = "prompt-guard-86m",
+        model_name: str = "deberta-v3-injection",
         escalation_provider: Optional[ReviewProvider] = None,
     ):
         """Initialize the local model review provider.

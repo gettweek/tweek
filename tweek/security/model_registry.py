@@ -79,32 +79,6 @@ MODEL_CATALOG: Dict[str, ModelDefinition] = {
         escalate_min_confidence=0.1,
         escalate_max_confidence=0.9,
     ),
-    "prompt-guard-86m": ModelDefinition(
-        name="prompt-guard-86m",
-        display_name="Meta Prompt Guard 2 86M",
-        hf_repo="meta-llama/Llama-Prompt-Guard-2-86M",
-        description=(
-            "3-class multilingual prompt injection classifier based on "
-            "mDeBERTa-v3-base. Detects benign input, prompt injections, "
-            "and jailbreak attempts with 97.5% recall at 1% FPR. "
-            "Requires HuggingFace token and Llama license acceptance."
-        ),
-        num_labels=3,
-        label_map={0: "benign", 1: "injection", 2: "jailbreak"},
-        risk_map={
-            "benign": "safe",
-            "injection": "dangerous",
-            "jailbreak": "dangerous",
-        },
-        max_length=512,
-        license="Llama 4 Community",
-        size_mb=170.0,
-        files=["model.onnx", "tokenizer.json"],
-        requires_auth=True,  # Gated model — requires HF_TOKEN + license acceptance
-        default=False,
-        escalate_min_confidence=0.1,
-        escalate_max_confidence=0.9,
-    ),
 }
 
 DEFAULT_MODEL = "deberta-v3-injection"
