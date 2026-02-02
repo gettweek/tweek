@@ -327,12 +327,12 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                 if openclaw_status["gateway_active"]:
                     console.print(f"  Gateway running on port {openclaw_status['port']}")
                 elif openclaw_status["running"]:
-                    console.print(f"  [dim]Process running (gateway may start on port {openclaw_status['port']})[/dim]")
+                    console.print(f"  [white]Process running (gateway may start on port {openclaw_status['port']})[/white]")
                 else:
-                    console.print(f"  [dim]Installed but not currently running[/dim]")
+                    console.print(f"  [white]Installed but not currently running[/white]")
 
                 if openclaw_status["config_path"]:
-                    console.print(f"  [dim]Config: {openclaw_status['config_path']}[/dim]")
+                    console.print(f"  [white]Config: {openclaw_status['config_path']}[/white]")
 
                 console.print()
 
@@ -344,11 +344,11 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                     console.print("[cyan]Tweek can protect OpenClaw tool calls. Choose a method:[/cyan]")
                     console.print()
                     console.print("  [cyan]1.[/cyan] Protect via [bold]tweek-security[/bold] ClawHub skill")
-                    console.print("     [dim]Screens tool calls through Tweek as a ClawHub skill[/dim]")
+                    console.print("     [white]Screens tool calls through Tweek as a ClawHub skill[/white]")
                     console.print("  [cyan]2.[/cyan] Protect via [bold]tweek protect openclaw[/bold]")
-                    console.print("     [dim]Wraps the OpenClaw gateway with Tweek's proxy[/dim]")
+                    console.print("     [white]Wraps the OpenClaw gateway with Tweek's proxy[/white]")
                     console.print("  [cyan]3.[/cyan] Skip for now")
-                    console.print("     [dim]You can set up OpenClaw protection later[/dim]")
+                    console.print("     [white]You can set up OpenClaw protection later[/white]")
                     console.print()
 
                     choice = click.prompt(
@@ -366,12 +366,12 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                         proxy_override_enabled = True
                         console.print()
                         console.print("[green]✓[/green] OpenClaw proxy protection will be configured")
-                        console.print(f"  [dim]Run 'tweek protect openclaw' after installation to complete setup[/dim]")
+                        console.print(f"  [white]Run 'tweek protect openclaw' after installation to complete setup[/white]")
                         console.print()
                     else:
                         console.print()
-                        console.print("[dim]Skipped. Run 'tweek protect openclaw' or add the[/dim]")
-                        console.print("[dim]tweek-security skill later to protect OpenClaw.[/dim]")
+                        console.print("[white]Skipped. Run 'tweek protect openclaw' or add the[/white]")
+                        console.print("[white]tweek-security skill later to protect OpenClaw.[/white]")
                         console.print()
 
             # Check for other proxy conflicts
@@ -388,7 +388,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             # Proxy module not fully available, skip detection
             pass
         except Exception as e:
-            console.print(f"[dim]Warning: Could not check for proxy conflicts: {e}[/dim]")
+            console.print(f"[white]Warning: Could not check for proxy conflicts: {e}[/white]")
 
     # ─────────────────────────────────────────────────────────────
     # Step 5: Install hooks into settings.json
@@ -402,7 +402,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
         if settings_file.exists():
             backup_path = settings_file.with_suffix(".json.tweek-backup")
             shutil.copy(settings_file, backup_path)
-            console.print(f"[dim]Backed up existing settings to {backup_path}[/dim]")
+            console.print(f"[white]Backed up existing settings to {backup_path}[/white]")
 
     # Create target directory
     target.mkdir(parents=True, exist_ok=True)
@@ -477,7 +477,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
             shutil.rmtree(skill_target)
         shutil.copytree(skill_source, skill_target)
         console.print(f"[green]✓[/green] Tweek skill installed to: {skill_target}")
-        console.print(f"  [dim]Claude now understands Tweek warnings and commands[/dim]")
+        console.print(f"  [white]Claude now understands Tweek warnings and commands[/white]")
 
         # Add whitelist entry for the skill directory in overrides
         try:
@@ -513,12 +513,12 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                 console.print(f"[green]✓[/green] Skill directory whitelisted in overrides")
 
         except ImportError:
-            console.print(f"[dim]Note: PyYAML not available — skill whitelist not added to overrides[/dim]")
+            console.print(f"[white]Note: PyYAML not available — skill whitelist not added to overrides[/white]")
         except Exception as e:
-            console.print(f"[dim]Warning: Could not update overrides whitelist: {e}[/dim]")
+            console.print(f"[white]Warning: Could not update overrides whitelist: {e}[/white]")
     else:
-        console.print(f"[dim]Tweek skill source not found — skill not installed[/dim]")
-        console.print(f"  [dim]Skill can be installed manually from the tweek repository[/dim]")
+        console.print(f"[white]Tweek skill source not found — skill not installed[/white]")
+        console.print(f"  [white]Skill can be installed manually from the tweek repository[/white]")
 
     # ─────────────────────────────────────────────────────────────
     # Step 7: Security Configuration
@@ -588,7 +588,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
 
             console.print(f"\n[green]✓[/green] Configured {len(unknown_skills)} skills")
         else:
-            console.print("[dim]All detected skills already configured[/dim]")
+            console.print("[white]All detected skills already configured[/white]")
 
         # Apply cautious preset as base
         cfg.apply_preset("cautious")
@@ -622,7 +622,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
         else:
             # Custom: ask about key tools
             console.print("\n[bold]Configure key tools:[/bold]")
-            console.print("[dim](safe/default/risky/dangerous)[/dim]\n")
+            console.print("[white](safe/default/risky/dangerous)[/white]\n")
 
             for tool in ["Bash", "WebFetch", "Edit"]:
                 current = cfg.get_tool_tier(tool)
@@ -641,7 +641,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
         if not cfg.export_config("user"):
             cfg.apply_preset("cautious")
             console.print("\n[green]✓[/green] Applied default [bold]cautious[/bold] security preset")
-            console.print("[dim]Run 'tweek config interactive' to customize[/dim]")
+            console.print("[white]Run 'tweek config interactive' to customize[/white]")
             install_summary["preset"] = "cautious"
         else:
             install_summary["preset"] = "existing"
@@ -663,7 +663,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
 
         if env_files:
             table = Table(title="Found .env Files")
-            table.add_column("#", style="dim")
+            table.add_column("#", style="white")
             table.add_column("Path")
             table.add_column("Credentials", justify="right")
 
@@ -705,7 +705,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                     )
 
                     # Show dry-run preview
-                    console.print(f"  [dim]Preview - credentials to migrate:[/dim]")
+                    console.print(f"  [white]Preview - credentials to migrate:[/white]")
                     for key in keys:
                         console.print(f"    • {key}")
 
@@ -718,9 +718,9 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                         except Exception as e:
                             console.print(f"  [red]✗[/red] Migration failed: {e}")
                     else:
-                        console.print(f"  [dim]Skipped[/dim]")
+                        console.print(f"  [white]Skipped[/white]")
         else:
-            console.print("[dim]No .env files with credentials found[/dim]")
+            console.print("[white]No .env files with credentials found[/white]")
 
     # ─────────────────────────────────────────────────────────────
     # Step 10: Linux: Prompt for firejail installation
@@ -733,8 +733,8 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                 prompt_install_firejail(console)
             else:
                 console.print("\n[yellow]Note:[/yellow] Sandbox (firejail) not installed.")
-                console.print(f"[dim]Install with: {caps.sandbox_install_hint}[/dim]")
-                console.print("[dim]Or run 'tweek install --with-sandbox' to install now[/dim]")
+                console.print(f"[white]Install with: {caps.sandbox_install_hint}[/white]")
+                console.print("[white]Or run 'tweek install --with-sandbox' to install now[/white]")
 
     # ─────────────────────────────────────────────────────────────
     # Step 11: Configure Tweek proxy if override was enabled
@@ -764,7 +764,7 @@ def install(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: b
                 yaml.dump(tweek_config, f, default_flow_style=False)
 
             console.print("\n[green]✓[/green] Proxy override configured")
-            console.print(f"  [dim]Config saved to: {proxy_config_path}[/dim]")
+            console.print(f"  [white]Config saved to: {proxy_config_path}[/white]")
             console.print("  [yellow]Run 'tweek proxy start' to begin intercepting API calls[/yellow]")
             install_summary["proxy"] = True
         except Exception as e:
@@ -852,9 +852,9 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
         console.print()
         console.print("  [cyan]1.[/cyan] Auto-detect (recommended)")
         if local_model_ready:
-            console.print(f"     [dim]Local model installed ({local_model_name}) — will use it first[/dim]")
+            console.print(f"     [white]Local model installed ({local_model_name}) — will use it first[/white]")
         else:
-            console.print("     [dim]Uses first available: Local model > Anthropic > OpenAI > Google[/dim]")
+            console.print("     [white]Uses first available: Local model > Anthropic > OpenAI > Google[/white]")
         console.print("  [cyan]2.[/cyan] Anthropic (Claude Haiku)")
         console.print("  [cyan]3.[/cyan] OpenAI (GPT-4o-mini)")
         console.print("  [cyan]4.[/cyan] Google (Gemini 2.0 Flash)")
@@ -862,8 +862,8 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
         console.print("  [cyan]6.[/cyan] Disable screening")
         if not local_model_ready:
             console.print()
-            console.print("  [dim]Tip: Run 'tweek model download' to install the local model[/dim]")
-            console.print("  [dim]     (on-device, no API key, ~45MB download)[/dim]")
+            console.print("  [white]Tip: Run 'tweek model download' to install the local model[/white]")
+            console.print("  [white]     (on-device, no API key, ~45MB download)[/white]")
         console.print()
 
         choice = click.prompt("Select", type=click.IntRange(1, 6), default=1)
@@ -883,8 +883,8 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
             # Custom endpoint configuration
             console.print()
             console.print("[bold]Custom Endpoint Configuration[/bold]")
-            console.print("[dim]Most local servers (Ollama, LM Studio, vLLM) and cloud providers[/dim]")
-            console.print("[dim](Together, Groq, Mistral) expose an OpenAI-compatible API.[/dim]")
+            console.print("[white]Most local servers (Ollama, LM Studio, vLLM) and cloud providers[/white]")
+            console.print("[white](Together, Groq, Mistral) expose an OpenAI-compatible API.[/white]")
             console.print()
 
             result["provider"] = "openai"
@@ -905,7 +905,7 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
             console.print()
         elif choice == 6:
             result["provider"] = "disabled"
-            console.print("[dim]Screening disabled. Pattern matching and other layers remain active.[/dim]")
+            console.print("[white]Screening disabled. Pattern matching and other layers remain active.[/white]")
     # else: quick mode — leave as auto
 
     # Resolve display names for summary
@@ -971,7 +971,7 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
             else:
                 console.print(f"[green]✓[/green] LLM provider configured: {result['provider_display']}")
         except Exception as e:
-            console.print(f"[dim]Warning: Could not save LLM config: {e}[/dim]")
+            console.print(f"[white]Warning: Could not save LLM config: {e}[/white]")
     else:
         if result["provider_display"] and "disabled" not in (result["provider_display"] or ""):
             console.print(f"[green]✓[/green] LLM provider: {result['provider_display']} ({result.get('model_display', 'auto')})")
@@ -1038,7 +1038,7 @@ def _validate_llm_provider(llm_config: dict) -> None:
         expected_vars = [llm_config["api_key_env"]]
     elif llm_config.get("base_url"):
         # Local endpoints (Ollama etc.) don't need an API key
-        console.print(f"  [dim]Checking endpoint: {llm_config['base_url']}[/dim]")
+        console.print(f"  [white]Checking endpoint: {llm_config['base_url']}[/white]")
         try:
             from tweek.security.llm_reviewer import resolve_provider
             test_provider = resolve_provider(
@@ -1051,10 +1051,10 @@ def _validate_llm_provider(llm_config: dict) -> None:
                 console.print(f"  [green]✓[/green] Endpoint reachable")
             else:
                 console.print(f"  [yellow]⚠[/yellow] Could not verify endpoint")
-                console.print(f"  [dim]Tweek will try this endpoint at runtime[/dim]")
+                console.print(f"  [white]Tweek will try this endpoint at runtime[/white]")
         except Exception:
             console.print(f"  [yellow]⚠[/yellow] Could not verify endpoint")
-            console.print(f"  [dim]Tweek will try this endpoint at runtime[/dim]")
+            console.print(f"  [white]Tweek will try this endpoint at runtime[/white]")
         return
     else:
         expected_vars = env_var_map.get(provider, [])
@@ -1073,8 +1073,8 @@ def _validate_llm_provider(llm_config: dict) -> None:
     if not found_key:
         var_list = " or ".join(expected_vars)
         console.print(f"  [yellow]⚠[/yellow] {var_list} not set in environment")
-        console.print(f"  [dim]LLM review will be disabled until the key is available.[/dim]")
-        console.print(f"  [dim]Set it in your shell profile or .env file, then restart Claude Code.[/dim]")
+        console.print(f"  [white]LLM review will be disabled until the key is available.[/white]")
+        console.print(f"  [white]Set it in your shell profile or .env file, then restart Claude Code.[/white]")
 
         # Offer fallback
         console.print()
@@ -1093,7 +1093,7 @@ def _validate_llm_provider(llm_config: dict) -> None:
             else:
                 llm_config["provider_display"] = "disabled (no API key found)"
                 llm_config["model_display"] = None
-                console.print(f"  [dim]No API keys found — LLM review will be disabled[/dim]")
+                console.print(f"  [white]No API keys found — LLM review will be disabled[/white]")
 
 
 def _print_install_summary(
@@ -1133,7 +1133,7 @@ def _print_install_summary(
                         console.print(f"  [green]✓[/green] Hook Python: {hook_python}")
                     else:
                         console.print(f"  [yellow]⚠[/yellow] Hook Python not found: {hook_python}")
-                        console.print(f"    [dim]Run 'tweek install' again if Python was reinstalled[/dim]")
+                        console.print(f"    [white]Run 'tweek install' again if Python was reinstalled[/white]")
                 except (IndexError, KeyError):
                     pass
             elif has_pre:
@@ -1169,14 +1169,14 @@ def _print_install_summary(
     elif llm_display and "disabled" not in llm_display:
         console.print(f"  [green]✓[/green] LLM reviewer: {llm_display}")
     else:
-        console.print(f"  [dim]○[/dim] LLM reviewer: {llm_display}")
+        console.print(f"  [white]○[/white] LLM reviewer: {llm_display}")
 
     # Sandbox status
     caps = get_capabilities()
     if caps.sandbox_available:
         console.print(f"  [green]✓[/green] Sandbox: {caps.sandbox_tool}")
     else:
-        console.print(f"  [dim]○[/dim] Sandbox: not available ({caps.platform.value})")
+        console.print(f"  [white]○[/white] Sandbox: not available ({caps.platform.value})")
 
     # Summary table
     console.print()
@@ -1204,12 +1204,12 @@ def _print_install_summary(
 
     # Next steps
     console.print()
-    console.print("[dim]Next steps:[/dim]")
-    console.print("[dim]  tweek status       — Verify installation[/dim]")
-    console.print("[dim]  tweek update       — Get latest attack patterns[/dim]")
-    console.print("[dim]  tweek config list  — See security settings[/dim]")
+    console.print("[white]Next steps:[/white]")
+    console.print("[white]  tweek status       — Verify installation[/white]")
+    console.print("[white]  tweek update       — Get latest attack patterns[/white]")
+    console.print("[white]  tweek config list  — See security settings[/white]")
     if proxy_override_enabled:
-        console.print("[dim]  tweek proxy start  — Enable API interception[/dim]")
+        console.print("[white]  tweek proxy start  — Enable API interception[/white]")
 
 
 @main.command(
@@ -1244,8 +1244,8 @@ def uninstall(uninstall_global: bool, everything: bool, confirm: bool):
     # ─────────────────────────────────────────────────────────────
     if not sys.stdin.isatty():
         console.print("[red]ERROR: tweek uninstall must be run from an interactive terminal.[/red]")
-        console.print("[dim]This command cannot be run by AI agents or automated scripts.[/dim]")
-        console.print("[dim]Open a terminal and run the command directly.[/dim]")
+        console.print("[white]This command cannot be run by AI agents or automated scripts.[/white]")
+        console.print("[white]Open a terminal and run the command directly.[/white]")
         raise SystemExit(1)
 
     console.print(TWEEK_BANNER, style="cyan")
@@ -1360,9 +1360,9 @@ def _show_package_removal_hint():
     console.print("[bold yellow]The tweek CLI binary is still installed on your system.[/bold yellow]")
 
     if len(pkg_cmds) > 1:
-        console.print(f"[dim]Found {len(pkg_cmds)} installations:[/dim]")
+        console.print(f"[white]Found {len(pkg_cmds)} installations:[/white]")
         for cmd in pkg_cmds:
-            console.print(f"  [dim]• {cmd}[/dim]")
+            console.print(f"  [white]• {cmd}[/white]")
 
     console.print()
     label = " + ".join(f"[bold]{cmd}[/bold]" for cmd in pkg_cmds)
@@ -1383,10 +1383,10 @@ def _show_package_removal_hint():
                     console.print(f"[green]✓[/green] Removed ({pkg_cmd})")
                 else:
                     console.print(f"[red]✗[/red] Failed: {result.stderr.strip()}")
-                    console.print(f"  [dim]Run manually: {pkg_cmd}[/dim]")
+                    console.print(f"  [white]Run manually: {pkg_cmd}[/white]")
             except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
                 console.print(f"[red]✗[/red] Could not run: {e}")
-                console.print(f"  [dim]Run manually: {pkg_cmd}[/dim]")
+                console.print(f"  [white]Run manually: {pkg_cmd}[/white]")
 
 
 def _has_tweek_at(target: Path) -> bool:
@@ -1620,18 +1620,18 @@ def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: 
     console.print()
     console.print("[bold]The following will be removed:[/bold]")
     if has_hooks:
-        console.print("  [dim]•[/dim] PreToolUse and PostToolUse hooks from settings.json")
+        console.print("  [white]•[/white] PreToolUse and PostToolUse hooks from settings.json")
     if has_skills:
-        console.print("  [dim]•[/dim] Tweek skill directory (skills/tweek/)")
+        console.print("  [white]•[/white] Tweek skill directory (skills/tweek/)")
     if has_backup:
-        console.print("  [dim]•[/dim] Backup file (settings.json.tweek-backup)")
-    console.print("  [dim]•[/dim] Project whitelist entries from overrides")
+        console.print("  [white]•[/white] Backup file (settings.json.tweek-backup)")
+    console.print("  [white]•[/white] Project whitelist entries from overrides")
     console.print()
 
     if not confirm:
         console.print(f"[yellow]Remove Tweek from this {scope_label}?[/yellow] ", end="")
         if not click.confirm(""):
-            console.print("[dim]Cancelled[/dim]")
+            console.print("[white]Cancelled[/white]")
             return
 
     console.print()
@@ -1647,27 +1647,27 @@ def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: 
     if _remove_skill_directory(target):
         console.print(f"  [green]✓[/green] Removed Tweek skill directory (skills/tweek/)")
     else:
-        console.print(f"  [dim]-[/dim] Skipped: Tweek skill directory not found")
+        console.print(f"  [white]-[/white] Skipped: Tweek skill directory not found")
 
     # 3. Remove backup file
     if _remove_backup_file(target):
         console.print(f"  [green]✓[/green] Removed backup file (settings.json.tweek-backup)")
     else:
-        console.print(f"  [dim]-[/dim] Skipped: no backup file found")
+        console.print(f"  [white]-[/white] Skipped: no backup file found")
 
     # 4. Remove whitelist entries
     wl_count = _remove_whitelist_entries(target, tweek_dir)
     if wl_count > 0:
         console.print(f"  [green]✓[/green] Removed {wl_count} whitelist entry(s) from overrides")
     else:
-        console.print(f"  [dim]-[/dim] Skipped: no whitelist entries found for this {scope_label}")
+        console.print(f"  [white]-[/white] Skipped: no whitelist entries found for this {scope_label}")
 
     console.print()
     console.print(f"[green]Uninstall complete.[/green] Tweek is no longer active for this {scope_label}.")
     if scope_label == "project":
-        console.print("[dim]Global installation (~/.claude/) was not affected.[/dim]")
+        console.print("[white]Global installation (~/.claude/) was not affected.[/white]")
     else:
-        console.print("[dim]Project installations were not affected.[/dim]")
+        console.print("[white]Project installations were not affected.[/white]")
 
     # Offer to remove data directory
     if tweek_dir.exists() and not confirm:
@@ -1680,7 +1680,7 @@ def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: 
 
         console.print()
         console.print("[yellow]Also remove Tweek data directory (~/.tweek/)?[/yellow]")
-        console.print("[dim]This contains config, patterns, security logs, and overrides.[/dim]")
+        console.print("[white]This contains config, patterns, security logs, and overrides.[/white]")
         if other_has_tweek:
             console.print(f"[bold red]Warning:[/bold red] Tweek is still installed at {other_label} scope ({other_target}).")
             console.print(f"  Removing ~/.tweek/ will affect that installation (no config, patterns, or logs).")
@@ -1695,9 +1695,9 @@ def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: 
             for item in data_removed:
                 console.print(f"  [green]✓[/green] Removed {item}")
             if not data_removed:
-                console.print(f"  [dim]-[/dim] No data to remove")
+                console.print(f"  [white]-[/white] No data to remove")
     elif tweek_dir.exists():
-        console.print("[dim]Tweek data directory (~/.tweek/) was preserved.[/dim]")
+        console.print("[white]Tweek data directory (~/.tweek/) was preserved.[/white]")
 
 
 def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: Path, confirm: bool):
@@ -1705,28 +1705,28 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
     import json
 
     console.print("[bold yellow]FULL REMOVAL[/bold yellow] — This will remove ALL Tweek data:\n")
-    console.print("  [dim]•[/dim] Hooks from current project (.claude/settings.json)")
-    console.print("  [dim]•[/dim] Hooks from global installation (~/.claude/settings.json)")
-    console.print("  [dim]•[/dim] Tweek skill directories (project + global)")
-    console.print("  [dim]•[/dim] All backup files")
-    console.print("  [dim]•[/dim] Tweek data directory (~/.tweek/)")
+    console.print("  [white]•[/white] Hooks from current project (.claude/settings.json)")
+    console.print("  [white]•[/white] Hooks from global installation (~/.claude/settings.json)")
+    console.print("  [white]•[/white] Tweek skill directories (project + global)")
+    console.print("  [white]•[/white] All backup files")
+    console.print("  [white]•[/white] Tweek data directory (~/.tweek/)")
 
     # Show what exists in ~/.tweek/
     if tweek_dir.exists():
         for item in sorted(tweek_dir.iterdir()):
             if item.is_dir():
-                console.print(f"      [dim]├── {item.name}/ [/dim]")
+                console.print(f"      [white]├── {item.name}/ [/white]")
             else:
-                console.print(f"      [dim]├── {item.name}[/dim]")
+                console.print(f"      [white]├── {item.name}[/white]")
 
-    console.print("  [dim]•[/dim] MCP integrations (Claude Desktop, ChatGPT)")
+    console.print("  [white]•[/white] MCP integrations (Claude Desktop, ChatGPT)")
     console.print()
 
     if not confirm:
         console.print("[bold red]Type 'yes' to confirm full removal[/bold red]: ", end="")
         response = input()
         if response.strip().lower() != "yes":
-            console.print("[dim]Cancelled[/dim]")
+            console.print("[white]Cancelled[/white]")
             return
 
     console.print()
@@ -1737,17 +1737,17 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
     for hook_type in removed_hooks:
         console.print(f"  [green]✓[/green] Removed {hook_type} hook from project settings.json")
     if not removed_hooks:
-        console.print(f"  [dim]-[/dim] Skipped: no project hooks found")
+        console.print(f"  [white]-[/white] Skipped: no project hooks found")
 
     if _remove_skill_directory(project_target):
         console.print(f"  [green]✓[/green] Removed Tweek skill from project")
     else:
-        console.print(f"  [dim]-[/dim] Skipped: no project skill directory")
+        console.print(f"  [white]-[/white] Skipped: no project skill directory")
 
     if _remove_backup_file(project_target):
         console.print(f"  [green]✓[/green] Removed project backup file")
     else:
-        console.print(f"  [dim]-[/dim] Skipped: no project backup file")
+        console.print(f"  [white]-[/white] Skipped: no project backup file")
 
     console.print()
 
@@ -1757,17 +1757,17 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
     for hook_type in removed_hooks:
         console.print(f"  [green]✓[/green] Removed {hook_type} hook from global settings.json")
     if not removed_hooks:
-        console.print(f"  [dim]-[/dim] Skipped: no global hooks found")
+        console.print(f"  [white]-[/white] Skipped: no global hooks found")
 
     if _remove_skill_directory(global_target):
         console.print(f"  [green]✓[/green] Removed Tweek skill from global installation")
     else:
-        console.print(f"  [dim]-[/dim] Skipped: no global skill directory")
+        console.print(f"  [white]-[/white] Skipped: no global skill directory")
 
     if _remove_backup_file(global_target):
         console.print(f"  [green]✓[/green] Removed global backup file")
     else:
-        console.print(f"  [dim]-[/dim] Skipped: no global backup file")
+        console.print(f"  [white]-[/white] Skipped: no global backup file")
 
     console.print()
 
@@ -1777,7 +1777,7 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
     for item in data_removed:
         console.print(f"  [green]✓[/green] Removed {item}")
     if not data_removed:
-        console.print(f"  [dim]-[/dim] Skipped: no data directory found")
+        console.print(f"  [white]-[/white] Skipped: no data directory found")
 
     console.print()
 
@@ -1787,7 +1787,7 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
     for client in mcp_removed:
         console.print(f"  [green]✓[/green] Removed {client} MCP integration")
     if not mcp_removed:
-        console.print(f"  [dim]-[/dim] Skipped: no MCP integrations found")
+        console.print(f"  [white]-[/white] Skipped: no MCP integrations found")
 
     console.print()
     console.print("[green]All Tweek data has been removed.[/green]")
@@ -1866,8 +1866,8 @@ def trust(path: str, reason: str, list_trusted: bool):
         ]
 
         if not whitelist:
-            console.print("[dim]No trusted paths configured.[/dim]")
-            console.print("[dim]Use 'tweek trust' to trust the current project.[/dim]")
+            console.print("[white]No trusted paths configured.[/white]")
+            console.print("[white]Use 'tweek trust' to trust the current project.[/white]")
             return
 
         if trusted_entries:
@@ -1876,16 +1876,16 @@ def trust(path: str, reason: str, list_trusted: bool):
                 entry_reason = entry.get("reason", "")
                 console.print(f"  [green]✓[/green] {entry['path']}")
                 if entry_reason:
-                    console.print(f"    [dim]{entry_reason}[/dim]")
+                    console.print(f"    [white]{entry_reason}[/white]")
 
         if tool_scoped:
             console.print("\n[bold]Tool-scoped whitelist entries:[/bold]\n")
             for entry in tool_scoped:
                 tools = ", ".join(entry.get("tools", []))
                 entry_reason = entry.get("reason", "")
-                console.print(f"  [cyan]○[/cyan] {entry['path']}  [dim]({tools})[/dim]")
+                console.print(f"  [cyan]○[/cyan] {entry['path']}  [white]({tools})[/white]")
                 if entry_reason:
-                    console.print(f"    [dim]{entry_reason}[/dim]")
+                    console.print(f"    [white]{entry_reason}[/white]")
 
         if other_entries:
             console.print("\n[bold]Other whitelist entries:[/bold]\n")
@@ -1896,9 +1896,9 @@ def trust(path: str, reason: str, list_trusted: bool):
                     console.print(f"  [cyan]○[/cyan] Command: {entry['command_prefix']}")
                 entry_reason = entry.get("reason", "")
                 if entry_reason:
-                    console.print(f"    [dim]{entry_reason}[/dim]")
+                    console.print(f"    [white]{entry_reason}[/white]")
 
-        console.print(f"\n[dim]Config: {overrides_path}[/dim]")
+        console.print(f"\n[white]Config: {overrides_path}[/white]")
         return
 
     # Resolve path to absolute
@@ -1915,7 +1915,7 @@ def trust(path: str, reason: str, list_trusted: bool):
 
     if already_trusted:
         console.print(f"[green]✓[/green] Already trusted: {resolved}")
-        console.print("[dim]Use 'tweek untrust' to remove.[/dim]")
+        console.print("[white]Use 'tweek untrust' to remove.[/white]")
         return
 
     # Add whitelist entry (no tools restriction = all tools exempt)
@@ -1933,8 +1933,8 @@ def trust(path: str, reason: str, list_trusted: bool):
         return
 
     console.print(f"[green]✓[/green] Trusted: {resolved}")
-    console.print(f"  [dim]All screening is now skipped for files in this directory.[/dim]")
-    console.print(f"  [dim]To resume screening: tweek untrust {path}[/dim]")
+    console.print(f"  [white]All screening is now skipped for files in this directory.[/white]")
+    console.print(f"  [white]To resume screening: tweek untrust {path}[/white]")
 
 
 @main.command(
@@ -1982,7 +1982,7 @@ def untrust(path: str):
 
     if len(whitelist) == original_len:
         console.print(f"[yellow]This path is not currently trusted:[/yellow] {resolved}")
-        console.print("[dim]Use 'tweek trust --list' to see all trusted paths.[/dim]")
+        console.print("[white]Use 'tweek trust --list' to see all trusted paths.[/white]")
         return
 
     overrides["whitelist"] = whitelist
@@ -1998,7 +1998,7 @@ def untrust(path: str):
         return
 
     console.print(f"[green]✓[/green] Removed trust: {resolved}")
-    console.print(f"  [dim]Tweek will now screen tool calls for files in this directory.[/dim]")
+    console.print(f"  [white]Tweek will now screen tool calls for files in this directory.[/white]")
 
 
 @main.command(
@@ -2029,7 +2029,7 @@ def update(check: bool):
         # First time: clone the repo
         if check:
             console.print("[yellow]Patterns not installed.[/yellow]")
-            console.print(f"[dim]Run 'tweek update' to install from {patterns_repo}[/dim]")
+            console.print(f"[white]Run 'tweek update' to install from {patterns_repo}[/white]")
             return
 
         console.print(f"[cyan]Installing patterns from {patterns_repo}...[/cyan]")
@@ -2051,15 +2051,15 @@ def update(check: bool):
                     data = yaml.safe_load(f)
                 count = data.get("pattern_count", len(data.get("patterns", [])))
                 free_max = data.get("free_tier_max", 23)
-                console.print(f"[dim]Installed {count} patterns ({free_max} free, {count - free_max} pro)[/dim]")
+                console.print(f"[white]Installed {count} patterns ({free_max} free, {count - free_max} pro)[/white]")
 
         except subprocess.CalledProcessError as e:
             console.print(f"[red]✗[/red] Failed to clone patterns: {e.stderr}")
             return
         except FileNotFoundError:
             console.print("[red]\u2717[/red] git not found.")
-            console.print("  [dim]Hint: Install git from https://git-scm.com/downloads[/dim]")
-            console.print("  [dim]On macOS: xcode-select --install[/dim]")
+            console.print("  [white]Hint: Install git from https://git-scm.com/downloads[/white]")
+            console.print("  [white]On macOS: xcode-select --install[/white]")
             return
 
     else:
@@ -2080,7 +2080,7 @@ def update(check: bool):
                 )
                 if "behind" in result2.stdout:
                     console.print("[yellow]Updates available.[/yellow]")
-                    console.print("[dim]Run 'tweek update' to install[/dim]")
+                    console.print("[white]Run 'tweek update' to install[/white]")
                 else:
                     console.print("[green]✓[/green] Patterns are up to date")
             except Exception as e:
@@ -2104,11 +2104,11 @@ def update(check: bool):
 
                 # Show what changed
                 if result.stdout.strip():
-                    console.print(f"[dim]{result.stdout.strip()}[/dim]")
+                    console.print(f"[white]{result.stdout.strip()}[/white]")
 
         except subprocess.CalledProcessError as e:
             console.print(f"[red]✗[/red] Failed to update patterns: {e.stderr}")
-            console.print("[dim]Try: rm -rf ~/.tweek/patterns && tweek update[/dim]")
+            console.print("[white]Try: rm -rf ~/.tweek/patterns && tweek update[/white]")
             return
 
     # Show current version info
@@ -2126,7 +2126,7 @@ def update(check: bool):
             console.print(f"[cyan]Total patterns:[/cyan] {count} (all included free)")
 
             console.print(f"[cyan]All features:[/cyan] LLM review, session analysis, rate limiting, sandbox (open source)")
-            console.print(f"[dim]Pro (teams) and Enterprise (compliance) coming soon: gettweek.com[/dim]")
+            console.print(f"[white]Pro (teams) and Enterprise (compliance) coming soon: gettweek.com[/white]")
 
         except Exception:
             pass
@@ -2340,8 +2340,8 @@ def audit(path, translate, llm_review, json_out):
         skills = scan_installed_skills()
 
         if not skills:
-            console.print("[dim]No installed skills found.[/dim]")
-            console.print("[dim]Specify a file path to audit: tweek audit <path>[/dim]")
+            console.print("[white]No installed skills found.[/white]")
+            console.print("[white]Specify a file path to audit: tweek audit <path>[/white]")
             return
 
         console.print(f"Found {len(skills)} skill(s)")
@@ -2390,7 +2390,7 @@ def _print_audit_result(result):
     risk_icons = {"safe": "[green]SAFE[/green]", "suspicious": "[yellow]SUSPICIOUS[/yellow]", "dangerous": "[red]DANGEROUS[/red]"}
 
     console.print(f"  [bold]{result.skill_name}[/bold] — {risk_icons.get(result.risk_level, result.risk_level)}")
-    console.print(f"  [dim]{result.skill_path}[/dim]")
+    console.print(f"  [white]{result.skill_path}[/white]")
 
     if result.error:
         console.print(f"  [red]Error: {result.error}[/red]")
@@ -2405,12 +2405,12 @@ def _print_audit_result(result):
 
     if result.findings:
         table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
-        table.add_column("Severity", style="dim")
+        table.add_column("Severity", style="white")
         table.add_column("Pattern")
         table.add_column("Description")
-        table.add_column("Match", style="dim")
+        table.add_column("Match", style="white")
 
-        severity_styles = {"critical": "red bold", "high": "red", "medium": "yellow", "low": "dim"}
+        severity_styles = {"critical": "red bold", "high": "red", "medium": "yellow", "low": "white"}
 
         for finding in result.findings:
             table.add_row(
@@ -2509,7 +2509,7 @@ def quickstart():
     # Step 2: Security preset
     console.print("[bold cyan]Step 2/4: Security Preset[/bold cyan]")
     console.print("  [cyan]1.[/cyan] paranoid  \u2014 Block everything suspicious, prompt on risky")
-    console.print("  [cyan]2.[/cyan] cautious  \u2014 Block dangerous, prompt on risky [dim](recommended)[/dim]")
+    console.print("  [cyan]2.[/cyan] cautious  \u2014 Block dangerous, prompt on risky [white](recommended)[/white]")
     console.print("  [cyan]3.[/cyan] trusted   \u2014 Allow most operations, block only dangerous")
     console.print()
 
@@ -2548,12 +2548,12 @@ def quickstart():
     if setup_mcp:
         try:
             import mcp  # noqa: F401
-            console.print("[dim]MCP package available. Configure upstream servers in ~/.tweek/config.yaml[/dim]")
-            console.print("[dim]Then run: tweek mcp proxy[/dim]")
+            console.print("[white]MCP package available. Configure upstream servers in ~/.tweek/config.yaml[/white]")
+            console.print("[white]Then run: tweek mcp proxy[/white]")
         except ImportError:
             print_warning("MCP package not installed. Install with: pip install tweek[mcp]")
     else:
-        console.print("[dim]Skipped.[/dim]")
+        console.print("[white]Skipped.[/white]")
 
     console.print()
     console.print("[bold green]Setup complete![/bold green]")
@@ -2688,11 +2688,11 @@ def protect_openclaw(port, paranoid, preset):
         console.print()
         console.print("[red]OpenClaw not detected on this system.[/red]")
         console.print()
-        console.print("[dim]Install OpenClaw first:[/dim]")
+        console.print("[white]Install OpenClaw first:[/white]")
         console.print("  npm install -g openclaw")
         console.print()
-        console.print("[dim]Or if OpenClaw is installed in a non-standard location,[/dim]")
-        console.print("[dim]specify the gateway port manually:[/dim]")
+        console.print("[white]Or if OpenClaw is installed in a non-standard location,[/white]")
+        console.print("[white]specify the gateway port manually:[/white]")
         console.print("  tweek protect openclaw --port 18789")
         return
 
@@ -2709,7 +2709,7 @@ def protect_openclaw(port, paranoid, preset):
     elif openclaw["process_running"]:
         console.print(" [yellow](process running, gateway inactive)[/yellow]")
     else:
-        console.print(" [dim](not running)[/dim]")
+        console.print(" [white](not running)[/white]")
 
     if openclaw["config_path"]:
         console.print(f"  Config:     {openclaw['config_path']}")
@@ -2733,7 +2733,7 @@ def protect_openclaw(port, paranoid, preset):
     if anthropic_key:
         console.print("  LLM Review: [green]active[/green] (ANTHROPIC_API_KEY found)")
     else:
-        console.print("  LLM Review: [dim]available (set ANTHROPIC_API_KEY for semantic analysis)[/dim]")
+        console.print("  LLM Review: [white]available (set ANTHROPIC_API_KEY for semantic analysis)[/white]")
 
     # Show warnings
     for warning in result.warnings:
@@ -2743,14 +2743,14 @@ def protect_openclaw(port, paranoid, preset):
 
     if not openclaw["gateway_active"]:
         console.print("[yellow]Note: OpenClaw gateway is not currently running.[/yellow]")
-        console.print("[dim]Protection will activate when OpenClaw starts.[/dim]")
+        console.print("[white]Protection will activate when OpenClaw starts.[/white]")
         console.print()
 
     console.print("[green]Protection configured.[/green] Screening all OpenClaw tool calls.")
     console.print()
-    console.print("[dim]Verify:     tweek doctor[/dim]")
-    console.print("[dim]Logs:       tweek logs show[/dim]")
-    console.print("[dim]Stop:       tweek proxy stop[/dim]")
+    console.print("[white]Verify:     tweek doctor[/white]")
+    console.print("[white]Logs:       tweek logs show[/white]")
+    console.print("[white]Stop:       tweek proxy stop[/white]")
 
 
 @protect.command(
@@ -2874,7 +2874,7 @@ def config_list(show_tools: bool, show_skills: bool, summary: bool):
     }
 
     source_styles = {
-        "default": "dim",
+        "default": "white",
         "user": "cyan",
         "project": "magenta",
     }
@@ -2883,7 +2883,7 @@ def config_list(show_tools: bool, show_skills: bool, summary: bool):
         table = Table(title="Tool Security Tiers")
         table.add_column("Tool", style="bold")
         table.add_column("Tier")
-        table.add_column("Source", style="dim")
+        table.add_column("Source", style="white")
         table.add_column("Description")
 
         for tool in cfg.list_tools():
@@ -2903,7 +2903,7 @@ def config_list(show_tools: bool, show_skills: bool, summary: bool):
         table = Table(title="Skill Security Tiers")
         table.add_column("Skill", style="bold")
         table.add_column("Tier")
-        table.add_column("Source", style="dim")
+        table.add_column("Source", style="white")
         table.add_column("Description")
 
         for skill in cfg.list_skills():
@@ -2918,8 +2918,8 @@ def config_list(show_tools: bool, show_skills: bool, summary: bool):
 
         console.print(table)
 
-    console.print("\n[dim]Tiers: safe (no checks) → default (regex) → risky (+LLM) → dangerous (+sandbox)[/dim]")
-    console.print("[dim]Sources: default (built-in), user (~/.tweek/config.yaml), project (.tweek/config.yaml)[/dim]")
+    console.print("\n[white]Tiers: safe (no checks) → default (regex) → risky (+LLM) → dangerous (+sandbox)[/white]")
+    console.print("[white]Sources: default (built-in), user (~/.tweek/config.yaml), project (.tweek/config.yaml)[/white]")
 
 
 @config.command("set",
@@ -2982,11 +2982,11 @@ def config_preset(preset_name: str, scope: str):
     console.print(f"[green]✓[/green] Applied [bold]{preset_name}[/bold] preset ({scope} config)")
 
     if preset_name == "paranoid":
-        console.print("[dim]All tools require screening, Bash commands always sandboxed[/dim]")
+        console.print("[white]All tools require screening, Bash commands always sandboxed[/white]")
     elif preset_name == "cautious":
-        console.print("[dim]Balanced: read-only tools safe, Bash dangerous[/dim]")
+        console.print("[white]Balanced: read-only tools safe, Bash dangerous[/white]")
     elif preset_name == "trusted":
-        console.print("[dim]Minimal prompts: only high-risk patterns trigger alerts[/dim]")
+        console.print("[white]Minimal prompts: only high-risk patterns trigger alerts[/white]")
 
 
 @config.command("reset",
@@ -3011,7 +3011,7 @@ def config_reset(skill: str, tool: str, reset_all: bool, scope: str, confirm: bo
 
     if reset_all:
         if not confirm and not click.confirm(f"Reset ALL {scope} configuration?"):
-            console.print("[dim]Cancelled[/dim]")
+            console.print("[white]Cancelled[/white]")
             return
         cfg.reset_all(scope=scope)
         console.print(f"[green]✓[/green] Reset all {scope} configuration to defaults")
@@ -3069,7 +3069,7 @@ def config_validate(scope: str, json_out: bool):
     console.print()
     console.print("[bold]Configuration Validation[/bold]")
     console.print("\u2500" * 40)
-    console.print(f"[dim]Scope: {scope}[/dim]")
+    console.print(f"[white]Scope: {scope}[/white]")
     console.print()
 
     if not issues:
@@ -3085,11 +3085,11 @@ def config_validate(scope: str, json_out: bool):
     level_styles = {
         "error": "[red]ERROR[/red]",
         "warning": "[yellow]WARN[/yellow] ",
-        "info": "[dim]INFO[/dim] ",
+        "info": "[white]INFO[/white] ",
     }
 
     for issue in issues:
-        style = level_styles.get(issue.level, "[dim]???[/dim]  ")
+        style = level_styles.get(issue.level, "[white]???[/white]  ")
         msg = f"  {style}  {issue.key} \u2192 {issue.message}"
         if issue.suggestion:
             msg += f" {issue.suggestion}"
@@ -3201,7 +3201,7 @@ def config_llm(verbose: bool, validate: bool):
         console.print()
         console.print("  [yellow]Status:[/yellow] Disabled (no provider available)")
         console.print()
-        console.print("  [dim]To enable, set one of:[/dim]")
+        console.print("  [white]To enable, set one of:[/white]")
         console.print("    ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY")
         console.print("    Or install Ollama: [cyan]https://ollama.ai[/cyan]")
         console.print()
@@ -3236,8 +3236,8 @@ def config_llm(verbose: bool, validate: bool):
                     for m in server.all_models:
                         console.print(f"    - {m}")
             else:
-                console.print("  [dim]No local LLM server detected[/dim]")
-                console.print("  [dim]Checked: Ollama (localhost:11434), LM Studio (localhost:1234)[/dim]")
+                console.print("  [white]No local LLM server detected[/white]")
+                console.print("  [white]Checked: Ollama (localhost:11434), LM Studio (localhost:1234)[/white]")
         except Exception as e:
             console.print(f"  [yellow]Detection error: {e}[/yellow]")
 
@@ -3275,8 +3275,8 @@ def config_llm(verbose: bool, validate: bool):
                 console.print(f"  [green]PASSED[/green] ({score:.0%})")
             else:
                 console.print(f"  [red]FAILED[/red] ({score:.0%}, minimum: 60%)")
-                console.print("  [dim]This model may not reliably classify security threats.[/dim]")
-                console.print("  [dim]Try a larger model: ollama pull qwen2.5:7b-instruct[/dim]")
+                console.print("  [white]This model may not reliably classify security threats.[/white]")
+                console.print("  [white]Try a larger model: ollama pull qwen2.5:7b-instruct[/white]")
         except Exception as e:
             console.print(f"  [red]Validation error: {e}[/red]")
 
@@ -3306,8 +3306,8 @@ def vault_store(skill: str, key: str, value: Optional[str]):
 
     if not VAULT_AVAILABLE:
         console.print("[red]\u2717[/red] Vault not available.")
-        console.print("  [dim]Hint: Install keyring support: pip install keyring[/dim]")
-        console.print("  [dim]On macOS, keyring uses Keychain. On Linux, install gnome-keyring or kwallet.[/dim]")
+        console.print("  [white]Hint: Install keyring support: pip install keyring[/white]")
+        console.print("  [white]On macOS, keyring uses Keychain. On Linux, install gnome-keyring or kwallet.[/white]")
         return
 
     caps = get_capabilities()
@@ -3323,13 +3323,13 @@ def vault_store(skill: str, key: str, value: Optional[str]):
         vault_instance = get_vault()
         if vault_instance.store(skill, key, value):
             console.print(f"[green]\u2713[/green] Stored {key} for skill '{skill}'")
-            console.print(f"[dim]Backend: {caps.vault_backend}[/dim]")
+            console.print(f"[white]Backend: {caps.vault_backend}[/white]")
         else:
             console.print(f"[red]\u2717[/red] Failed to store credential")
-            console.print("  [dim]Hint: Check your keyring backend is unlocked and accessible[/dim]")
+            console.print("  [white]Hint: Check your keyring backend is unlocked and accessible[/white]")
     except Exception as e:
         console.print(f"[red]\u2717[/red] Failed to store credential: {e}")
-        console.print("  [dim]Hint: Check your keyring backend is unlocked and accessible[/dim]")
+        console.print("  [white]Hint: Check your keyring backend is unlocked and accessible[/white]")
 
 
 @vault.command("get",
@@ -3347,7 +3347,7 @@ def vault_get(skill: str, key: str):
 
     if not VAULT_AVAILABLE:
         console.print("[red]\u2717[/red] Vault not available.")
-        console.print("  [dim]Hint: Install keyring support: pip install keyring[/dim]")
+        console.print("  [white]Hint: Install keyring support: pip install keyring[/white]")
         return
 
     vault_instance = get_vault()
@@ -3361,7 +3361,7 @@ def vault_get(skill: str, key: str):
         console.print(value)
     else:
         console.print(f"[red]\u2717[/red] Credential not found: {key} for skill '{skill}'")
-        console.print("  [dim]Hint: Store it with: tweek vault store {skill} {key} <value>[/dim]".format(skill=skill, key=key))
+        console.print("  [white]Hint: Store it with: tweek vault store {skill} {key} <value>[/white]".format(skill=skill, key=key))
 
 
 @vault.command("migrate-env",
@@ -3401,7 +3401,7 @@ def vault_migrate_env(dry_run: bool, env_file: str, skill: str):
             successful = sum(1 for _, s in results if s)
             console.print(f"\n[green]✓[/green] {'Would migrate' if dry_run else 'Migrated'} {successful} credentials to skill '{skill}'")
         else:
-            console.print("[dim]No credentials found to migrate[/dim]")
+            console.print("[white]No credentials found to migrate[/white]")
 
     except Exception as e:
         console.print(f"[red]✗[/red] Migration failed: {e}")
@@ -3468,16 +3468,16 @@ def license_status():
     console.print(f"[bold]License Tier:[/bold] [{tier_color}]{lic.tier.value.upper()}[/{tier_color}]")
 
     if info:
-        console.print(f"[dim]Licensed to: {info.email}[/dim]")
+        console.print(f"[white]Licensed to: {info.email}[/white]")
         if info.expires_at:
             from datetime import datetime
             exp_date = datetime.fromtimestamp(info.expires_at).strftime("%Y-%m-%d")
             if info.is_expired:
                 console.print(f"[red]Expired: {exp_date}[/red]")
             else:
-                console.print(f"[dim]Expires: {exp_date}[/dim]")
+                console.print(f"[white]Expires: {exp_date}[/white]")
         else:
-            console.print("[dim]Expires: Never[/dim]")
+            console.print("[white]Expires: Never[/white]")
     console.print()
 
     # Features table
@@ -3494,7 +3494,7 @@ def license_status():
 
     for feature, required_tier in feature_tiers.items():
         has_it = lic.has_feature(feature)
-        status = "[green]✓[/green]" if has_it else "[dim]○[/dim]"
+        status = "[green]✓[/green]" if has_it else "[white]○[/white]"
         tier_display = required_tier.value.upper()
         if required_tier == Tier.PRO:
             tier_display = f"[cyan]{tier_display}[/cyan]"
@@ -3506,7 +3506,7 @@ def license_status():
     if lic.tier == Tier.FREE:
         console.print()
         console.print("[green]All security features are included free and open source.[/green]")
-        console.print("[dim]Pro (teams) and Enterprise (compliance) coming soon: gettweek.com[/dim]")
+        console.print("[white]Pro (teams) and Enterprise (compliance) coming soon: gettweek.com[/white]")
 
 
 @license.command("activate",
@@ -3526,7 +3526,7 @@ def license_activate(license_key: str):
     if success:
         console.print(f"[green]✓[/green] {message}")
         console.print()
-        console.print("[dim]Run 'tweek license status' to see available features[/dim]")
+        console.print("[white]Run 'tweek license status' to see available features[/white]")
     else:
         console.print(f"[red]✗[/red] {message}")
 
@@ -3546,7 +3546,7 @@ def license_deactivate(confirm: bool):
     if not confirm:
         console.print("[yellow]Deactivate license and revert to FREE tier?[/yellow] ", end="")
         if not click.confirm(""):
-            console.print("[dim]Cancelled[/dim]")
+            console.print("[white]Cancelled[/white]")
             return
 
     lic = get_license()
@@ -3624,7 +3624,7 @@ def logs_show(limit: int, event_type: str, tool: str, blocked: bool, stats: bool
             table.add_column("Severity")
             table.add_column("Count", justify="right")
 
-            severity_styles = {"critical": "red", "high": "yellow", "medium": "blue", "low": "dim"}
+            severity_styles = {"critical": "red", "high": "yellow", "medium": "blue", "low": "white"}
             for pattern in stat_data['top_patterns']:
                 sev = pattern['severity'] or "unknown"
                 style = severity_styles.get(sev, "white")
@@ -3661,7 +3661,7 @@ def logs_show(limit: int, event_type: str, tool: str, blocked: bool, stats: bool
                 et = EventType(event_type)
             except ValueError:
                 console.print(f"[red]Unknown event type: {event_type}[/red]")
-                console.print(f"[dim]Valid types: {', '.join(e.value for e in EventType)}[/dim]")
+                console.print(f"[white]Valid types: {', '.join(e.value for e in EventType)}[/white]")
                 return
 
         events = logger.get_recent_events(limit=limit, event_type=et, tool_name=tool)
@@ -3672,7 +3672,7 @@ def logs_show(limit: int, event_type: str, tool: str, blocked: bool, stats: bool
         return
 
     table = Table(title=title)
-    table.add_column("Time", style="dim")
+    table.add_column("Time", style="white")
     table.add_column("Type", style="cyan")
     table.add_column("Tool", style="green")
     table.add_column("Tier")
@@ -3713,7 +3713,7 @@ def logs_show(limit: int, event_type: str, tool: str, blocked: bool, stats: bool
         )
 
     console.print(table)
-    console.print(f"\n[dim]Showing {len(events)} events. Use --limit to see more.[/dim]")
+    console.print(f"\n[white]Showing {len(events)} events. Use --limit to see more.[/white]")
 
 
 @logs.command("export",
@@ -3764,7 +3764,7 @@ def logs_clear(days: int, confirm: bool):
 
         console.print(f"[yellow]{msg}[/yellow] ", end="")
         if not click.confirm(""):
-            console.print("[dim]Cancelled[/dim]")
+            console.print("[white]Cancelled[/white]")
             return
 
     logger = get_logger()
@@ -3776,7 +3776,7 @@ def logs_clear(days: int, confirm: bool):
         else:
             console.print(f"[green]Cleared {deleted} event(s)[/green]")
     else:
-        console.print("[dim]No events to clear[/dim]")
+        console.print("[white]No events to clear[/white]")
 
 
 @logs.command("bundle",
@@ -3814,11 +3814,11 @@ def logs_bundle(output: str, days: int, no_redact: bool, dry_run: bool):
             size = item.get("size")
             size_str = f" ({size:,} bytes)" if size else ""
             if "not found" in status:
-                console.print(f"  [dim]  SKIP  {name} ({status})[/dim]")
+                console.print(f"  [white]  SKIP  {name} ({status})[/white]")
             else:
                 console.print(f"  [green]  ADD   {name}{size_str}[/green]")
         console.print()
-        console.print("[dim]No files will be collected in dry-run mode.[/dim]")
+        console.print("[white]No files will be collected in dry-run mode.[/white]")
         return
 
     # Determine output path
@@ -3836,9 +3836,9 @@ def logs_bundle(output: str, days: int, no_redact: bool, dry_run: bool):
         result = collector.create_bundle(output_path)
         size = result.stat().st_size
         console.print(f"\n[green]Bundle created: {result}[/green]")
-        console.print(f"[dim]Size: {size:,} bytes[/dim]")
+        console.print(f"[white]Size: {size:,} bytes[/white]")
         if not no_redact:
-            console.print("[dim]Sensitive data has been redacted.[/dim]")
+            console.print("[white]Sensitive data has been redacted.[/white]")
         console.print(f"\n[bold]Send this file to Tweek support for analysis.[/bold]")
     except Exception as e:
         console.print(f"[red]Failed to create bundle: {e}[/red]")
@@ -3884,8 +3884,8 @@ def proxy_start(port: int, web_port: int, foreground: bool, log_only: bool):
 
     if not PROXY_AVAILABLE:
         console.print("[red]\u2717[/red] Proxy dependencies not installed.")
-        console.print("  [dim]Hint: Install with: pip install tweek[proxy][/dim]")
-        console.print("  [dim]This adds mitmproxy for HTTP(S) interception.[/dim]")
+        console.print("  [white]Hint: Install with: pip install tweek[proxy][/white]")
+        console.print("  [white]This adds mitmproxy for HTTP(S) interception.[/white]")
         return
 
     from tweek.proxy.server import start_proxy
@@ -3906,7 +3906,7 @@ def proxy_start(port: int, web_port: int, foreground: bool, log_only: bool):
         console.print(f"  export HTTPS_PROXY=http://127.0.0.1:{port}")
         console.print(f"  export HTTP_PROXY=http://127.0.0.1:{port}")
         console.print()
-        console.print("[dim]Or use 'tweek proxy wrap' to create a wrapper script[/dim]")
+        console.print("[white]Or use 'tweek proxy wrap' to create a wrapper script[/white]")
     else:
         console.print(f"[red]✗[/red] {message}")
 
@@ -3951,7 +3951,7 @@ def proxy_trust():
 
     if not PROXY_AVAILABLE:
         console.print("[red]✗[/red] Proxy dependencies not installed.")
-        console.print("[dim]Run: pip install tweek\\[proxy][/dim]")
+        console.print("[white]Run: pip install tweek\\[proxy][/white]")
         return
 
     from tweek.proxy.server import install_ca_certificate, get_proxy_info
@@ -3963,11 +3963,11 @@ def proxy_trust():
     console.print("This will install a local CA certificate to enable HTTPS interception.")
     console.print("The certificate is generated on YOUR machine and never transmitted.")
     console.print()
-    console.print(f"[dim]Certificate location: {info['ca_cert']}[/dim]")
+    console.print(f"[white]Certificate location: {info['ca_cert']}[/white]")
     console.print()
 
     if not click.confirm("Install certificate? (requires admin password)"):
-        console.print("[dim]Cancelled[/dim]")
+        console.print("[white]Cancelled[/white]")
         return
 
     success, message = install_ca_certificate()
@@ -4019,7 +4019,7 @@ def proxy_config(set_enabled, set_disabled, port):
             yaml.dump(config, f, default_flow_style=False)
 
         console.print(f"[green]✓[/green] Proxy mode enabled (port {port})")
-        console.print("[dim]Run 'tweek proxy start' to start the proxy[/dim]")
+        console.print("[white]Run 'tweek proxy start' to start the proxy[/white]")
 
     elif set_disabled:
         if "proxy" in config:
@@ -4061,10 +4061,10 @@ def proxy_wrap(app_name: str, command: str, output: str, port: int):
     console.print(f"  chmod +x {output_path}")
     console.print(f"  ./{output_path.name}")
     console.print()
-    console.print("[dim]The script will:[/dim]")
-    console.print("[dim]  1. Start Tweek proxy if not running[/dim]")
-    console.print("[dim]  2. Set proxy environment variables[/dim]")
-    console.print(f"[dim]  3. Run: {command}[/dim]")
+    console.print("[white]The script will:[/white]")
+    console.print("[white]  1. Start Tweek proxy if not running[/white]")
+    console.print("[white]  2. Set proxy environment variables[/white]")
+    console.print(f"[white]  3. Run: {command}[/white]")
 
 
 @proxy.command("setup",
@@ -4139,9 +4139,9 @@ def proxy_setup():
             print_warning("Certificate module not available. Run: tweek proxy trust")
         except Exception as e:
             print_warning(f"Could not set up certificate: {e}")
-            console.print("  [dim]You can do this later with: tweek proxy trust[/dim]")
+            console.print("  [white]You can do this later with: tweek proxy trust[/white]")
     else:
-        console.print("  [dim]Skipped. Run 'tweek proxy trust' later.[/dim]")
+        console.print("  [white]Skipped. Run 'tweek proxy trust' later.[/white]")
     console.print()
 
     # Step 3: Shell environment
@@ -4165,13 +4165,13 @@ def proxy_setup():
                     f.write(f"export HTTP_PROXY=http://127.0.0.1:{port}\n")
                     f.write(f"export HTTPS_PROXY=http://127.0.0.1:{port}\n")
                 print_success(f"Added to {shell_rc}")
-                console.print(f"  [dim]Restart your shell or run: source {shell_rc}[/dim]")
+                console.print(f"  [white]Restart your shell or run: source {shell_rc}[/white]")
             except Exception as e:
                 print_warning(f"Could not write to {shell_rc}: {e}")
         else:
-            console.print("  [dim]Skipped. Set HTTP_PROXY and HTTPS_PROXY manually.[/dim]")
+            console.print("  [white]Skipped. Set HTTP_PROXY and HTTPS_PROXY manually.[/white]")
     else:
-        console.print("  [dim]Could not detect shell config file.[/dim]")
+        console.print("  [white]Could not detect shell config file.[/white]")
         console.print(f"  Add these to your shell profile:")
         console.print(f"    export HTTP_PROXY=http://127.0.0.1:{port}")
         console.print(f"    export HTTPS_PROXY=http://127.0.0.1:{port}")
@@ -4265,7 +4265,7 @@ def plugins_list(category: str, show_all: bool):
                 license_style = "green" if license_tier == LicenseTier.FREE else "cyan"
 
                 source_str = info.source.value if hasattr(info, 'source') else "builtin"
-                source_style = "blue" if source_str == "git" else "dim"
+                source_style = "blue" if source_str == "git" else "white"
 
                 table.add_row(
                     info.name,
@@ -4335,7 +4335,7 @@ def plugins_info(plugin_name: str, category: str):
         plugin_cfg = cfg.get_plugin_config(found_cat, plugin_name)
 
         console.print(f"\n[bold]{found_info.name}[/bold] ({found_cat})")
-        console.print(f"[dim]{found_info.metadata.description}[/dim]")
+        console.print(f"[white]{found_info.metadata.description}[/white]")
         console.print()
 
         table = Table(show_header=False)
@@ -4507,7 +4507,7 @@ def plugins_scan(content: str, direction: str, plugin: str):
 
         if not plugins_to_use:
             console.print("[yellow]No compliance plugins enabled.[/yellow]")
-            console.print("[dim]Enable plugins with: tweek plugins enable <name> -c compliance[/dim]")
+            console.print("[white]Enable plugins with: tweek plugins enable <name> -c compliance[/white]")
             return
 
         for p in plugins_to_use:
@@ -4521,12 +4521,12 @@ def plugins_scan(content: str, direction: str, plugin: str):
                         "critical": "red bold",
                         "high": "red",
                         "medium": "yellow",
-                        "low": "dim",
+                        "low": "white",
                     }
                     style = severity_styles.get(finding.severity.value, "white")
 
                     console.print(f"  [{style}]{finding.severity.value.upper()}[/{style}] {finding.pattern_name}")
-                    console.print(f"    [dim]Matched: {finding.matched_text[:60]}{'...' if len(finding.matched_text) > 60 else ''}[/dim]")
+                    console.print(f"    [white]Matched: {finding.matched_text[:60]}{'...' if len(finding.matched_text) > 60 else ''}[/white]")
                     if finding.description:
                         console.print(f"    {finding.description}")
 
@@ -4600,11 +4600,11 @@ def plugins_install(name: str, version: str, from_lockfile: bool, no_verify: boo
             console.print(f"[green]\u2713[/green] {msg}")
         else:
             console.print(f"[red]\u2717[/red] {msg}")
-            console.print(f"  [dim]Hint: Check network connectivity or try: tweek plugins registry --refresh[/dim]")
+            console.print(f"  [white]Hint: Check network connectivity or try: tweek plugins registry --refresh[/white]")
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        console.print(f"  [dim]Hint: Check network connectivity and try again[/dim]")
+        console.print(f"  [white]Hint: Check network connectivity and try again[/white]")
 
 
 @plugins.command("update",
@@ -5208,13 +5208,13 @@ def chamber_list():
     items = chamber.list_chamber()
 
     if not items:
-        console.print("[dim]Chamber is empty.[/dim]")
+        console.print("[white]Chamber is empty.[/white]")
         return
 
     table = Table(title="Isolation Chamber")
     table.add_column("Name", style="cyan")
     table.add_column("Has SKILL.md", style="green")
-    table.add_column("Path", style="dim")
+    table.add_column("Path", style="white")
 
     for item in items:
         has_md = "Yes" if item["has_skill_md"] else "[red]No[/red]"
@@ -5309,7 +5309,7 @@ def jail_list():
     items = chamber.list_jail()
 
     if not items:
-        console.print("[dim]Jail is empty.[/dim]")
+        console.print("[white]Jail is empty.[/white]")
         return
 
     table = Table(title="Skill Jail")
@@ -5381,7 +5381,7 @@ def skills_report(name: str):
     report_data = chamber.get_report(name)
 
     if not report_data:
-        console.print(f"[dim]No report found for '{name}'.[/dim]")
+        console.print(f"[white]No report found for '{name}'.[/white]")
         return
 
     console.print(Panel(
@@ -5503,7 +5503,7 @@ def sandbox_status():
     else:
         console.print(f"[bold]Project:[/bold] {project_dir}")
         console.print(f"[bold]Layer:[/bold] 0-1 (no project isolation)")
-        console.print("[dim]Run 'tweek sandbox init' to enable project isolation.[/dim]")
+        console.print("[white]Run 'tweek sandbox init' to enable project isolation.[/white]")
 
 
 @sandbox.command("init")
@@ -5577,7 +5577,7 @@ def sandbox_list():
     projects = registry.list_projects()
 
     if not projects:
-        console.print("[dim]No projects registered. Run 'tweek sandbox init' in a project.[/dim]")
+        console.print("[white]No projects registered. Run 'tweek sandbox init' in a project.[/white]")
         return
 
     table = Table(title="Registered Projects")
@@ -5649,12 +5649,12 @@ def sandbox_logs(show_global: bool, limit: int):
 
     events = logger.get_recent_events(limit=limit)
     if not events:
-        console.print("[dim]No events found.[/dim]")
+        console.print("[white]No events found.[/white]")
         return
 
     from rich.table import Table
     table = Table()
-    table.add_column("Time", style="dim")
+    table.add_column("Time", style="white")
     table.add_column("Type")
     table.add_column("Tool")
     table.add_column("Decision", style="green")
@@ -5734,7 +5734,7 @@ def sandbox_verify():
         checks_passed += 1
     else:
         console.print("  Sandbox initialized: [red]NO[/red]")
-        console.print("  [dim]Run 'tweek sandbox init' to enable.[/dim]")
+        console.print("  [white]Run 'tweek sandbox init' to enable.[/white]")
 
     # Check 3: Layer
     checks_total += 1
@@ -5755,7 +5755,7 @@ def sandbox_verify():
     elif sandbox:
         console.print("  Project security.db: [yellow]NOT FOUND[/yellow]")
     else:
-        console.print("  Project security.db: [dim]N/A (sandbox inactive)[/dim]")
+        console.print("  Project security.db: [white]N/A (sandbox inactive)[/white]")
 
     # Check 5: .gitignore
     checks_total += 1
@@ -5785,7 +5785,7 @@ def docker_init():
     bridge = DockerBridge()
     if not bridge.is_docker_available():
         console.print("[red]Docker is not installed or not running.[/red]")
-        console.print("[dim]Install Docker Desktop from https://www.docker.com/products/docker-desktop/[/dim]")
+        console.print("[white]Install Docker Desktop from https://www.docker.com/products/docker-desktop/[/white]")
         raise SystemExit(1)
 
     from tweek.sandbox.project import _detect_project_dir
@@ -5796,7 +5796,7 @@ def docker_init():
 
     compose_path = bridge.init(project_dir)
     console.print(f"[green]Docker Sandbox config generated: {compose_path}[/green]")
-    console.print("[dim]Run 'tweek sandbox docker run' to start the container.[/dim]")
+    console.print("[white]Run 'tweek sandbox docker run' to start the container.[/white]")
 
 
 @sandbox_docker.command("run")
@@ -5833,7 +5833,7 @@ def docker_status():
         compose = project_dir / ".tweek" / "docker-compose.yaml"
         console.print(f"[bold]Docker config:[/bold] {'exists' if compose.exists() else 'not generated'}")
     else:
-        console.print("[dim]Not in a project directory.[/dim]")
+        console.print("[white]Not in a project directory.[/white]")
 
 
 # =========================================================================
@@ -5894,7 +5894,7 @@ def override_create(pattern: str, mode: str, duration_minutes: Optional[int], re
     if reason:
         console.print(f"  Reason: {reason}")
     console.print()
-    console.print("[dim]Next time this pattern triggers, you'll see an 'ask' prompt instead of a hard block.[/dim]")
+    console.print("[white]Next time this pattern triggers, you'll see an 'ask' prompt instead of a hard block.[/white]")
 
 
 @override_group.command("list")
@@ -5907,7 +5907,7 @@ def override_list():
     active_patterns = {o["pattern"] for o in active}
 
     if not all_overrides:
-        console.print("[dim]No break-glass overrides found.[/dim]")
+        console.print("[white]No break-glass overrides found.[/white]")
         return
 
     table = Table(title="Break-Glass Overrides")
@@ -5921,9 +5921,9 @@ def override_list():
         if o["pattern"] in active_patterns and not o.get("used"):
             status = "[green]active[/green]"
         elif o.get("used"):
-            status = "[dim]consumed[/dim]"
+            status = "[white]consumed[/white]"
         else:
-            status = "[dim]expired[/dim]"
+            status = "[white]expired[/white]"
 
         table.add_row(
             o["pattern"],
@@ -6012,7 +6012,7 @@ def feedback_stats(above_threshold: bool):
 
     stats = get_stats()
     if not stats:
-        console.print("[dim]No feedback data recorded yet.[/dim]")
+        console.print("[white]No feedback data recorded yet.[/white]")
         return
 
     table = Table(title="Pattern FP Statistics")
@@ -6053,7 +6053,7 @@ def feedback_reset(pattern_name: str):
         if result.get("was_demoted"):
             console.print(f"  Restored severity: {result.get('original_severity')}")
     else:
-        console.print(f"[dim]No feedback data found for '{pattern_name}'.[/dim]")
+        console.print(f"[white]No feedback data found for '{pattern_name}'.[/white]")
 
 
 # =========================================================================
@@ -6094,7 +6094,7 @@ def memory_status():
     if last_decay:
         console.print(f"  Last decay: {last_decay}")
     else:
-        console.print("  Last decay: [dim]never[/dim]")
+        console.print("  Last decay: [white]never[/white]")
 
     db_size = stats.get("db_size_bytes", 0)
     if db_size > 1024 * 1024:
@@ -6118,7 +6118,7 @@ def memory_patterns(min_decisions: int, sort_by: str):
     patterns = store.get_pattern_stats(min_decisions=min_decisions, sort_by=sort_by)
 
     if not patterns:
-        console.print("[dim]No pattern decision data recorded yet.[/dim]")
+        console.print("[white]No pattern decision data recorded yet.[/white]")
         return
 
     table = Table(title="Pattern Decision History")
@@ -6135,7 +6135,7 @@ def memory_patterns(min_decisions: int, sort_by: str):
         ratio_style = "green" if ratio >= 0.9 else ("yellow" if ratio >= 0.5 else "red")
         table.add_row(
             p.get("pattern_name", "?"),
-            p.get("path_prefix") or "[dim]-[/dim]",
+            p.get("path_prefix") or "[white]-[/white]",
             str(p.get("total_decisions", 0)),
             f"{p.get('weighted_approvals', 0):.1f}",
             f"{p.get('weighted_denials', 0):.1f}",
@@ -6156,7 +6156,7 @@ def memory_sources(suspicious: bool):
     sources = store.get_all_sources(suspicious_only=suspicious)
 
     if not sources:
-        console.print("[dim]No source trust data recorded yet.[/dim]")
+        console.print("[white]No source trust data recorded yet.[/white]")
         return
 
     table = Table(title="Source Trust Scores")
@@ -6191,7 +6191,7 @@ def memory_suggestions(show_all: bool):
     suggestions = store.get_whitelist_suggestions(pending_only=not show_all)
 
     if not suggestions:
-        console.print("[dim]No whitelist suggestions available.[/dim]")
+        console.print("[white]No whitelist suggestions available.[/white]")
         return
 
     table = Table(title="Learned Whitelist Suggestions")
@@ -6209,8 +6209,8 @@ def memory_suggestions(show_all: bool):
         table.add_row(
             str(s.id),
             s.pattern_name,
-            s.tool_name or "[dim]-[/dim]",
-            s.path_prefix or "[dim]-[/dim]",
+            s.tool_name or "[white]-[/white]",
+            s.path_prefix or "[white]-[/white]",
             str(s.approval_count),
             str(s.denial_count),
             f"{s.confidence:.0%}",
@@ -6229,7 +6229,7 @@ def memory_accept(suggestion_id: int):
     store = get_memory_store()
     if store.review_whitelist_suggestion(suggestion_id, accepted=True):
         console.print(f"[bold green]Accepted[/bold green] suggestion #{suggestion_id}")
-        console.print("  [dim]Note: To apply to overrides.yaml, manually add the whitelist rule.[/dim]")
+        console.print("  [white]Note: To apply to overrides.yaml, manually add the whitelist rule.[/white]")
     else:
         console.print(f"[red]Suggestion #{suggestion_id} not found.[/red]")
 
@@ -6260,7 +6260,7 @@ def memory_baseline(project_hash: Optional[str]):
     baselines = store.get_workflow_baseline(project_hash)
 
     if not baselines:
-        console.print("[dim]No workflow baseline data for this project.[/dim]")
+        console.print("[white]No workflow baseline data for this project.[/white]")
         return
 
     table = Table(title=f"Workflow Baseline (project: {project_hash[:8]}...)")
@@ -6276,7 +6276,7 @@ def memory_baseline(project_hash: Optional[str]):
         pct_style = "green" if denial_pct < 0.1 else ("yellow" if denial_pct < 0.3 else "red")
         table.add_row(
             b.tool_name,
-            str(b.hour_of_day) if b.hour_of_day is not None else "[dim]-[/dim]",
+            str(b.hour_of_day) if b.hour_of_day is not None else "[white]-[/white]",
             str(b.invocation_count),
             str(b.denied_count),
             f"[{pct_style}]{denial_pct:.0%}[/{pct_style}]",
@@ -6295,7 +6295,7 @@ def memory_audit(limit: int):
     entries = store.get_audit_log(limit=limit)
 
     if not entries:
-        console.print("[dim]No audit entries.[/dim]")
+        console.print("[white]No audit entries.[/white]")
         return
 
     table = Table(title=f"Memory Audit Log (last {limit})")
@@ -6337,7 +6337,7 @@ def memory_clear(table_name: Optional[str], confirm: bool):
     if not confirm:
         target = table_name or "ALL"
         if not click.confirm(f"Clear {target} memory data? This cannot be undone"):
-            console.print("[dim]Cancelled.[/dim]")
+            console.print("[white]Cancelled.[/white]")
             return
 
     store = get_memory_store()

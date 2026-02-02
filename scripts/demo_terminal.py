@@ -26,7 +26,7 @@ from tweek.hooks.pre_tool_use import PatternMatcher
 
 RESET = "\033[0m"
 BOLD = "\033[1m"
-DIM = "\033[2m"
+DIM = "\033[0;37m"
 ITALIC = "\033[3m"
 RED = "\033[31m"
 GREEN = "\033[32m"

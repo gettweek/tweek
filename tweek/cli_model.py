@@ -90,7 +90,7 @@ def model_download(name: str, force: bool):
         console.print()
         console.print(f"[green]Model downloaded to {model_dir}[/green]")
         console.print(
-            f"[dim]Local screening is now active for risky/dangerous operations.[/dim]"
+            f"[white]Local screening is now active for risky/dangerous operations.[/white]"
         )
 
     except ModelDownloadError as e:
@@ -130,8 +130,8 @@ def model_list(available: bool):
                 defn.display_name,
                 f"~{defn.size_mb:.0f} MB",
                 defn.license,
-                "[green]yes[/green]" if installed else "[dim]no[/dim]",
-                "[green]yes[/green]" if active else "[dim]-[/dim]",
+                "[green]yes[/green]" if installed else "[white]no[/white]",
+                "[green]yes[/green]" if active else "[white]-[/white]",
             )
 
         console.print(table)
@@ -158,7 +158,7 @@ def model_list(available: bool):
                 name,
                 defn.display_name if defn else name,
                 size_str,
-                "[green]yes[/green]" if active else "[dim]-[/dim]",
+                "[green]yes[/green]" if active else "[white]-[/white]",
             )
 
         console.print(table)
@@ -221,10 +221,10 @@ def model_status():
             )
         else:
             fallback_lines.append(
-                "  Cloud LLM:    [dim]none (no API keys configured)[/dim]"
+                "  Cloud LLM:    [white]none (no API keys configured)[/white]"
             )
     except Exception:
-        fallback_lines.append("  Cloud LLM:    [dim]unavailable[/dim]")
+        fallback_lines.append("  Cloud LLM:    [white]unavailable[/white]")
 
     # Overall status
     if LOCAL_MODEL_AVAILABLE and installed:
@@ -232,7 +232,7 @@ def model_status():
     elif LOCAL_MODEL_AVAILABLE and not installed:
         status = "[yellow]Ready[/yellow] - Dependencies installed, model not downloaded"
     else:
-        status = "[dim]Inactive[/dim] - Install dependencies: pip install tweek[local-models]"
+        status = "[white]Inactive[/white] - Install dependencies: pip install tweek[local-models]"
 
     content = f"Status: {status}\n\n"
     content += "[bold]Dependencies[/bold]\n" + "\n".join(deps_lines) + "\n\n"

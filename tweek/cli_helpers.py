@@ -32,7 +32,7 @@ def print_error(message: str, fix_hint: str = "") -> None:
     """Print an error message with red X and optional fix hint."""
     console.print(f"[red]\u2717[/red] {message}")
     if fix_hint:
-        console.print(f"  [dim]Hint: {fix_hint}[/dim]")
+        console.print(f"  [white]Hint: {fix_hint}[/white]")
 
 
 def print_health_banner(checks: "List") -> None:
@@ -51,7 +51,7 @@ def print_health_banner(checks: "List") -> None:
 
     panel = Panel(
         f"[bold {color}]{verdict_text}[/bold {color}]\n"
-        f"[dim]Run 'tweek doctor' for details[/dim]",
+        f"[white]Run 'tweek doctor' for details[/white]",
         border_style=color,
         padding=(0, 2),
     )
@@ -141,11 +141,11 @@ def print_doctor_results(checks: "List") -> None:
         CheckStatus.OK: ("[green]OK[/green]    ", "green"),
         CheckStatus.WARNING: ("[yellow]WARN[/yellow]  ", "yellow"),
         CheckStatus.ERROR: ("[red]ERROR[/red] ", "red"),
-        CheckStatus.SKIPPED: ("[dim]SKIP[/dim]  ", "dim"),
+        CheckStatus.SKIPPED: ("[white]SKIP[/white]  ", "white"),
     }
 
     for check in checks:
-        style_text, _ = status_styles.get(check.status, ("[dim]???[/dim]   ", "dim"))
+        style_text, _ = status_styles.get(check.status, ("[white]???[/white]   ", "white"))
         console.print(f"  {style_text}  {check.label:<22s} {check.message}")
 
     # Verdict

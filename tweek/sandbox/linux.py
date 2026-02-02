@@ -237,13 +237,13 @@ def prompt_install_firejail(console) -> bool:
     pkg_info = get_linux_package_manager()
 
     if not pkg_info:
-        console.print("[dim]Could not detect package manager.[/dim]")
+        console.print("[white]Could not detect package manager.[/white]")
         console.print("Install firejail manually: https://firejail.wordpress.com/download-2/")
         return False
 
     manager, command = pkg_info
-    console.print(f"[dim]Detected package manager: {manager}[/dim]")
-    console.print(f"[dim]Command: {' '.join(command)}[/dim]\n")
+    console.print(f"[white]Detected package manager: {manager}[/white]")
+    console.print(f"[white]Command: {' '.join(command)}[/white]\n")
 
     if Confirm.ask("Install firejail for full sandbox protection?", default=False):
         try:
@@ -260,13 +260,13 @@ def prompt_install_firejail(console) -> bool:
 
         except subprocess.CalledProcessError as e:
             console.print(f"[red]Installation failed (exit code {e.returncode})[/red]")
-            console.print("[dim]Try running the install command manually with sudo[/dim]")
+            console.print("[white]Try running the install command manually with sudo[/white]")
             return False
         except KeyboardInterrupt:
             console.print("\n[yellow]Installation cancelled.[/yellow]")
             return False
     else:
-        console.print("[dim]Skipping firejail. Sandbox layer will be disabled.[/dim]")
+        console.print("[white]Skipping firejail. Sandbox layer will be disabled.[/white]")
         return False
 
 

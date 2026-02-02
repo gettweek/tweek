@@ -39,7 +39,7 @@ def display_pending(queue: ApprovalQueue) -> int:
     pending = queue.get_pending()
 
     if not pending:
-        console.print("[dim]No pending approval requests.[/dim]")
+        console.print("[white]No pending approval requests.[/white]")
         return 0
 
     table = Table(title="Pending Approval Requests", show_lines=True)
@@ -112,7 +112,7 @@ def display_request_detail(request: ApprovalRequest):
     remaining = request.time_remaining
     if remaining > 0:
         lines.append("")
-        lines.append(f"[dim]Auto-deny in {int(remaining)}s[/dim]")
+        lines.append(f"[white]Auto-deny in {int(remaining)}s[/white]")
 
     panel = Panel(
         "\n".join(lines),
@@ -160,7 +160,7 @@ def run_approval_daemon(
                 # Prompt for decision
                 decision = _prompt_decision(console, req)
                 if decision == "quit":
-                    console.print("[dim]Exiting approval daemon.[/dim]")
+                    console.print("[white]Exiting approval daemon.[/white]")
                     return
                 elif decision == "skip":
                     continue
@@ -200,7 +200,7 @@ def run_approval_daemon(
             time.sleep(poll_interval)
 
     except KeyboardInterrupt:
-        console.print("\n[dim]Approval daemon stopped.[/dim]")
+        console.print("\n[white]Approval daemon stopped.[/white]")
 
     # Print summary
     stats = queue.get_stats()
