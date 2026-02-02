@@ -788,12 +788,12 @@ def _check_python_version(console: Console, quick: bool) -> None:
     """Check Python version and warn about potential issues.
 
     Verifies:
-    1. Current Python meets minimum version (3.10+)
+    1. Current Python meets minimum version (3.9+)
     2. System `python3` matches the install Python (hook compatibility)
     """
     import platform as plat
 
-    min_version = (3, 10)
+    min_version = (3, 9)
     current = sys.version_info[:2]
 
     # Check 1: Current Python version
