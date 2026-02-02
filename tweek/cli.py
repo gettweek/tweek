@@ -1317,17 +1317,19 @@ def uninstall(uninstall_global: bool, everything: bool, confirm: bool):
 # ─────────────────────────────────────────────────────────────
 
 
-def _detect_package_manager() -> str:
-    """Detect how tweek was installed and return the uninstall command, or empty string."""
+def _detect_all_package_managers() -> list:
+    """Detect all places tweek is installed. Returns list of uninstall commands."""
     import subprocess
 
-    # Check pipx first (most common)
+    found = []
+
+    # Check pipx
     try:
         result = subprocess.run(
             ["pipx", "list"], capture_output=True, text=True, timeout=5
         )
         if "tweek" in result.stdout:
-            return "pipx uninstall tweek"
+            found.append("pipx uninstall tweek")
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
@@ -1337,55 +1339,63 @@ def _detect_package_manager() -> str:
             ["uv", "tool", "list"], capture_output=True, text=True, timeout=5
         )
         if "tweek" in result.stdout:
-            return "uv tool uninstall tweek"
+            found.append("uv tool uninstall tweek")
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
-    # Fallback: pip (less reliable, could be system or user)
+    # Check pip
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pip", "show", "tweek"],
             capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0:
-            return "pip uninstall tweek"
+            found.append("pip uninstall tweek -y")
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
-    return ""
+    return found
 
 
 def _show_package_removal_hint():
-    """Offer to remove the tweek CLI package for the user."""
+    """Offer to remove all tweek CLI package installations for the user."""
     import subprocess
 
-    pkg_cmd = _detect_package_manager()
-    if not pkg_cmd:
+    pkg_cmds = _detect_all_package_managers()
+    if not pkg_cmds:
         return
 
     console.print()
     console.print("[bold yellow]The tweek CLI binary is still installed on your system.[/bold yellow]")
+
+    if len(pkg_cmds) > 1:
+        console.print(f"[dim]Found {len(pkg_cmds)} installations:[/dim]")
+        for cmd in pkg_cmds:
+            console.print(f"  [dim]• {cmd}[/dim]")
+
     console.print()
-    console.print(f"  [bold]1.[/bold] Remove it now ([bold]{pkg_cmd}[/bold])")
-    console.print(f"  [bold]2.[/bold] Keep it (you can remove later)")
+    label = " + ".join(f"[bold]{cmd}[/bold]" for cmd in pkg_cmds)
+    console.print(f"  [bold]1.[/bold] Remove all now ({label})")
+    console.print(f"  [bold]2.[/bold] Keep (you can remove later)")
     console.print()
     choice = click.prompt("Select", type=click.IntRange(1, 2), default=2)
 
     if choice == 1:
-        console.print()
-        console.print(f"[cyan]Running:[/cyan] {pkg_cmd}")
-        try:
-            result = subprocess.run(
-                pkg_cmd.split(), capture_output=True, text=True, timeout=30
-            )
-            if result.returncode == 0:
-                console.print("[green]✓[/green] Tweek package removed.")
-            else:
-                console.print(f"[red]✗[/red] Removal failed: {result.stderr.strip()}")
+        for pkg_cmd in pkg_cmds:
+            console.print()
+            console.print(f"[cyan]Running:[/cyan] {pkg_cmd}")
+            try:
+                result = subprocess.run(
+                    pkg_cmd.split(), capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    console.print(f"[green]✓[/green] Removed ({pkg_cmd})")
+                else:
+                    console.print(f"[red]✗[/red] Failed: {result.stderr.strip()}")
+                    console.print(f"  [dim]Run manually: {pkg_cmd}[/dim]")
+            except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+                console.print(f"[red]✗[/red] Could not run: {e}")
                 console.print(f"  [dim]Run manually: {pkg_cmd}[/dim]")
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
-            console.print(f"[red]✗[/red] Could not run command: {e}")
-            console.print(f"  [dim]Run manually: {pkg_cmd}[/dim]")
 
 
 def _has_tweek_at(target: Path) -> bool:
@@ -1670,11 +1680,21 @@ def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: 
 
     # Offer to remove data directory
     if tweek_dir.exists() and not confirm:
+        # Check if the OTHER scope still has tweek installed
+        global_target = Path("~/.claude").expanduser()
+        project_target = Path.cwd() / ".claude"
+        other_target = global_target if scope_label == "project" else project_target
+        other_label = "global" if scope_label == "project" else "project"
+        other_has_tweek = _has_tweek_at(other_target)
+
         console.print()
         console.print("[yellow]Also remove Tweek data directory (~/.tweek/)?[/yellow]")
         console.print("[dim]This contains config, patterns, security logs, and overrides.[/dim]")
+        if other_has_tweek:
+            console.print(f"[bold red]Warning:[/bold red] Tweek is still installed at {other_label} scope ({other_target}).")
+            console.print(f"  Removing ~/.tweek/ will affect that installation (no config, patterns, or logs).")
         console.print()
-        console.print(f"  [bold]1.[/bold] Keep data (can reinstall later without re-downloading patterns)")
+        console.print(f"  [bold]1.[/bold] Keep data (recommended)" if other_has_tweek else f"  [bold]1.[/bold] Keep data (can reinstall later without re-downloading patterns)")
         console.print(f"  [bold]2.[/bold] Remove data (~/.tweek/)")
         console.print()
         remove_choice = click.prompt("Select", type=click.IntRange(1, 2), default=1)
@@ -1687,7 +1707,6 @@ def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: 
                 console.print(f"  [dim]-[/dim] No data to remove")
     elif tweek_dir.exists():
         console.print("[dim]Tweek data directory (~/.tweek/) was preserved.[/dim]")
-        console.print("[dim]Use 'tweek uninstall' and select 'Everything' to remove all data.[/dim]")
 
 
 def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: Path, confirm: bool):
@@ -2138,6 +2157,23 @@ def doctor(verbose: bool, json_out: bool):
     Checks hooks, configuration, patterns, database, vault, sandbox,
     license, MCP, proxy, and plugin integrity.
     """
+    from tweek.diagnostics import run_health_checks
+    from tweek.cli_helpers import print_doctor_results, print_doctor_json
+
+    checks = run_health_checks(verbose=verbose)
+
+    if json_out:
+        print_doctor_json(checks)
+    else:
+        print_doctor_results(checks)
+
+
+# `tweek status` — alias for `tweek doctor`
+@main.command("status")
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed check information")
+@click.option("--json-output", "--json", "json_out", is_flag=True, help="Output results as JSON")
+def status(verbose: bool, json_out: bool):
+    """Show Tweek protection status (alias for 'tweek doctor')."""
     from tweek.diagnostics import run_health_checks
     from tweek.cli_helpers import print_doctor_results, print_doctor_json
 
