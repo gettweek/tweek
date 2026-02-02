@@ -4,7 +4,6 @@ Cross-platform vault using the keyring library.
 Backends by platform:
 - macOS: Keychain
 - Linux: Secret Service (GNOME Keyring, KWallet, KeePassXC)
-- Windows: Windows Credential Locker
 
 This replaces the macOS-specific keychain.py with a single implementation
 that works across all platforms.

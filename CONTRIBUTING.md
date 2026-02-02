@@ -69,8 +69,7 @@ cd tweek
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows
+source .venv/bin/activate
 ```
 
 ### 2. Install in Development Mode
@@ -333,7 +332,7 @@ How was this tested? What test cases were added?
 Open a [GitHub issue](https://github.com/gettweek/tweek/issues/new) with:
 
 - **Tweek version:** `tweek --version`
-- **OS and version:** macOS / Linux / Windows
+- **OS and version:** macOS / Linux
 - **Python version:** `python --version`
 - **Steps to reproduce** the bug
 - **Expected behavior** vs. **actual behavior**

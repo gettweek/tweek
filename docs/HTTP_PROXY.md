@@ -169,7 +169,6 @@ This command:
 |----------|-------------------|-------------|
 | macOS | `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain` | System Keychain |
 | Linux | Copies to `/usr/local/share/ca-certificates/tweek-proxy.crt`, runs `update-ca-certificates` | System CA bundle |
-| Windows | Manual installation required | Certificate Manager |
 
 Both macOS and Linux installation require `sudo` privileges.
 

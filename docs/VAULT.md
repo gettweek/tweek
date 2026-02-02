@@ -25,12 +25,12 @@ Tweek Vault provides cross-platform secure credential storage, eliminating the n
                           +----------+-----------+
                                      |
               +----------------------+----------------------+
-              |                      |                      |
-   +----------v-------+  +----------v--------+  +----------v---------+
-   | macOS Keychain    |  | Linux Secret       |  | Windows Credential |
-   | (security CLI)    |  | Service (GNOME     |  | Locker             |
-   |                   |  | Keyring / KWallet) |  |                    |
-   +-------------------+  +-------------------+  +--------------------+
+              |                      |
+   +----------v-------+  +----------v--------+
+   | macOS Keychain    |  | Linux Secret       |
+   | (security CLI)    |  | Service (GNOME     |
+   |                   |  | Keyring / KWallet) |
+   +-------------------+  +-------------------+
 ```
 
 ---
@@ -43,9 +43,8 @@ The primary vault implementation uses the Python `keyring` library, which provid
 
 | Platform | Backend | Service |
 |----------|---------|---------|
-| macOS | Keychain | GNOME Keyring, KWallet, KeePassXC via `secretstorage` |
+| macOS | Keychain | macOS Keychain via `keyring` |
 | Linux | Secret Service (D-Bus) | GNOME Keyring, KWallet, KeePassXC |
-| Windows | Windows Credential Locker | Built-in Windows Credential Manager |
 
 **Dependency:** `pip install keyring`
 

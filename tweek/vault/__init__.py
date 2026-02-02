@@ -4,7 +4,6 @@ Tweek Vault - Cross-platform secure credential storage.
 Uses the keyring library which provides:
 - macOS: Keychain
 - Linux: Secret Service (GNOME Keyring, KWallet)
-- Windows: Windows Credential Locker
 """
 
 from tweek.platform import PLATFORM, Platform

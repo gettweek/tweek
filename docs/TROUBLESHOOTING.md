@@ -130,7 +130,6 @@ backend availability.
 |----------|--------------------|---------------------------------------|
 | macOS    | macOS Keychain     | Built-in (no extra install)           |
 | Linux    | System keyring     | `keyring` package or Secret Service   |
-| Windows  | Windows Credential Store | Built-in (limited support)      |
 
 **Fix:** Install system keyring support for your platform if the vault is not
 detected.
@@ -441,12 +440,6 @@ Send the zip file to Tweek support or attach it to your GitHub issue.
 - Sandbox requires `firejail` or `bubblewrap` (optional)
 - Vault requires system keyring support
 - SELinux or AppArmor may interfere with firejail -- check system logs
-
-### Windows
-
-- Sandbox is not available
-- Vault uses Windows Credential Store (limited support)
-- Some patterns may behave differently with Windows paths
 
 ---
 

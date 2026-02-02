@@ -16,7 +16,7 @@
 - **Session anomaly detection** — 9 anomaly types including path escalation, behavior shift, capability aggregation
 - **Rate limiting** with burst detection, velocity anomaly, and circuit breaker
 - **Sandbox preview** — speculative execution on macOS (sandbox-exec) and Linux (firejail/bwrap)
-- **Credential vault** with OS keychain integration (macOS Keychain, GNOME Keyring, Windows Credential Locker)
+- **Credential vault** with OS keychain integration (macOS Keychain, GNOME Keyring)
 - **Agentic memory** — persistent cross-session learning from past security decisions with time-decay weighting, source trust tracking, workflow baselines, and learned whitelist suggestions (`tweek memory`)
 - **Security event logging** with automatic redaction to SQLite
 - **NDJSON structured log export** (for ELK/Splunk/Datadog)
@@ -74,14 +74,14 @@ The enforcement matrix is fully configurable via `overrides.yaml`. Project-level
 
 ## Platform Support
 
-| Feature | macOS | Linux | Windows |
-|---------|:-----:|:-----:|:-------:|
-| CLI Hooks | Yes | Yes | Yes |
-| Pattern Matching | Yes | Yes | Yes |
-| Language Detection | Yes | Yes | Yes |
-| Credential Vault | Keychain | Secret Service | Credential Locker |
-| Sandbox | sandbox-exec | firejail/bwrap | — |
-| HTTP Proxy | Yes | Yes | Yes |
-| MCP Proxy | Yes | Yes | Yes |
+| Feature | macOS | Linux |
+|---------|:-----:|:-----:|
+| CLI Hooks | Yes | Yes |
+| Pattern Matching | Yes | Yes |
+| Language Detection | Yes | Yes |
+| Credential Vault | Keychain | Secret Service |
+| Sandbox | sandbox-exec | firejail/bwrap |
+| HTTP Proxy | Yes | Yes |
+| MCP Proxy | Yes | Yes |
 
-**Requirements:** Python 3.9+
+**Requirements:** Python 3.9+, macOS or Linux. Windows is not supported.

@@ -4,7 +4,8 @@ Platform detection and cross-platform support for Tweek.
 Tweek supports:
 - macOS: Full support (Keychain via keyring, sandbox-exec)
 - Linux: Full support (Secret Service via keyring, firejail optional)
-- Windows: Partial support (Credential Locker via keyring, no sandbox)
+
+Windows is not supported.
 """
 from __future__ import annotations
 
@@ -93,9 +94,7 @@ def get_vault_backend() -> str:
         return "macOS Keychain"
     elif IS_LINUX:
         return "Secret Service (GNOME Keyring/KWallet)"
-    elif IS_WINDOWS:
-        return "Windows Credential Locker"
-    return "Unknown"
+    return "Not supported"
 
 
 def get_capabilities() -> PlatformCapabilities:

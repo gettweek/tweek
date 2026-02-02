@@ -242,7 +242,6 @@ tweek config diff trusted              # Show changes if trusted preset applied
 Manage credentials in secure storage. Backend depends on platform:
 - **macOS:** Keychain
 - **Linux:** Secret Service (GNOME Keyring, KWallet)
-- **Windows:** Windows Credential Locker
 
 See [VAULT.md](VAULT.md) for architecture details.
 
