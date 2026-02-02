@@ -54,7 +54,7 @@ pip install --user tweek
 
 ```bash
 tweek install                           # Claude Code (CLI hooks)
-tweek protect moltbot                   # Moltbook (HTTP proxy)
+tweek protect openclaw                  # OpenClaw (HTTP proxy)
 tweek mcp install claude-desktop        # Claude Desktop (MCP proxy)
 tweek mcp install chatgpt-desktop       # ChatGPT Desktop (MCP proxy)
 tweek mcp install gemini                # Gemini CLI (MCP proxy)
@@ -76,7 +76,7 @@ That's it. Tweek auto-detects your tools, applies all 259 attack patterns across
 | Client | Integration | Setup |
 |--------|------------|-------|
 | **Claude Code** | CLI hooks (native) | `tweek install` |
-| **Moltbot** | Proxy wrapping | `tweek protect moltbot` |
+| **OpenClaw** | Proxy wrapping | `tweek protect openclaw` |
 | **Claude Desktop** | MCP proxy | `tweek mcp install claude-desktop` |
 | **ChatGPT Desktop** | MCP proxy | `tweek mcp install chatgpt-desktop` |
 | **Gemini CLI** | MCP proxy | `tweek mcp install gemini` |
@@ -110,6 +110,45 @@ Turn 3: cat ~/.ssh/id_rsa → BLOCKED: path_escalation anomaly
 **Response injection** — Malicious instructions hidden in tool responses are caught at ingestion.
 
 See the full [Attack Patterns Reference](docs/ATTACK_PATTERNS.md) for all 259 patterns across 22 categories.
+
+---
+
+## Built-in AI — No Cloud Required
+
+Most security tools that use AI send your data to an API. Tweek doesn't.
+
+Tweek ships with a **custom-trained prompt injection classifier** ([DeBERTa-v3-base](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2)) that runs entirely on your machine via ONNX Runtime. No API keys. No cloud calls. No data leaves your computer.
+
+| Property | Value |
+|----------|-------|
+| **Model** | DeBERTa-v3-base, fine-tuned for prompt injection |
+| **Runtime** | ONNX (CPU-only, single thread) |
+| **Privacy** | 100% on-device — zero network calls |
+| **License** | Apache 2.0 |
+
+The local model handles the gray-area attacks that pattern matching alone cannot catch — encoded instructions, novel injection techniques, social engineering disguised as legitimate content. High-confidence results are returned instantly. Uncertain results can optionally escalate to a cloud LLM for deeper analysis (you bring your own API key).
+
+```bash
+tweek model download   # one-time download
+tweek doctor           # verify everything works
+```
+
+---
+
+## Enterprise Compliance Plugins
+
+Six domain-specific compliance plugins for regulated environments:
+
+| Plugin | What It Detects |
+|--------|----------------|
+| **HIPAA** | Protected Health Information — MRNs, diagnosis codes, prescriptions |
+| **PCI** | Payment card data — credit card numbers (with Luhn validation), CVVs |
+| **GDPR** | EU personal data — names with PII context, data subject identifiers |
+| **SOC2** | Security controls — API keys in logs, audit log tampering |
+| **Gov** | Classification markings — TS, SECRET, CUI, FOUO indicators |
+| **Legal** | Privilege markers — attorney-client privilege, confidentiality notices |
+
+Compliance plugins scan both directions — what your AI receives and what it generates. Enterprise licensing required.
 
 ---
 
@@ -179,7 +218,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security
 
-Tweek runs **100% locally**. Your code never leaves your machine. All screening, pattern matching, logging, and AI-powered prompt injection detection happens on-device. The built-in classification models run entirely on your hardware — no API calls, no cloud, no data exfiltration risk from the security tool itself.
+Tweek runs **100% locally**. Your code never leaves your machine. All screening, pattern matching, logging, and AI-powered prompt injection detection happens on-device. The built-in DeBERTa-v3 classification model runs entirely on your hardware via ONNX Runtime — no API calls, no cloud, no data exfiltration risk from the security tool itself.
 
 To report a security vulnerability, email security@gettweek.com.
 
