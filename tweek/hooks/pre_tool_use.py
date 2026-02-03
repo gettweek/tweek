@@ -54,6 +54,7 @@ from tweek.skills.guard import (
 )
 from tweek.skills.fingerprints import get_fingerprints
 from tweek.sandbox.project import get_project_sandbox
+from tweek.plugins.base import ReDoSProtection, RegexTimeoutError
 
 
 # =============================================================================
@@ -579,6 +580,21 @@ class PatternMatcher:
                 extra = self._load_patterns(user_patterns)
                 self._merge_patterns(extra)
 
+        # Pre-compile all regex patterns for performance and ReDoS protection.
+        # These are our own trusted patterns (not user-supplied), so skip
+        # ReDoS validation during compilation (validate=False).
+        self._compiled_patterns: List[Tuple[re.Pattern, dict]] = []
+        for pattern in self.patterns:
+            regex = pattern.get("regex", "")
+            if not regex:
+                continue
+            try:
+                compiled = re.compile(regex, re.IGNORECASE | re.DOTALL)
+                self._compiled_patterns.append((compiled, pattern))
+            except re.error:
+                # Skip invalid patterns at compile time
+                continue
+
     def _merge_patterns(self, extra_patterns: List[dict]):
         """Merge additional patterns into existing set (additive).
 
@@ -615,25 +631,33 @@ class PatternMatcher:
         """Check content against all patterns.
 
         Returns the first matching pattern, or None.
+        Uses timeout-protected regex execution to prevent ReDoS.
         """
         content = self._normalize(content)
-        for pattern in self.patterns:
+        if len(content) > ReDoSProtection.MAX_INPUT_LENGTH:
+            content = content[:ReDoSProtection.MAX_INPUT_LENGTH]
+        for compiled, pattern in self._compiled_patterns:
             try:
-                if re.search(pattern.get("regex", ""), content, re.IGNORECASE | re.DOTALL):
+                if ReDoSProtection.safe_search(compiled, content, timeout=2.0):
                     return pattern
-            except re.error:
+            except (RegexTimeoutError, re.error):
                 continue
         return None
 
     def check_all(self, content: str) -> List[dict]:
-        """Check content against all patterns, returning all matches."""
+        """Check content against all patterns, returning all matches.
+
+        Uses timeout-protected regex execution to prevent ReDoS.
+        """
         content = self._normalize(content)
+        if len(content) > ReDoSProtection.MAX_INPUT_LENGTH:
+            content = content[:ReDoSProtection.MAX_INPUT_LENGTH]
         matches = []
-        for pattern in self.patterns:
+        for compiled, pattern in self._compiled_patterns:
             try:
-                if re.search(pattern.get("regex", ""), content, re.IGNORECASE | re.DOTALL):
+                if ReDoSProtection.safe_search(compiled, content, timeout=2.0):
                     matches.append(pattern)
-            except re.error:
+            except (RegexTimeoutError, re.error):
                 continue
         return matches
 

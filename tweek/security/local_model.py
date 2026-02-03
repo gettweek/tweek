@@ -88,6 +88,7 @@ class LocalModelInference:
         self._tokenizer: Optional[object] = None  # Tokenizer
         self._lock = threading.Lock()
         self._loaded = False
+        self._integrity_verified = False
 
         # Load metadata
         self._label_map: Dict[int, str] = {}
@@ -175,6 +176,26 @@ class LocalModelInference:
 
             # Load metadata
             self._load_metadata()
+
+            # Verify model file integrity (SHA-256 checksums)
+            if not self._integrity_verified:
+                try:
+                    from tweek.security.model_registry import verify_model_hashes
+                    hash_results = verify_model_hashes(self._model_name)
+                    mismatched = [
+                        f for f, status in hash_results.items()
+                        if status == "mismatch"
+                    ]
+                    if mismatched:
+                        raise RuntimeError(
+                            f"Model integrity check failed for: "
+                            f"{', '.join(mismatched)}. "
+                            f"Files may be corrupted or tampered with. "
+                            f"Run 'tweek model download --force' to re-download."
+                        )
+                    self._integrity_verified = True
+                except ImportError:
+                    pass  # model_registry not available; skip verification
 
             self._loaded = True
 

@@ -12,14 +12,34 @@ The AI agent cannot execute `tweek override` — it requires a
 separate CLI invocation by a human operator.
 """
 
+import fcntl
 import json
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
 
 
 BREAK_GLASS_PATH = Path.home() / ".tweek" / "break_glass.json"
+BREAK_GLASS_LOCK = Path.home() / ".tweek" / ".break_glass.lock"
+
+
+@contextmanager
+def _file_lock():
+    """Acquire exclusive file lock for break-glass state read-modify-write.
+
+    Prevents race conditions when concurrent hook calls try to consume
+    the same single-use override simultaneously.
+    """
+    BREAK_GLASS_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = open(BREAK_GLASS_LOCK, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 
 
 def _load_state() -> Dict:
@@ -62,26 +82,27 @@ def create_override(
     Returns:
         The created override dict.
     """
-    state = _load_state()
-    now = datetime.now(timezone.utc)
+    with _file_lock():
+        state = _load_state()
+        now = datetime.now(timezone.utc)
 
-    override = {
-        "pattern": pattern_name,
-        "mode": mode,
-        "reason": reason,
-        "created_at": now.isoformat(),
-        "expires_at": None,
-        "used": False,
-        "used_at": None,
-    }
+        override = {
+            "pattern": pattern_name,
+            "mode": mode,
+            "reason": reason,
+            "created_at": now.isoformat(),
+            "expires_at": None,
+            "used": False,
+            "used_at": None,
+        }
 
-    if mode == "duration" and duration_minutes:
-        expires = now + timedelta(minutes=duration_minutes)
-        override["expires_at"] = expires.isoformat()
+        if mode == "duration" and duration_minutes:
+            expires = now + timedelta(minutes=duration_minutes)
+            override["expires_at"] = expires.isoformat()
 
-    state["overrides"].append(override)
-    _save_state(state)
-    return override
+        state["overrides"].append(override)
+        _save_state(state)
+        return override
 
 
 def check_override(pattern_name: str) -> Optional[Dict]:
@@ -93,38 +114,39 @@ def check_override(pattern_name: str) -> Optional[Dict]:
 
     Returns the override dict if valid, None otherwise.
     """
-    state = _load_state()
-    now = datetime.now(timezone.utc)
-    found = None
+    with _file_lock():
+        state = _load_state()
+        now = datetime.now(timezone.utc)
+        found = None
 
-    for override in state["overrides"]:
-        if override["pattern"] != pattern_name:
-            continue
-
-        # Skip already-consumed single-use overrides
-        if override["mode"] == "once" and override.get("used"):
-            continue
-
-        # Check expiry for duration-based overrides
-        if override.get("expires_at"):
-            try:
-                expires = datetime.fromisoformat(override["expires_at"])
-                if now > expires:
-                    continue
-            except (ValueError, TypeError):
+        for override in state["overrides"]:
+            if override["pattern"] != pattern_name:
                 continue
 
-        found = override
-        break
+            # Skip already-consumed single-use overrides
+            if override["mode"] == "once" and override.get("used"):
+                continue
 
-    if found:
-        # Consume single-use overrides
-        if found["mode"] == "once":
-            found["used"] = True
-            found["used_at"] = now.isoformat()
-            _save_state(state)
+            # Check expiry for duration-based overrides
+            if override.get("expires_at"):
+                try:
+                    expires = datetime.fromisoformat(override["expires_at"])
+                    if now > expires:
+                        continue
+                except (ValueError, TypeError):
+                    continue
 
-    return found
+            found = override
+            break
+
+        if found:
+            # Consume single-use overrides
+            if found["mode"] == "once":
+                found["used"] = True
+                found["used_at"] = now.isoformat()
+                _save_state(state)
+
+        return found
 
 
 def list_overrides() -> List[Dict]:
@@ -156,8 +178,9 @@ def list_active_overrides() -> List[Dict]:
 
 def clear_overrides() -> int:
     """Remove all overrides. Returns count of removed overrides."""
-    state = _load_state()
-    count = len(state.get("overrides", []))
-    state["overrides"] = []
-    _save_state(state)
-    return count
+    with _file_lock():
+        state = _load_state()
+        count = len(state.get("overrides", []))
+        state["overrides"] = []
+        _save_state(state)
+        return count

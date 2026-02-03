@@ -91,6 +91,15 @@ class LocalModelReviewerPlugin(ScreeningPlugin):
                 reason=f"Local model inference error: {e}",
             )
 
+        # F6: Force cloud LLM escalation for dangerous-tier commands.
+        # A poisoned local model could produce high-confidence false negatives.
+        # When always_escalate_dangerous is enabled, override the local model's
+        # should_escalate to True for dangerous-tier commands.
+        tier = context.get("tier", "default")
+        always_escalate = (self._config or {}).get("always_escalate_dangerous", True)
+        if tier == "dangerous" and always_escalate and not result.should_escalate:
+            result.should_escalate = True
+
         # Map risk levels to screening result
         risk_severity_map = {
             "safe": Severity.LOW,

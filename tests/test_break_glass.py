@@ -522,3 +522,68 @@ class TestExpiryBehavior:
 
         active = list_active_overrides()
         assert len(active) == 0
+
+
+# =============================================================================
+# FILE LOCKING TESTS (F4)
+# =============================================================================
+
+class TestFileLocking:
+    """Tests for fcntl.flock-based file locking in break-glass operations."""
+
+    def test_lock_file_created(self, isolate_state):
+        """Lock file should be created during break-glass operations."""
+        from tweek.hooks.break_glass import BREAK_GLASS_LOCK
+        create_override(pattern_name="lock_test", mode="once", reason="test")
+        assert BREAK_GLASS_LOCK.parent.exists()
+
+    def test_concurrent_single_use_override(self, isolate_state):
+        """Two threads consuming the same single-use override: exactly one should get it."""
+        import threading
+
+        create_override(pattern_name="concurrent_test", mode="once", reason="test")
+
+        results = []
+        errors = []
+
+        def check_in_thread():
+            try:
+                result = check_override("concurrent_test")
+                results.append(result)
+            except Exception as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=check_in_thread)
+        t2 = threading.Thread(target=check_in_thread)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        assert len(errors) == 0
+        assert len(results) == 2
+        # Exactly one thread should get the override, the other gets None
+        non_none = [r for r in results if r is not None]
+        nones = [r for r in results if r is None]
+        assert len(non_none) == 1
+        assert len(nones) == 1
+        assert non_none[0]["pattern"] == "concurrent_test"
+
+    def test_existing_tests_still_pass_with_locking(self, isolate_state):
+        """Basic create/check/clear cycle works with file locking."""
+        override = create_override(
+            pattern_name="basic_lock_test", mode="once", reason="verify locking"
+        )
+        assert override["pattern"] == "basic_lock_test"
+
+        result = check_override("basic_lock_test")
+        assert result is not None
+        assert result["used"] is True
+
+        # Second check should return None (consumed)
+        result2 = check_override("basic_lock_test")
+        assert result2 is None
+
+        # Clear should work
+        count = clear_overrides()
+        assert count >= 1

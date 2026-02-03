@@ -1138,6 +1138,7 @@ Do not include any other text or explanation."""
         api_key_env: Optional[str] = None,
         local_config: Optional[Dict[str, Any]] = None,
         fallback_config: Optional[Dict[str, Any]] = None,
+        fail_mode: str = "open",
     ):
         """Initialize the LLM reviewer.
 
@@ -1151,8 +1152,10 @@ Do not include any other text or explanation."""
             api_key_env: Override which env var to read for the API key
             local_config: Config for local LLM server detection (Ollama/LM Studio)
             fallback_config: Config for fallback chain behavior
+            fail_mode: Behavior when LLM unavailable: "open", "closed", or "escalate"
         """
         self.timeout = timeout
+        self._fail_mode = fail_mode
         self._provider_instance: Optional[ReviewProvider] = None
 
         if enabled:
@@ -1309,40 +1312,61 @@ Do not include any other text or explanation."""
             )
 
         except ReviewProviderError as e:
-            # Infrastructure errors (auth, network, rate limit, timeout) should
-            # NOT block the user with a scary dialog. Pattern matching is the
-            # primary defense; LLM review is a supplementary layer. Gracefully
-            # degrade and let pattern matching handle it.
             import sys
             error_type = "timeout" if e.is_timeout else "provider_error"
             print(
                 f"tweek: LLM review unavailable ({self.provider_name}): {e}",
                 file=sys.stderr,
             )
-            return LLMReviewResult(
-                risk_level=RiskLevel.SAFE,
-                reason=f"LLM review unavailable ({self.provider_name}): {e}",
-                confidence=0.0,
-                details={"error": error_type, "provider": self.provider_name,
-                         "graceful_degradation": True},
-                should_prompt=False
-            )
+            return self._build_fail_result(error_type, str(e))
 
         except Exception as e:
-            # Unexpected error — also degrade gracefully. Pattern matching
-            # already ran; don't punish the user for an LLM config issue.
             import sys
             print(
                 f"tweek: LLM review error: {e}",
                 file=sys.stderr,
             )
+            return self._build_fail_result("unexpected_error", str(e))
+
+    def _build_fail_result(self, error_type: str, error_msg: str) -> LLMReviewResult:
+        """Build an LLMReviewResult based on the configured fail_mode.
+
+        Args:
+            error_type: Type of error (timeout, provider_error, unexpected_error)
+            error_msg: Human-readable error message
+
+        Returns:
+            LLMReviewResult configured per self._fail_mode:
+            - "open": SAFE, should_prompt=False (default, backward compatible)
+            - "closed": DANGEROUS, should_prompt=True (hard block)
+            - "escalate": SUSPICIOUS, should_prompt=True (ask user)
+        """
+        if self._fail_mode == "closed":
+            return LLMReviewResult(
+                risk_level=RiskLevel.DANGEROUS,
+                reason=f"LLM review unavailable; fail-closed policy active ({error_msg})",
+                confidence=0.0,
+                details={"error": error_type, "provider": self.provider_name,
+                         "fail_mode": "closed"},
+                should_prompt=True,
+            )
+        elif self._fail_mode == "escalate":
+            return LLMReviewResult(
+                risk_level=RiskLevel.SUSPICIOUS,
+                reason=f"LLM review unavailable; escalating to user ({error_msg})",
+                confidence=0.0,
+                details={"error": error_type, "provider": self.provider_name,
+                         "fail_mode": "escalate"},
+                should_prompt=True,
+            )
+        else:  # "open" (default, backward compatible)
             return LLMReviewResult(
                 risk_level=RiskLevel.SAFE,
-                reason=f"LLM review unavailable (unexpected error): {e}",
+                reason=f"LLM review unavailable ({self.provider_name}): {error_msg}",
                 confidence=0.0,
-                details={"error": str(e), "provider": self.provider_name,
-                         "graceful_degradation": True},
-                should_prompt=False
+                details={"error": error_type, "provider": self.provider_name,
+                         "graceful_degradation": True, "fail_mode": "open"},
+                should_prompt=False,
             )
 
     # Translation prompt for non-English skill/content audit
@@ -1464,6 +1488,7 @@ def get_llm_reviewer(
         # Load local/fallback config from tiers.yaml
         local_config = None
         fallback_config = None
+        fail_mode = "open"
         try:
             import yaml
             tiers_path = Path(__file__).parent.parent / "config" / "tiers.yaml"
@@ -1484,6 +1509,7 @@ def get_llm_reviewer(
                     api_key_env = llm_cfg.get("api_key_env")
                 if enabled:
                     enabled = llm_cfg.get("enabled", True)
+                fail_mode = llm_cfg.get("fail_mode", "open")
         except Exception:
             pass  # Config loading is best-effort
 
@@ -1495,6 +1521,7 @@ def get_llm_reviewer(
             api_key_env=api_key_env,
             local_config=local_config,
             fallback_config=fallback_config,
+            fail_mode=fail_mode,
         )
     return _llm_reviewer
 

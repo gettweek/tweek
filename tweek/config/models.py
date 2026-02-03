@@ -53,6 +53,21 @@ class PatternConfidence(str, Enum):
     CONTEXTUAL = "contextual"
 
 
+class LLMFailMode(str, Enum):
+    """Behavior when LLM review is unavailable (provider errors, timeouts).
+
+    OPEN: Degrade gracefully, return SAFE (current default behavior).
+          Pattern matching remains the primary defense.
+    CLOSED: Hard block -- return DANGEROUS with should_prompt=True.
+            Use when LLM review is considered a mandatory gate.
+    ESCALATE: Return SUSPICIOUS with should_prompt=True (triggers ASK).
+              Recommended middle ground for security-sensitive environments.
+    """
+    OPEN = "open"
+    CLOSED = "closed"
+    ESCALATE = "escalate"
+
+
 # ============================================================================
 # Configuration Section Models
 # ============================================================================
@@ -88,6 +103,10 @@ class LLMReviewConfig(BaseModel):
     base_url: Optional[str] = None
     api_key_env: Optional[str] = None
     timeout_seconds: float = Field(default=15.0, gt=0)
+    fail_mode: LLMFailMode = Field(
+        default=LLMFailMode.OPEN,
+        description="Behavior when LLM review is unavailable: open, closed, or escalate",
+    )
     local: LLMReviewLocalConfig = Field(default_factory=LLMReviewLocalConfig)
     fallback: LLMReviewFallbackConfig = Field(default_factory=LLMReviewFallbackConfig)
 

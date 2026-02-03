@@ -377,6 +377,8 @@ def verify_model(name: str) -> Dict[str, bool]:
 
     status["model_meta.yaml"] = (model_dir / "model_meta.yaml").exists()
 
+    return status
+
 
 def verify_model_hashes(name: str) -> Dict[str, Optional[str]]:
     """Verify SHA-256 integrity of an installed model's files.
@@ -412,8 +414,6 @@ def verify_model_hashes(name: str) -> Dict[str, Optional[str]]:
             results[filename] = "ok" if actual == expected else "mismatch"
 
     return results
-
-    return status
 
 
 def get_model_size(name: str) -> Optional[int]:
