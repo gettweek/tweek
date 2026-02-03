@@ -705,11 +705,17 @@ class TestEdgeCases:
 # =============================================================================
 
 from unittest.mock import patch, MagicMock, PropertyMock
-import numpy as np
 import importlib
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
 
 
 @pytest.mark.local_model
+@pytest.mark.skipif(not HAS_NUMPY, reason="numpy not installed")
 class TestSoftmax:
     """Unit tests for the _softmax() function."""
 
@@ -1106,6 +1112,7 @@ class TestUnload:
 
 
 @pytest.mark.local_model
+@pytest.mark.skipif(not HAS_NUMPY, reason="numpy not installed")
 class TestPredictMocked:
     """Test predict() method with fully mocked ONNX session and tokenizer."""
 
