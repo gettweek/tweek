@@ -284,6 +284,32 @@ def screen_content(
         except Exception:
             pass
 
+    # Provenance: escalate session taint based on findings
+    if (findings or llm_finding) and session_id:
+        try:
+            from tweek.memory.provenance import get_taint_store, severity_to_taint
+            _taint_store = get_taint_store()
+            if findings:
+                _highest_sev = max(
+                    findings,
+                    key=lambda f: {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(f["severity"], 0)
+                )["severity"]
+            else:
+                _highest_sev = llm_finding.get("risk_level", "medium")
+            _taint_level = severity_to_taint(_highest_sev)
+            _taint_source = tool_input.get("file_path") or tool_input.get("url") or "unknown"
+            _taint_reason = f"{len(findings)} pattern(s) found"
+            if findings:
+                _taint_reason += f": {findings[0]['pattern_name']}"
+            _taint_store.record_taint(
+                session_id=session_id,
+                taint_level=_taint_level,
+                source=f"{tool_name}:{_taint_source}",
+                reason=_taint_reason,
+            )
+        except Exception:
+            pass  # Provenance is best-effort
+
     # Step 5: Content redaction for critical deterministic matches
     # Replace matched content with [REDACTED] to prevent AI from acting on it
     redacted_content = None
@@ -385,6 +411,16 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
         if whitelist_match:
             return {}
 
+    # Provenance: record external ingest for content-source tools
+    try:
+        from tweek.memory.provenance import get_taint_store, EXTERNAL_SOURCE_TOOLS
+        if session_id and tool_name in EXTERNAL_SOURCE_TOOLS:
+            _taint_store = get_taint_store()
+            _source = tool_input.get("file_path") or tool_input.get("url") or tool_name
+            _taint_store.record_external_ingest(session_id, f"{tool_name}:{_source}")
+    except Exception:
+        pass  # Provenance is best-effort
+
     # Extract text content from the response
     content = extract_response_content(tool_name, tool_response)
 
@@ -422,6 +458,15 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
 
 def main():
     """Read hook input from stdin, process, and output decision."""
+    # Check if post_tool_use hook is enabled for this directory
+    try:
+        from tweek.hooks.pre_tool_use import check_hook_enabled
+        if not check_hook_enabled("post_tool_use"):
+            print("{}")
+            return
+    except ImportError:
+        pass  # If import fails, default to enabled (fail safe)
+
     try:
         raw = sys.stdin.read()
         if not raw.strip():

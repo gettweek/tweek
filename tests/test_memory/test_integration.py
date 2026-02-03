@@ -105,11 +105,14 @@ class TestResolveEnforcementWithMemory:
             "confidence": "heuristic",
         }
 
+        # Use taint_level="low" to isolate from provenance layer
+        # (clean sessions relax high+heuristic to "log")
         result = _resolve_enforcement(
             pattern_match=pattern_match,
             enforcement_policy=None,
             has_non_pattern_trigger=False,
             memory_adjustment=None,
+            taint_level="low",
         )
         assert result == "ask"
 

@@ -247,9 +247,9 @@ class TestResolveEnforcement:
         from tweek.hooks import break_glass
         monkeypatch.setattr(break_glass, "BREAK_GLASS_PATH", tmp_path / "bg.json")
 
-    def _resolve(self, pattern_match, policy=None, has_non_pattern=False):
+    def _resolve(self, pattern_match, policy=None, has_non_pattern=False, taint_level="low"):
         from tweek.hooks.pre_tool_use import _resolve_enforcement
-        return _resolve_enforcement(pattern_match, policy, has_non_pattern)
+        return _resolve_enforcement(pattern_match, policy, has_non_pattern, taint_level=taint_level)
 
     def test_critical_deterministic_deny(self):
         match = {"severity": "critical", "confidence": "deterministic", "name": "ssh_key_read"}
@@ -360,15 +360,21 @@ class TestResolveEnforcementBreakGlass:
         assert _resolve_enforcement(match, EnforcementPolicy()) == "deny"
 
     def test_break_glass_only_affects_deny(self):
-        """Break-glass has no effect on 'ask' decisions."""
+        """Break-glass has no effect on 'ask' decisions.
+
+        Note: In clean sessions, high+heuristic is relaxed to "log" by
+        the provenance taint adjustment (BALANCED_CLEAN_OVERRIDES).
+        Break-glass only operates on "deny" decisions.
+        """
         from tweek.hooks.break_glass import create_override
         from tweek.hooks.pre_tool_use import _resolve_enforcement
 
         create_override(pattern_name="test_pattern", mode="once", reason="test")
 
         match = {"severity": "high", "confidence": "heuristic", "name": "test_pattern"}
-        # high+heuristic = "ask" by default, break-glass doesn't change it
-        assert _resolve_enforcement(match, EnforcementPolicy()) == "ask"
+        # high+heuristic → "ask" by policy → "log" by taint adjustment (clean session)
+        # break-glass only triggers for "deny", so no effect here
+        assert _resolve_enforcement(match, EnforcementPolicy()) == "log"
 
 
 # =========================================================================

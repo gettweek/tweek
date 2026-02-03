@@ -264,6 +264,7 @@ def _resolve_enforcement(
     enforcement_policy: Optional[EnforcementPolicy],
     has_non_pattern_trigger: bool = False,
     memory_adjustment: Optional[Dict] = None,
+    taint_level: str = "clean",
 ) -> str:
     """Determine the enforcement decision based on severity + confidence.
 
@@ -296,6 +297,7 @@ def _resolve_enforcement(
         decision = "ask"
 
     # Break-glass: downgrade "deny" to "ask" if active override exists
+    break_glass_used = False
     if decision == "deny":
         try:
             from tweek.hooks.break_glass import check_override
@@ -318,6 +320,7 @@ def _resolve_enforcement(
                     },
                 )
                 decision = "ask"  # Downgrade deny → ask (user still sees prompt)
+                break_glass_used = True
         except ImportError:
             pass  # Break-glass module not available
 
@@ -336,6 +339,21 @@ def _resolve_enforcement(
                 )
         except Exception:
             pass  # Memory is best-effort
+
+    # Provenance-based adjustment: modify decision based on session taint
+    # Skip when break-glass is active — explicit user overrides take priority
+    if not break_glass_used:
+        try:
+            from tweek.memory.provenance import adjust_enforcement_for_taint
+            if pattern_match:
+                decision = adjust_enforcement_for_taint(
+                    base_decision=decision,
+                    severity=severity,
+                    confidence=confidence,
+                    taint_level=taint_level,
+                )
+        except Exception:
+            pass  # Provenance is best-effort
 
     return decision
 
@@ -362,15 +380,25 @@ class TierManager:
             return yaml.safe_load(f) or {}
 
     def get_base_tier(self, tool_name: str, skill_name: Optional[str] = None) -> str:
-        """Get the base tier for a tool or skill."""
-        # Skills override tools if specified
+        """Get the base tier for a tool or skill.
+
+        Skills can only ESCALATE a tool's tier, never relax it.
+        This prevents a safe skill from disabling screening on dangerous tools.
+        For example, the 'explore' skill (safe) cannot downgrade Bash (dangerous).
+        But the 'deploy' skill (dangerous) can escalate Read (default) to dangerous.
+        """
+        tier_priority = {"safe": 0, "default": 1, "risky": 2, "dangerous": 3}
+
+        # Start with the tool's inherent tier
+        tool_tier = self.tools.get(tool_name, self.default_tier)
+
         if skill_name and skill_name in self.skills:
-            return self.skills[skill_name]
+            skill_tier = self.skills[skill_name]
+            # Skill can only escalate, never relax
+            if tier_priority.get(skill_tier, 1) > tier_priority.get(tool_tier, 1):
+                return skill_tier
 
-        if tool_name in self.tools:
-            return self.tools[tool_name]
-
-        return self.default_tier
+        return tool_tier
 
     def check_escalations(self, content: str) -> Optional[Dict]:
         """Check if content triggers any escalation patterns.
@@ -878,6 +906,39 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         pass
 
     # =========================================================================
+    # SKILL CONTEXT TRACKING: Detect active skill from Skill tool invocations
+    # When Claude invokes the Skill tool, we extract the skill name and write
+    # a breadcrumb. Subsequent tool calls read it for tier/memory context.
+    # =========================================================================
+    _active_skill = None
+    try:
+        from tweek.skills.context import (
+            extract_skill_from_tool_input,
+            write_skill_breadcrumb,
+            read_skill_context,
+        )
+
+        if tool_name == "Skill" and session_id:
+            # Skill tool invocation — extract and record the active skill
+            skill = extract_skill_from_tool_input(tool_input)
+            if skill:
+                write_skill_breadcrumb(skill, session_id)
+                _active_skill = skill
+                _log(
+                    EventType.SCREENING_COMPLETE,
+                    tool_name,
+                    decision="allow",
+                    decision_reason=f"Skill context recorded: {skill}",
+                    metadata={"skill_context": skill},
+                )
+        elif session_id:
+            # Non-Skill tool — check for active skill breadcrumb
+            _active_skill = read_skill_context(session_id)
+    except Exception:
+        # Skill context is best-effort — never break the hook
+        _active_skill = None
+
+    # =========================================================================
     # SELF-PROTECTION: Block AI from modifying security override config
     # This file can only be edited by a human directly.
     # =========================================================================
@@ -1112,9 +1173,10 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     tier_mgr = _get_tier_manager()
     pattern_matcher = _get_pattern_matcher()
 
-    # Determine effective tier
+    # Determine effective tier (skill context overrides tool tier if configured)
     effective_tier, escalation = tier_mgr.get_effective_tier(
         tool_name, content,
+        skill_name=_active_skill,
         target_paths=target_paths,
         working_dir=working_dir,
     )
@@ -1191,6 +1253,23 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             decision_reason=escalation.get("description"),
             metadata={"escalation": escalation}
         )
+
+    # =========================================================================
+    # PROVENANCE: Record tool call and get session taint level
+    # Tracks every tool call for taint decay; provides taint_level for
+    # enforcement adjustment later in the pipeline.
+    # =========================================================================
+    # Default to "low" when no session tracking — clean session relaxation
+    # requires active provenance tracking as a safety prerequisite.
+    _session_taint_level = "low"
+    try:
+        from tweek.memory.provenance import get_taint_store
+        if session_id:
+            _taint_store = get_taint_store()
+            _taint_state = _taint_store.record_tool_call(session_id, tool_name)
+            _session_taint_level = _taint_state.get("taint_level", "clean")
+    except Exception:
+        _session_taint_level = "low"  # Provenance unavailable — no relaxation
 
     # =========================================================================
     # LAYER 1: Rate Limiting
@@ -1538,7 +1617,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     if pattern_match or llm_triggered or session_triggered or sandbox_triggered or compliance_triggered:
         # Determine graduated enforcement decision
         has_non_pattern = llm_triggered or session_triggered or sandbox_triggered or compliance_triggered
-        decision = _resolve_enforcement(pattern_match, enforcement_policy, has_non_pattern, memory_adjustment)
+        decision = _resolve_enforcement(pattern_match, enforcement_policy, has_non_pattern, memory_adjustment, _session_taint_level)
 
         # Build the warning message for ask/deny decisions
         final_msg = format_prompt_message(
@@ -1721,53 +1800,50 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     return {}
 
 
-def check_allowed_directory() -> bool:
+def check_hook_enabled(hook_name: str = "pre_tool_use") -> bool:
     """
-    Check if current working directory is in the allowed list.
+    Check if a Tweek hook should run in the current working directory.
 
-    This is a SAFETY CHECK to prevent Tweek from accidentally
-    running in production or other directories.
+    Looks for a .tweek.yaml file in the project root (cwd). This file
+    is created during `tweek protect claude-code` with hooks enabled
+    by default. Users can manually set hooks to false to disable
+    screening in a specific directory.
+
+    .tweek.yaml format:
+        hooks:
+          pre_tool_use: true    # set false to disable pre-screening
+          post_tool_use: true   # set false to disable post-screening
+
+    If no .tweek.yaml exists, hooks are ENABLED (protected by default).
+    This file is protected by Tweek self-protection — only a human
+    can create or edit it.
+
+    Args:
+        hook_name: "pre_tool_use" or "post_tool_use"
 
     Returns:
-        True if Tweek should activate, False to pass through
+        True if the hook should run, False to skip
     """
-    config_path = Path(__file__).parent.parent / "config" / "allowed_dirs.yaml"
+    tweek_config = Path.cwd() / ".tweek.yaml"
 
-    if not config_path.exists():
-        # No config = disabled everywhere (safe default)
-        return False
-
-    try:
-        with open(config_path) as f:
-            config = yaml.safe_load(f) or {}
-    except Exception:
-        return False
-
-    # Check if globally enabled (production mode)
-    if config.get("global_enabled", False):
+    if not tweek_config.exists():
+        # No config = hooks enabled (protected by default)
         return True
 
-    # Check allowed directories
-    allowed_dirs = config.get("allowed_directories", [])
-    cwd = Path.cwd().resolve()
+    try:
+        with open(tweek_config) as f:
+            config = yaml.safe_load(f) or {}
+    except Exception:
+        return True  # Can't read config = fail safe, keep hooks on
 
-    for allowed in allowed_dirs:
-        allowed_path = Path(allowed).expanduser().resolve()
-        try:
-            # Check if cwd is the allowed dir or a subdirectory
-            cwd.relative_to(allowed_path)
-            return True
-        except ValueError:
-            continue
-
-    return False
+    hooks = config.get("hooks", {})
+    return hooks.get(hook_name, True)
 
 
 def main():
     """Entry point for the hook."""
-    # SAFETY CHECK: Only activate in allowed directories
-    if not check_allowed_directory():
-        # Not in allowed directory - pass through without screening
+    # Check if pre_tool_use hook is enabled for this directory
+    if not check_hook_enabled("pre_tool_use"):
         print("{}")
         return
 
