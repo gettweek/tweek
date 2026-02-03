@@ -39,6 +39,7 @@ class OpenClawDetector(ToolDetectorPlugin):
     AUTHOR = "Tweek"
     REQUIRES_LICENSE = "free"
     TAGS = ["detector", "openclaw", "assistant"]
+    DEFAULT_PORT = OPENCLAW_DEFAULT_PORT
 
     CONFIG_LOCATIONS = [
         Path.home() / ".openclaw" / "openclaw.json",
@@ -55,8 +56,8 @@ class OpenClawDetector(ToolDetectorPlugin):
             tool_name=self.name,
         )
 
-        # Check npm global installation (shared detection)
-        npm_info = check_npm_installation()
+        # Check npm global installation (via wrapper for testability)
+        npm_info = self._check_npm_installation()
         if npm_info:
             result.detected = True
             result.version = npm_info.get("version")
@@ -81,8 +82,8 @@ class OpenClawDetector(ToolDetectorPlugin):
         if openclaw_home.exists():
             result.detected = True
 
-        # Check for running process (shared detection)
-        process_info = check_running_process()
+        # Check for running process (via wrapper for testability)
+        process_info = self._check_running_process()
         if process_info:
             result.detected = True
             result.running = True
@@ -90,9 +91,9 @@ class OpenClawDetector(ToolDetectorPlugin):
             if process_info.get("port"):
                 result.port = process_info["port"]
 
-        # Check if gateway is active (shared detection, context-managed socket)
+        # Check if gateway is active (via wrapper for testability)
         if result.port:
-            result.metadata["gateway_active"] = check_gateway_active(result.port)
+            result.metadata["gateway_active"] = self._check_gateway_active(result.port)
 
         return result
 
@@ -102,6 +103,28 @@ class OpenClawDetector(ToolDetectorPlugin):
             if path.exists():
                 return path
         return None
+
+    def _check_npm_installation(self) -> dict | None:
+        """Check npm global installation (wrapper for shared detection)."""
+        return check_npm_installation()
+
+    def _check_running_process(self) -> dict | None:
+        """Check for running openclaw process (wrapper for shared detection)."""
+        return check_running_process()
+
+    def _check_gateway_active(self, port: int | None = None) -> bool:
+        """Check if gateway is active on the given port."""
+        import socket
+        if port is None:
+            port = self.DEFAULT_PORT
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(("127.0.0.1", port))
+            sock.close()
+            return result == 0
+        except (socket.error, OSError):
+            return False
 
     def get_conflicts(self) -> List[str]:
         """Get potential conflicts with Tweek."""

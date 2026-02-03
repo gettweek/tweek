@@ -103,7 +103,7 @@ class TestInstallCommand:
         assert "paranoid" in result.output.lower() or result.exit_code == 0
 
     def test_install_skip_proxy_check(self, runner, tmp_path):
-        """Test protect claude-code with --skip-proxy-check skips openclaw detection."""
+        """Test protect claude-code with --skip-proxy-check skips openclaw proxy detection."""
         with patch.dict(os.environ, {'HOME': str(tmp_path)}):
             with patch.object(Path, 'home', return_value=tmp_path):
                 with patch('tweek.cli_install.Path.home', return_value=tmp_path):
@@ -112,8 +112,9 @@ class TestInstallCommand:
                         ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check']
                     )
 
-        # Should not mention openclaw
-        assert "openclaw" not in result.output.lower()
+        # Should not trigger openclaw proxy conflict detection (step 4)
+        # Note: openclaw may appear in the tool detection table (step 14) — that's expected
+        assert "proxy conflict" not in result.output.lower()
         assert result.exit_code == 0 or "Installation complete" in result.output
 
     def test_install_detects_openclaw_installed(self, runner, tmp_path):
