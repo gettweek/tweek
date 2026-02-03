@@ -128,6 +128,8 @@ families:
       - 218  # reverse_shell_perl_ruby
       - 219  # reverse_shell_mkfifo
       - 220  # reverse_shell_encoded
+      - 272  # shortened_url_to_shell
+      - 275  # raw_ip_url_to_shell
     heuristic_signals:
       exfil_verbs:
         - "curl"
@@ -308,6 +310,15 @@ families:
       - 113  # gzip_obfuscation
       - 125  # importlib_evasion
       - 126  # variable_indirection
+      - 263  # punycode_domain
+      - 264  # non_ascii_hostname
+      - 265  # cyrillic_in_url
+      - 266  # greek_in_url
+      - 267  # bidi_isolate_chars
+      - 268  # url_userinfo_trick
+      - 269  # lookalike_tld
+      - 270  # fullwidth_dot_in_url
+      - 274  # double_encoding_in_url
     heuristic_signals:
       evasion_indicators:
         - "eval("
@@ -391,6 +402,7 @@ families:
       - 96   # login_item_persistence
       - 118  # curl_write_sensitive
       - 227  # privesc_cron_inject
+      - 273  # dotfile_overwrite_via_redirect
     heuristic_signals:
       persistence_paths:
         - "LaunchAgents"
@@ -582,6 +594,7 @@ families:
       - 167  # pnpm_symlink_traversal
       - 248  # supply_chain_typosquat_ai
       - 249  # supply_chain_postinstall_exec
+      - 271  # insecure_tls_flags
     heuristic_signals:
       supply_chain_indicators:
         - "--pre"

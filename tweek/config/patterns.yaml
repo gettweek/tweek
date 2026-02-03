@@ -24,8 +24,8 @@
 #   contextual - Depends on surrounding context; broad behavioral pattern
 # PRO tier adds: LLM review, session analysis, rate limiting
 
-version: 5
-pattern_count: 262
+version: 6
+pattern_count: 275
 
 patterns:
   # ============================================================================
@@ -2275,3 +2275,127 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+
+  # ============================================================================
+  # TERMINAL & URL SECURITY PATTERNS (263-275)
+  # 13 patterns covering IDN/punycode, homoglyph scripts, bidi text direction,
+  # URL spoofing, insecure transport, dotfile persistence, and encoding attacks.
+  # Inspired by Tirith terminal security research.
+  # Added: 2026-02-03
+  # ============================================================================
+
+  # --- IDN / Punycode Attacks (263-264) ---
+
+  - id: 263
+    name: punycode_domain
+    description: "Internationalized domain name (punycode) in URL"
+    regex: 'https?://[^\s/]*xn--[^\s/]*'
+    severity: high
+    confidence: heuristic
+    family: evasion_techniques
+
+  - id: 264
+    name: non_ascii_hostname
+    description: "Non-ASCII characters in URL hostname (potential homoglyph)"
+    regex: 'https?://[^\s/]*[^\x00-\x7f][^\s/]*'
+    severity: high
+    confidence: heuristic
+    family: evasion_techniques
+
+  # --- Homoglyph Script Detection (265-266) ---
+
+  - id: 265
+    name: cyrillic_in_url
+    description: "Cyrillic characters in URL (homoglyph spoofing)"
+    regex: 'https?://[^\s]*[\u0400-\u04ff]'
+    severity: high
+    confidence: heuristic
+    family: evasion_techniques
+
+  - id: 266
+    name: greek_in_url
+    description: "Greek characters in URL (homoglyph spoofing)"
+    regex: 'https?://[^\s]*[\u0370-\u03ff]'
+    severity: medium
+    confidence: heuristic
+    family: evasion_techniques
+
+  # --- Bidi Text Direction Attacks (267) ---
+
+  - id: 267
+    name: bidi_isolate_chars
+    description: "Bidi isolate characters that manipulate text display direction"
+    regex: '[\u2066-\u2069]'
+    severity: high
+    confidence: heuristic
+    family: evasion_techniques
+
+  # --- URL Spoofing (268-270) ---
+
+  - id: 268
+    name: url_userinfo_trick
+    description: "URL with userinfo@ to disguise real hostname"
+    regex: 'https?://[^\s/@]+\.[^\s/@]+@[^\s/]+'
+    severity: high
+    confidence: heuristic
+    family: evasion_techniques
+
+  - id: 269
+    name: lookalike_tld
+    description: "URL with .zip or .mov TLD that mimics file extension"
+    regex: 'https?://[^\s/]+\.(zip|mov)(/|\s|$)'
+    severity: medium
+    confidence: contextual
+    family: evasion_techniques
+
+  - id: 270
+    name: fullwidth_dot_in_url
+    description: "Fullwidth or ideographic dots in URL to bypass domain parsing"
+    regex: 'https?://[^\s]*[\uff0e\u3002\uff61]'
+    severity: high
+    confidence: heuristic
+    family: evasion_techniques
+
+  # --- Insecure Transport (271-272) ---
+
+  - id: 271
+    name: insecure_tls_flags
+    description: "TLS certificate verification disabled (MITM risk)"
+    regex: '(curl\s+.*(-k\b|--insecure)|wget\s+.*--no-check-certificate)'
+    severity: high
+    confidence: heuristic
+    family: supply_chain
+
+  - id: 272
+    name: shortened_url_to_shell
+    description: "Shortened URL piped to interpreter (hidden destination)"
+    regex: '(curl|wget)\s+.*https?://(bit\.ly|t\.co|tinyurl\.com|is\.gd|rb\.gy|shorturl\.at)[^\s]*.*\|\s*(bash|sh|zsh|python|perl|ruby)'
+    severity: critical
+    confidence: deterministic
+    family: data_exfiltration
+
+  # --- Dotfile Persistence & Encoding (273-275) ---
+
+  - id: 273
+    name: dotfile_overwrite_via_redirect
+    description: "Download command redirecting output to shell config dotfile"
+    regex: '(curl|wget)\s+[^|]*?(>|>>)\s*~?/?\.(bashrc|zshrc|profile|bash_profile|gitconfig)'
+    severity: critical
+    confidence: deterministic
+    family: persistence
+
+  - id: 274
+    name: double_encoding_in_url
+    description: "Double percent-encoding to bypass URL security filters"
+    regex: '%25[0-9a-fA-F]{2}'
+    severity: medium
+    confidence: heuristic
+    family: evasion_techniques
+
+  - id: 275
+    name: raw_ip_url_to_shell
+    description: "Raw IP address URL piped to interpreter"
+    regex: '(curl|wget)\s+.*https?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}[^\s]*.*\|\s*(bash|sh|zsh|python)'
+    severity: high
+    confidence: heuristic
+    family: data_exfiltration

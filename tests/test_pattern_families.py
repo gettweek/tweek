@@ -99,7 +99,7 @@ class TestPatternCoverage:
 
     def test_259_patterns_exist(self, patterns_data):
         patterns = patterns_data.get("patterns", [])
-        assert len(patterns) == 262, f"Expected 262 patterns, got {len(patterns)}"
+        assert len(patterns) == 275, f"Expected 275 patterns, got {len(patterns)}"
 
     def test_pattern_families_are_valid(self, patterns_data, families_data):
         """Every pattern's family field should reference an existing family."""
