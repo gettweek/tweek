@@ -28,6 +28,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Version for MCP server identification
+MCP_SERVER_VERSION = "0.2.0"
+
 try:
     from mcp.client.session import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -264,8 +267,56 @@ class TweekMCPProxy:
 
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
-            """Return merged tools from all connected upstreams."""
+            """Return built-in tools plus merged tools from all connected upstreams."""
             merged = []
+
+            # Built-in tools (vault + status)
+            tool_configs = self.config.get("mcp", {}).get("proxy", {}).get("tools", {})
+
+            if tool_configs.get("vault", True):
+                merged.append(Tool(
+                    name="tweek_vault",
+                    description=(
+                        "Retrieve a credential from Tweek's secure vault. "
+                        "Credentials are stored in the system keychain, not in .env files. "
+                        "Use this instead of reading .env files or hardcoding secrets."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "skill": {
+                                "type": "string",
+                                "description": "Skill namespace for the credential",
+                            },
+                            "key": {
+                                "type": "string",
+                                "description": "Credential key name",
+                            },
+                        },
+                        "required": ["skill", "key"],
+                    },
+                ))
+
+            if tool_configs.get("status", True):
+                merged.append(Tool(
+                    name="tweek_status",
+                    description=(
+                        "Show Tweek security status including active plugins, "
+                        "recent activity, threat summary, and proxy statistics."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "detail": {
+                                "type": "string",
+                                "enum": ["summary", "plugins", "activity", "threats"],
+                                "description": "Level of detail (default: summary)",
+                            },
+                        },
+                    },
+                ))
+
+            # Upstream tools
             for upstream_name, upstream in self.upstreams.items():
                 if not upstream.connected:
                     continue
@@ -279,6 +330,24 @@ class TweekMCPProxy:
         async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             """Handle tool calls with security screening and approval."""
             self._request_count += 1
+
+            # Handle built-in tools (vault, status)
+            builtin_handlers = {
+                "tweek_vault": self._handle_vault,
+                "tweek_status": self._handle_status,
+            }
+            handler = builtin_handlers.get(name)
+            if handler is not None:
+                try:
+                    result = await handler(arguments)
+                    return [TextContent(type="text", text=result)]
+                except Exception as e:
+                    logger.error(f"Tool {name} failed: {e}")
+                    return [TextContent(
+                        type="text",
+                        text=json.dumps({"error": str(e), "tool": name}),
+                    )]
+
             return await self._handle_call_tool(name, arguments)
 
     async def _handle_call_tool(
@@ -577,6 +646,101 @@ class TweekMCPProxy:
             ))
         except Exception as e:
             logger.debug(f"Failed to log security event: {e}")
+
+    async def _handle_vault(self, arguments: Dict[str, Any]) -> str:
+        """Handle tweek_vault tool call."""
+        skill = arguments.get("skill", "")
+        key = arguments.get("key", "")
+
+        # Screen vault access
+        context = self._build_context(
+            tool_name="Vault",
+            content=f"vault:{skill}/{key}",
+            upstream_name="_builtin",
+            tool_input=arguments,
+        )
+        screening = self._run_screening(context)
+
+        if screening.get("blocked"):
+            return json.dumps({
+                "blocked": True,
+                "reason": screening.get("reason"),
+            })
+
+        try:
+            from tweek.vault.cross_platform import CrossPlatformVault
+
+            vault = CrossPlatformVault()
+            value = vault.get(skill, key)
+
+            if value is None:
+                return json.dumps({
+                    "error": f"Credential not found: {skill}/{key}",
+                    "available": False,
+                })
+
+            return json.dumps({
+                "value": value,
+                "skill": skill,
+                "key": key,
+            })
+
+        except Exception as e:
+            # Don't leak internal details across trust boundary
+            logger.error(f"Vault operation failed: {e}")
+            return json.dumps({"error": "Vault operation failed"})
+
+    async def _handle_status(self, arguments: Dict[str, Any]) -> str:
+        """Handle tweek_status tool call."""
+        detail = arguments.get("detail", "summary")
+
+        try:
+            status = {
+                "version": MCP_SERVER_VERSION,
+                "source": "mcp_proxy",
+                "mode": "proxy",
+                "proxy_requests": self._request_count,
+                "proxy_blocked": self._blocked_count,
+                "proxy_approvals": self._approval_count,
+            }
+
+            if detail in ("summary", "plugins"):
+                try:
+                    from tweek.plugins import get_registry
+                    registry = get_registry()
+                    stats = registry.get_stats()
+                    status["plugins"] = stats
+                except ImportError:
+                    status["plugins"] = {"error": "Plugin system not available"}
+
+            if detail in ("summary", "activity"):
+                try:
+                    from tweek.logging.security_log import get_logger as get_sec_logger
+                    sec_logger = get_sec_logger()
+                    recent = sec_logger.get_recent(limit=10)
+                    status["recent_activity"] = [
+                        {
+                            "timestamp": str(e.timestamp),
+                            "event_type": e.event_type.value,
+                            "tool": e.tool_name,
+                            "decision": e.decision,
+                        }
+                        for e in recent
+                    ] if recent else []
+                except (ImportError, Exception):
+                    status["recent_activity"] = []
+
+            # Include approval queue stats if available
+            try:
+                queue = self._get_approval_queue()
+                status["approval_queue"] = queue.get_stats()
+            except Exception:
+                pass
+
+            return json.dumps(status, indent=2)
+
+        except Exception as e:
+            return json.dumps({"error": str(e)})
 
     async def start(self) -> None:
         """

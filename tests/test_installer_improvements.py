@@ -87,8 +87,8 @@ class TestQuickFlag:
         assert result.exit_code == 0
         assert "Installation complete" in result.output
 
-    def test_quick_applies_cautious_preset(self, runner, tmp_path):
-        """--quick should apply cautious preset by default."""
+    def test_quick_applies_balanced_preset(self, runner, tmp_path):
+        """--quick should apply balanced preset by default."""
         with patch.object(Path, 'home', return_value=tmp_path):
             with patch('tweek.cli_install.Path.home', return_value=tmp_path):
                 result = runner.invoke(
@@ -97,7 +97,7 @@ class TestQuickFlag:
                     catch_exceptions=False,
                 )
 
-        assert "cautious" in result.output.lower()
+        assert "balanced" in result.output.lower()
 
     def test_quick_skips_env_scan(self, runner, tmp_path):
         """--quick should skip .env scanning."""

@@ -191,7 +191,7 @@ Examples:
   tweek config preset paranoid --scope project   Apply preset to project only
 """
 )
-@click.argument("preset_name", type=click.Choice(["paranoid", "cautious", "trusted"]))
+@click.argument("preset_name", type=click.Choice(["paranoid", "cautious", "balanced", "trusted"]))
 @click.option("--scope", type=click.Choice(["user", "project"]), default="user")
 def config_preset(preset_name: str, scope: str):
     """Apply a configuration preset.
@@ -340,7 +340,7 @@ Examples:
   tweek config diff trusted              Show changes if trusted preset applied
 """
 )
-@click.argument("preset_name", type=click.Choice(["paranoid", "cautious", "trusted"]))
+@click.argument("preset_name", type=click.Choice(["paranoid", "cautious", "balanced", "trusted"]))
 def config_diff(preset_name: str):
     """Show what would change if a preset were applied.
 

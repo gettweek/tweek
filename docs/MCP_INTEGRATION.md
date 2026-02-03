@@ -1,6 +1,6 @@
 # Tweek MCP Integration
 
-Tweek integrates with the Model Context Protocol (MCP) to provide security screening for desktop LLM applications. Two modes of operation are available: a **Gateway** that exposes new security tools, and a **Proxy** that transparently wraps upstream MCP servers with screening and human-in-the-loop approval.
+Tweek integrates with the Model Context Protocol (MCP) to provide security screening for desktop LLM applications. The MCP proxy transparently wraps upstream MCP servers with screening and human-in-the-loop approval, and provides built-in `tweek_vault` and `tweek_status` tools.
 
 **Installation:** `pip install tweek[mcp]`
 
@@ -17,99 +17,28 @@ Tweek integrates with the Model Context Protocol (MCP) to provide security scree
                                   |
                            stdio transport
                                   |
-              +-------------------+-------------------+
+              +-------------------v-------------------+
+              |        Tweek MCP Proxy                |
+              |        (tweek mcp proxy)              |
               |                                       |
-    +---------v----------+              +-------------v-----------+
-    | Tweek MCP Gateway  |              |  Tweek MCP Proxy        |
-    | (tweek mcp serve)  |              |  (tweek mcp proxy)      |
-    |                    |              |                         |
-    | Tools:             |              |  Screening Pipeline     |
-    |  - tweek_vault     |              |  Approval Queue         |
-    |  - tweek_status    |              |  Namespace Merging      |
-    +--------------------+              +-----+-------+-----------+
-                                              |       |
-                                         stdio |       | stdio
-                                              |       |
-                                  +-----------v-+   +-v-----------+
-                                  | Upstream     |   | Upstream     |
-                                  | MCP Server A |   | MCP Server B |
-                                  +--------------+   +--------------+
+              |  Built-in Tools:                      |
+              |    - tweek_vault                      |
+              |    - tweek_status                     |
+              |                                       |
+              |  Screening Pipeline                   |
+              |  Approval Queue                       |
+              |  Namespace Merging                    |
+              +-----+-------+-------------------------+
+                    |       |
+               stdio |       | stdio
+                    |       |
+        +-----------v-+   +-v-----------+
+        | Upstream     |   | Upstream     |
+        | MCP Server A |   | MCP Server B |
+        +--------------+   +--------------+
 ```
 
 Built-in desktop client tools (Bash, Read, Write, Edit, etc.) cannot be intercepted via MCP. For those, use CLI hooks (Claude Code) or the HTTP proxy (Cursor, direct API calls).
-
----
-
-## Gateway Server (`tweek mcp serve`)
-
-The gateway exposes genuinely new capabilities not available as built-in desktop client tools. It runs on stdio transport and is launched by the desktop client as a configured MCP server.
-
-**Source:** `tweek/mcp/server.py`
-
-### Tools Provided
-
-#### `tweek_vault`
-
-Retrieve a credential from Tweek's secure vault (system keychain). Use this instead of reading `.env` files or hardcoding secrets.
-
-**Input Schema:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `skill` | string | yes | Skill namespace for the credential |
-| `key` | string | yes | Credential key name |
-
-**Response (JSON):**
-
-```json
-{"value": "sk-abc123", "skill": "myapp", "key": "API_KEY"}
-```
-
-Or if blocked by screening:
-
-```json
-{"blocked": true, "reason": "Blocked by compliance scan"}
-```
-
-#### `tweek_status`
-
-Show Tweek security status including active plugins, recent activity, threat summary, and proxy statistics.
-
-**Input Schema:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `detail` | enum: `summary`, `plugins`, `activity`, `threats` | no | Level of detail (default: `summary`) |
-
-**Response (JSON):**
-
-```json
-{
-  "version": "0.2.0",
-  "source": "mcp",
-  "mode": "gateway",
-  "gateway_requests": 42,
-  "gateway_blocked": 3,
-  "plugins": {"total": 12, "enabled": 8},
-  "recent_activity": [...]
-}
-```
-
-### Gateway Configuration
-
-Tools can be individually enabled/disabled in `~/.tweek/config.yaml`:
-
-```yaml
-mcp:
-  gateway:
-    tools:
-      vault: true     # Enable tweek_vault tool (default: true)
-      status: true    # Enable tweek_status tool (default: true)
-```
-
-### Gateway Screening Behavior
-
-All tool calls pass through Tweek's screening pipeline (`tweek/mcp/screening.py`). In gateway mode, `should_prompt` decisions are converted to `blocked` since there is no interactive user to confirm.
 
 ---
 

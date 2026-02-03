@@ -52,8 +52,8 @@ class ClaudeDesktopClient:
         """Get the arguments for the tweek MCP server."""
         tweek_path = shutil.which("tweek")
         if tweek_path:
-            return ["mcp", "serve"]
-        return ["-m", "tweek.mcp", "serve"]
+            return ["mcp", "proxy"]
+        return ["-m", "tweek.mcp", "proxy"]
 
     def _build_server_config(self) -> Dict[str, Any]:
         """Build the MCP server configuration entry."""

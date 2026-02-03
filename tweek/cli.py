@@ -57,6 +57,7 @@ from tweek.cli_core import status, trust, untrust, update, doctor, upgrade, audi
 
 # Configuration
 from tweek.cli_config import config
+from tweek.cli_configure import configure
 
 # Vault & License
 from tweek.cli_vault import vault, license_group
@@ -100,6 +101,7 @@ for cmd in [
     upgrade,
     audit,
     config,
+    configure,
     vault,
     license_group,
     logs,

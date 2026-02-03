@@ -74,7 +74,7 @@ Examples:
               help="OpenClaw gateway port (default: auto-detect)")
 @click.option("--paranoid", is_flag=True,
               help="Use paranoid security preset (default: cautious)")
-@click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
+@click.option("--preset", type=click.Choice(["paranoid", "cautious", "balanced", "trusted"]),
               default=None, help="Security preset to apply")
 def protect_openclaw(port, paranoid, preset):
     """One-command OpenClaw protection setup.
@@ -191,7 +191,7 @@ Examples:
               help="Skip scanning for .env files to migrate")
 @click.option("--interactive", "-i", is_flag=True,
               help="Interactively configure security settings")
-@click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
+@click.option("--preset", type=click.Choice(["paranoid", "cautious", "balanced", "trusted"]),
               help="Apply a security preset (skip interactive)")
 @click.option("--ai-defaults", is_flag=True,
               help="Let AI suggest default settings based on detected skills")
@@ -202,7 +202,7 @@ Examples:
 @click.option("--skip-proxy-check", is_flag=True,
               help="Skip checking for existing proxy configurations")
 @click.option("--quick", is_flag=True,
-              help="Zero-prompt install with cautious defaults (skips env scan and proxy check)")
+              help="Zero-prompt install with balanced defaults (skips env scan and proxy check)")
 def protect_claude_code(install_global, dev_test, backup, skip_env_scan, interactive, preset, ai_defaults, with_sandbox, force_proxy, skip_proxy_check, quick):
     """Install Tweek hooks for Claude Code.
 

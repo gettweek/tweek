@@ -80,7 +80,7 @@ class TestClaudeDesktopClient:
 
         config = {
             "mcpServers": {
-                "tweek-security": {"command": "tweek", "args": ["mcp", "serve"]},
+                "tweek-security": {"command": "tweek", "args": ["mcp", "proxy"]},
                 "other-server": {"command": "other", "args": ["serve"]},
             }
         }
@@ -116,7 +116,7 @@ class TestClaudeDesktopClient:
 
         config = {
             "mcpServers": {
-                "tweek-security": {"command": "tweek", "args": ["mcp", "serve"]},
+                "tweek-security": {"command": "tweek", "args": ["mcp", "proxy"]},
             }
         }
         config_path.write_text(json.dumps(config))
@@ -209,7 +209,7 @@ class TestGeminiClient:
 
         config = {
             "mcpServers": {
-                "tweek-security": {"command": "tweek", "args": ["mcp", "serve"]},
+                "tweek-security": {"command": "tweek", "args": ["mcp", "proxy"]},
             }
         }
         config_path.write_text(json.dumps(config))

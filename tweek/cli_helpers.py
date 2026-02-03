@@ -318,6 +318,7 @@ COMMAND_TIERS = {
         "doctor",
         "update",
         "upgrade",
+        "configure",
     ],
     "Security & Trust": [
         "trust",

@@ -31,8 +31,8 @@ class ChatGPTClient:
         """Get the arguments for the tweek MCP server."""
         tweek_path = shutil.which("tweek")
         if tweek_path:
-            return ["mcp", "serve"]
-        return ["-m", "tweek.mcp", "serve"]
+            return ["mcp", "proxy"]
+        return ["-m", "tweek.mcp", "proxy"]
 
     def install(self) -> Dict[str, Any]:
         """

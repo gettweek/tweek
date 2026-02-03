@@ -1,6 +1,6 @@
-"""MCP Gateway CLI commands extracted from tweek.cli.
+"""MCP Proxy CLI commands extracted from tweek.cli.
 
-Provides the ``mcp`` Click group with subcommands: serve, proxy, approve, decide.
+Provides the ``mcp`` Click group with subcommands: proxy, approve, decide.
 """
 
 import asyncio
@@ -16,56 +16,12 @@ from tweek.cli_helpers import console
 
 @click.group()
 def mcp():
-    """MCP Security Gateway for desktop LLM applications.
+    """MCP Security Proxy for desktop LLM applications.
 
-    Provides security-screened tools via the Model Context Protocol (MCP).
+    Provides security-screened MCP proxy with built-in vault and status tools.
     Supports Claude Desktop, ChatGPT Desktop, and Gemini CLI.
     """
     pass
-
-
-@mcp.command(
-    epilog="""\b
-Examples:
-  tweek mcp serve                        Start MCP gateway on stdio transport
-"""
-)
-def serve():
-    """Start MCP gateway server (stdio transport).
-
-    This is the command desktop clients call to launch the MCP server.
-    Used as the 'command' in client MCP configurations.
-
-    Example Claude Desktop config:
-        {"mcpServers": {"tweek-security": {"command": "tweek", "args": ["mcp", "serve"]}}}
-    """
-    try:
-        from tweek.mcp.server import run_server, MCP_AVAILABLE
-
-        if not MCP_AVAILABLE:
-            console.print("[red]MCP SDK not installed.[/red]")
-            console.print("Install with: pip install 'tweek[mcp]' or pip install mcp")
-            return
-
-        # Load config
-        try:
-            from tweek.config.manager import ConfigManager
-            cfg = ConfigManager()
-            config = cfg.get_full_config()
-        except Exception:
-            config = {}
-
-        asyncio.run(run_server(config=config))
-
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        console.print(f"[red]MCP server error: {e}[/red]")
-
-
-# =============================================================================
-# MCP PROXY COMMANDS
-# =============================================================================
 
 @mcp.command("proxy",
     epilog="""\b
