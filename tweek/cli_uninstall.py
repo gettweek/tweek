@@ -6,6 +6,18 @@ Full removal of Tweek from the system:
     tweek uninstall                      Interactive full removal
     tweek uninstall --all                Remove ALL Tweek data system-wide
     tweek uninstall --all --confirm      Remove everything without prompts
+
+IMPORTANT: Users MUST run ``tweek unprotect --all`` (or ``tweek uninstall``)
+BEFORE removing the pip package with ``pip uninstall tweek``.  If the package
+is removed first, the Claude Code hooks in ~/.claude/settings.json become
+orphaned — they still reference the hook scripts on disk but the ``tweek``
+CLI is no longer available to clean them up.  Orphaned hooks cause spurious
+security warnings in every Claude Code session.
+
+To manually clean up orphaned hooks, remove the ``PreToolUse`` and
+``PostToolUse`` entries that reference ``tweek`` from:
+    ~/.claude/settings.json              (global hooks)
+    <project>/.claude/settings.json      (project-level hooks)
 """
 from __future__ import annotations
 
@@ -448,10 +460,47 @@ def _uninstall_scope(target: Path, tweek_dir: Path, confirm: bool, scope_label: 
         console.print("[white]Tweek data directory (~/.tweek/) was preserved.[/white]")
 
 
+def _get_all_project_scopes(project_target: Path) -> list:
+    """Get all project-level .claude/ directories that may have tweek hooks.
+
+    Merges: (1) the current project, (2) any recorded install scopes from
+    ~/.tweek/installed_scopes.json.  Deduplicates by resolved path.
+    """
+    seen = set()
+    result = []
+
+    # Always include current project
+    resolved_cwd = str(project_target.resolve())
+    seen.add(resolved_cwd)
+    result.append(project_target)
+
+    # Include all recorded scopes from install-time tracking
+    try:
+        from tweek.cli_install import _get_installed_scopes
+        for scope_str in _get_installed_scopes():
+            scope = Path(scope_str)
+            resolved = str(scope.resolve())
+            if resolved not in seen and scope.exists():
+                seen.add(resolved)
+                result.append(scope)
+    except (ImportError, Exception):
+        pass
+
+    return result
+
+
 def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: Path, confirm: bool):
     """Full system removal of all Tweek data."""
+    # Discover all project scopes (current + recorded from install)
+    all_project_scopes = _get_all_project_scopes(project_target)
+
     console.print("[bold yellow]FULL REMOVAL[/bold yellow] \u2014 This will remove ALL Tweek data:\n")
-    console.print("  [white]\u2022[/white] Hooks from current project (.claude/settings.json)")
+    if len(all_project_scopes) > 1:
+        console.print(f"  [white]\u2022[/white] Hooks from {len(all_project_scopes)} project(s):")
+        for scope in all_project_scopes:
+            console.print(f"      [white]{scope}/settings.json[/white]")
+    else:
+        console.print("  [white]\u2022[/white] Hooks from current project (.claude/settings.json)")
     console.print("  [white]\u2022[/white] Hooks from global installation (~/.claude/settings.json)")
     console.print("  [white]\u2022[/white] Tweek skill directories (project + global)")
     console.print("  [white]\u2022[/white] All backup files")
@@ -477,23 +526,25 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
 
     console.print()
 
-    # ── Project scope ──
-    console.print("[bold]Project scope (.claude/):[/bold]")
-    removed_hooks = _remove_hooks_from_settings(project_target / "settings.json")
-    for hook_type in removed_hooks:
-        console.print(f"  [green]\u2713[/green] Removed {hook_type} hook from project settings.json")
-    if not removed_hooks:
-        console.print(f"  [white]-[/white] Skipped: no project hooks found")
+    # ── Project scopes (current + recorded from install) ──
+    for scope in all_project_scopes:
+        scope_label = str(scope)
+        console.print(f"[bold]Project scope ({scope_label}):[/bold]")
+        removed_hooks = _remove_hooks_from_settings(scope / "settings.json")
+        for hook_type in removed_hooks:
+            console.print(f"  [green]\u2713[/green] Removed {hook_type} hook from {scope_label}/settings.json")
+        if not removed_hooks:
+            console.print(f"  [white]-[/white] Skipped: no hooks found")
 
-    if _remove_skill_directory(project_target):
-        console.print(f"  [green]\u2713[/green] Removed Tweek skill from project")
-    else:
-        console.print(f"  [white]-[/white] Skipped: no project skill directory")
+        if _remove_skill_directory(scope):
+            console.print(f"  [green]\u2713[/green] Removed Tweek skill directory")
+        else:
+            console.print(f"  [white]-[/white] Skipped: no skill directory")
 
-    if _remove_backup_file(project_target):
-        console.print(f"  [green]\u2713[/green] Removed project backup file")
-    else:
-        console.print(f"  [white]-[/white] Skipped: no project backup file")
+        if _remove_backup_file(scope):
+            console.print(f"  [green]\u2713[/green] Removed backup file")
+        else:
+            console.print(f"  [white]-[/white] Skipped: no backup file")
 
     console.print()
 

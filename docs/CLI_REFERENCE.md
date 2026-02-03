@@ -101,6 +101,15 @@ tweek unprotect --all --confirm        # Remove from all tools, skip confirmatio
 
 The Tweek data directory (`~/.tweek`) is preserved. Remove manually if desired.
 
+> **Warning:** Always run `tweek unprotect --all` **before** running
+> `pip uninstall tweek`. If the pip package is removed first, the Claude Code
+> hooks in `~/.claude/settings.json` become orphaned — they still reference
+> the hook scripts on disk but the `tweek` CLI is no longer available to
+> clean them up. Orphaned hooks cause spurious security warnings in every
+> Claude Code session. To manually clean up, remove the `PreToolUse` and
+> `PostToolUse` entries that reference `tweek` from `~/.claude/settings.json`
+> (global) and any `<project>/.claude/settings.json` (project-level).
+
 ---
 
 ### `tweek update`

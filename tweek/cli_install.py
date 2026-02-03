@@ -37,6 +37,45 @@ from tweek.cli_helpers import (
 
 
 # ---------------------------------------------------------------------------
+# Installed scope tracking
+# ---------------------------------------------------------------------------
+
+_INSTALLED_SCOPES_FILE = Path("~/.tweek/installed_scopes.json").expanduser()
+
+
+def _record_installed_scope(target: Path) -> None:
+    """Record that hooks were installed at *target* (.claude/ directory).
+
+    Stored in ~/.tweek/installed_scopes.json so ``tweek uninstall --all``
+    can find and clean project-level hooks regardless of the user's cwd.
+    """
+    target_str = str(target.resolve())
+
+    existing: list = []
+    if _INSTALLED_SCOPES_FILE.exists():
+        try:
+            existing = json.loads(_INSTALLED_SCOPES_FILE.read_text()) or []
+        except (json.JSONDecodeError, IOError):
+            existing = []
+
+    if target_str not in existing:
+        existing.append(target_str)
+
+    _INSTALLED_SCOPES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _INSTALLED_SCOPES_FILE.write_text(json.dumps(existing, indent=2))
+
+
+def _get_installed_scopes() -> list:
+    """Return all recorded .claude/ directories where hooks were installed."""
+    if not _INSTALLED_SCOPES_FILE.exists():
+        return []
+    try:
+        return json.loads(_INSTALLED_SCOPES_FILE.read_text()) or []
+    except (json.JSONDecodeError, IOError):
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Utility functions for .env scanning
 # ---------------------------------------------------------------------------
 
@@ -485,6 +524,9 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
 
     console.print(f"\n[green]\u2713[/green] PreToolUse hooks installed to: {target}")
     console.print(f"[green]\u2713[/green] PostToolUse content screening installed to: {target}")
+
+    # Track this installation scope so `tweek uninstall --all` can find it
+    _record_installed_scope(target)
 
     # Create Tweek data directory
     tweek_dir = Path("~/.tweek").expanduser()
