@@ -7,17 +7,12 @@ Full removal of Tweek from the system:
     tweek uninstall --all                Remove ALL Tweek data system-wide
     tweek uninstall --all --confirm      Remove everything without prompts
 
-IMPORTANT: Users MUST run ``tweek unprotect --all`` (or ``tweek uninstall``)
-BEFORE removing the pip package with ``pip uninstall tweek``.  If the package
-is removed first, the Claude Code hooks in ~/.claude/settings.json become
-orphaned — they still reference the hook scripts on disk but the ``tweek``
-CLI is no longer available to clean them up.  Orphaned hooks cause spurious
-security warnings in every Claude Code session.
-
-To manually clean up orphaned hooks, remove the ``PreToolUse`` and
-``PostToolUse`` entries that reference ``tweek`` from:
-    ~/.claude/settings.json              (global hooks)
-    <project>/.claude/settings.json      (project-level hooks)
+Resilience against ``pip uninstall tweek`` running first:
+    - Hooks in settings.json point to self-healing wrappers at ~/.tweek/hooks/
+      (outside the pip package). If tweek is gone, the wrappers silently remove
+      themselves from settings.json and allow the tool call.
+    - A standalone cleanup script at ~/.tweek/uninstall.sh can remove all
+      Tweek state without requiring the Python package.
 """
 from __future__ import annotations
 
@@ -289,6 +284,8 @@ def _remove_tweek_data_dir(tweek_dir: Path) -> list:
         ("config.yaml", "configuration"),
         ("overrides.yaml", "security overrides"),
         ("security.db", "security log database"),
+        ("uninstall.sh", "standalone uninstall script"),
+        ("installed_scopes.json", "installation scope tracking"),
     ]
     for filename, label in items:
         filepath = tweek_dir / filename
@@ -297,6 +294,7 @@ def _remove_tweek_data_dir(tweek_dir: Path) -> list:
             removed.append(label)
 
     dirs = [
+        ("hooks", "self-healing hook wrappers"),
         ("patterns", "pattern repository"),
         ("chamber", "skill isolation chamber"),
         ("jail", "skill jail"),
@@ -325,6 +323,40 @@ def _remove_tweek_data_dir(tweek_dir: Path) -> list:
             # Not empty for some reason
             shutil.rmtree(tweek_dir, ignore_errors=True)
             removed.append("data directory (~/.tweek/)")
+
+    return removed
+
+
+def _remove_tweek_yaml_files(tweek_dir: Path) -> list:
+    """Remove .tweek.yaml control files. Returns list of paths removed."""
+    removed = []
+
+    # Global .tweek.yaml
+    global_yaml = Path("~/.tweek.yaml").expanduser()
+    if global_yaml.exists():
+        global_yaml.unlink()
+        removed.append(str(global_yaml))
+
+    # Project-level .tweek.yaml files from recorded scopes
+    scopes_file = tweek_dir / "installed_scopes.json"
+    if scopes_file.exists():
+        try:
+            scopes = json.loads(scopes_file.read_text()) or []
+            for scope_str in scopes:
+                # .tweek.yaml is in the parent of the .claude/ directory
+                scope_parent = Path(scope_str).parent
+                project_yaml = scope_parent / ".tweek.yaml"
+                if project_yaml.exists():
+                    project_yaml.unlink()
+                    removed.append(str(project_yaml))
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # Current directory .tweek.yaml
+    cwd_yaml = Path.cwd() / ".tweek.yaml"
+    if cwd_yaml.exists() and str(cwd_yaml) not in removed:
+        cwd_yaml.unlink()
+        removed.append(str(cwd_yaml))
 
     return removed
 
@@ -504,7 +536,8 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
     console.print("  [white]\u2022[/white] Hooks from global installation (~/.claude/settings.json)")
     console.print("  [white]\u2022[/white] Tweek skill directories (project + global)")
     console.print("  [white]\u2022[/white] All backup files")
-    console.print("  [white]\u2022[/white] Tweek data directory (~/.tweek/)")
+    console.print("  [white]\u2022[/white] .tweek.yaml control files")
+    console.print("  [white]\u2022[/white] Tweek data directory (~/.tweek/) including hook wrappers")
 
     # Show what exists in ~/.tweek/
     if tweek_dir.exists():
@@ -568,13 +601,14 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
 
     console.print()
 
-    # ── Tweek data directory ──
-    console.print("[bold]Tweek data (~/.tweek/):[/bold]")
-    data_removed = _remove_tweek_data_dir(tweek_dir)
-    for item in data_removed:
-        console.print(f"  [green]\u2713[/green] Removed {item}")
-    if not data_removed:
-        console.print(f"  [white]-[/white] Skipped: no data directory found")
+    # ── .tweek.yaml control files ──
+    # Must run before data directory removal (needs installed_scopes.json)
+    console.print("[bold]Control files (.tweek.yaml):[/bold]")
+    yaml_removed = _remove_tweek_yaml_files(tweek_dir)
+    for yaml_path in yaml_removed:
+        console.print(f"  [green]\u2713[/green] Removed {yaml_path}")
+    if not yaml_removed:
+        console.print(f"  [white]-[/white] Skipped: no .tweek.yaml files found")
 
     console.print()
 
@@ -585,6 +619,16 @@ def _uninstall_everything(global_target: Path, project_target: Path, tweek_dir: 
         console.print(f"  [green]\u2713[/green] Removed {client} MCP integration")
     if not mcp_removed:
         console.print(f"  [white]-[/white] Skipped: no MCP integrations found")
+
+    console.print()
+
+    # ── Tweek data directory (last — other steps need installed_scopes.json) ──
+    console.print("[bold]Tweek data (~/.tweek/):[/bold]")
+    data_removed = _remove_tweek_data_dir(tweek_dir)
+    for item in data_removed:
+        console.print(f"  [green]\u2713[/green] Removed {item}")
+    if not data_removed:
+        console.print(f"  [white]-[/white] Skipped: no data directory found")
 
     console.print()
     console.print("[green]All Tweek data has been removed.[/green]")

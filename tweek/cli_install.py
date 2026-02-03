@@ -76,6 +76,73 @@ def _get_installed_scopes() -> list:
 
 
 # ---------------------------------------------------------------------------
+# Hook wrapper deployment
+# ---------------------------------------------------------------------------
+
+_TWEEK_HOOKS_DIR = Path("~/.tweek/hooks").expanduser()
+
+
+def _deploy_hook_wrappers() -> Path:
+    """Deploy self-healing hook wrappers to ~/.tweek/hooks/.
+
+    These wrappers are standalone Python scripts that delegate to the real
+    hook implementations in the tweek package. If the tweek package has been
+    removed (e.g. via ``pip uninstall``), the wrappers silently remove
+    themselves from settings.json and allow the tool call.
+
+    Returns:
+        Path to the hooks directory (~/.tweek/hooks/).
+    """
+    _TWEEK_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Source wrappers live alongside the real hooks in the package
+    wrapper_src_dir = Path(__file__).resolve().parent / "hooks"
+
+    for wrapper_name in ("wrapper_pre_tool_use.py", "wrapper_post_tool_use.py"):
+        src = wrapper_src_dir / wrapper_name
+        # Deploy as the canonical name (without "wrapper_" prefix)
+        dest_name = wrapper_name.replace("wrapper_", "")
+        dest = _TWEEK_HOOKS_DIR / dest_name
+
+        if not src.exists():
+            raise FileNotFoundError(
+                f"Hook wrapper template not found: {src}\n"
+                f"Re-install tweek to restore missing files."
+            )
+
+        shutil.copy2(src, dest)
+
+    return _TWEEK_HOOKS_DIR
+
+
+def _deploy_uninstall_script() -> Path:
+    """Deploy the standalone uninstall.sh to ~/.tweek/.
+
+    This shell script can clean up all Tweek state (hooks, skills, config,
+    .tweek.yaml files, MCP integrations, and the pip package) even when
+    the tweek Python package has already been removed.
+
+    Returns:
+        Path to the deployed uninstall.sh.
+    """
+    tweek_dir = Path("~/.tweek").expanduser()
+    tweek_dir.mkdir(parents=True, exist_ok=True)
+
+    src = Path(__file__).resolve().parent / "scripts" / "uninstall.sh"
+    dest = tweek_dir / "uninstall.sh"
+
+    if src.exists():
+        shutil.copy2(src, dest)
+        # Ensure executable
+        dest.chmod(dest.stat().st_mode | 0o111)
+    else:
+        # If source not found, skip gracefully
+        pass
+
+    return dest
+
+
+# ---------------------------------------------------------------------------
 # Utility functions for .env scanning
 # ---------------------------------------------------------------------------
 
@@ -503,8 +570,29 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
     # ─────────────────────────────────────────────────────────────
     # Step 5: Install hooks into settings.json
     # ─────────────────────────────────────────────────────────────
-    hook_script = Path(__file__).resolve().parent / "hooks" / "pre_tool_use.py"
-    post_hook_script = Path(__file__).resolve().parent / "hooks" / "post_tool_use.py"
+
+    # Create Tweek data directory first (needed for hook deployment)
+    tweek_dir = Path("~/.tweek").expanduser()
+    tweek_dir.mkdir(parents=True, exist_ok=True)
+
+    # Deploy self-healing hook wrappers to ~/.tweek/hooks/
+    # These survive `pip uninstall tweek` and auto-clean settings.json
+    # if the tweek package is no longer available.
+    try:
+        hooks_dir = _deploy_hook_wrappers()
+        console.print(f"[green]\u2713[/green] Self-healing hooks deployed to: {hooks_dir}")
+    except FileNotFoundError as e:
+        console.print(f"[red]\u2717[/red] {e}")
+        return
+
+    # Deploy standalone uninstall script
+    uninstall_path = _deploy_uninstall_script()
+    if uninstall_path.exists():
+        console.print(f"[green]\u2713[/green] Standalone uninstall: {uninstall_path}")
+
+    # Hook paths now point to the deployed wrappers, not the package
+    hook_script = hooks_dir / "pre_tool_use.py"
+    post_hook_script = hooks_dir / "post_tool_use.py"
 
     # Backup existing hooks if requested
     if backup and target.exists():
@@ -544,7 +632,7 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
             "hooks": [
                 {
                     "type": "command",
-                    "command": f"{python_exe} {hook_script.resolve()}"
+                    "command": f"{python_exe} {hook_script}"
                 }
             ]
         }
@@ -558,7 +646,7 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
             "hooks": [
                 {
                     "type": "command",
-                    "command": f"{python_exe} {post_hook_script.resolve()}"
+                    "command": f"{python_exe} {post_hook_script}"
                 }
             ]
         }
@@ -573,9 +661,6 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
     # Track this installation scope so `tweek uninstall --all` can find it
     _record_installed_scope(target)
 
-    # Create Tweek data directory
-    tweek_dir = Path("~/.tweek").expanduser()
-    tweek_dir.mkdir(parents=True, exist_ok=True)
     console.print(f"[green]\u2713[/green] Tweek data directory: {tweek_dir}")
 
     # Create .tweek.yaml in the install directory (per-directory hook control)
@@ -1774,7 +1859,12 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
 
 
 def _quickstart_install_hooks(scope: str) -> None:
-    """Install hooks for quickstart wizard (simplified version)."""
+    """Install hooks for quickstart wizard (simplified version).
+
+    Uses the same self-healing wrapper deployment as the main install flow.
+    Hook wrappers are deployed to ~/.tweek/hooks/ and referenced from
+    settings.json — they survive ``pip uninstall tweek``.
+    """
     import json
 
     if scope == "global":
@@ -1782,8 +1872,15 @@ def _quickstart_install_hooks(scope: str) -> None:
     else:
         target_dir = Path.cwd() / ".claude"
 
-    hooks_dir = target_dir / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Deploy self-healing hook wrappers to ~/.tweek/hooks/
+    hooks_dir = _deploy_hook_wrappers()
+    _deploy_uninstall_script()
+
+    python_exe = sys.executable
+    pre_hook_path = hooks_dir / "pre_tool_use.py"
+    post_hook_path = hooks_dir / "post_tool_use.py"
 
     settings_path = target_dir / "settings.json"
     settings = {}
@@ -1797,37 +1894,43 @@ def _quickstart_install_hooks(scope: str) -> None:
     if "hooks" not in settings:
         settings["hooks"] = {}
 
-    pre_hook_entry = {
-        "type": "command",
-        "command": "tweek hook pre-tool-use $TOOL_NAME",
-    }
-    post_hook_entry = {
-        "type": "command",
-        "command": "tweek hook post-tool-use $TOOL_NAME",
-    }
-
-    hook_entries = {
-        "PreToolUse": pre_hook_entry,
-        "PostToolUse": post_hook_entry,
-    }
-
+    # Remove any existing tweek hooks (clean install)
     for hook_type in ["PreToolUse", "PostToolUse"]:
-        if hook_type not in settings["hooks"]:
-            settings["hooks"][hook_type] = []
+        if hook_type in settings["hooks"]:
+            settings["hooks"][hook_type] = [
+                hc for hc in settings["hooks"][hook_type]
+                if not any(
+                    "tweek" in h.get("command", "").lower()
+                    for h in hc.get("hooks", [])
+                )
+            ]
 
-        # Check if tweek hooks already present
-        already_installed = False
-        for hook_config in settings["hooks"][hook_type]:
-            for h in hook_config.get("hooks", []):
-                if "tweek" in h.get("command", "").lower():
-                    already_installed = True
-                    break
-
-        if not already_installed:
-            settings["hooks"][hook_type].append({
-                "matcher": "",
-                "hooks": [hook_entries[hook_type]],
-            })
+    # Install hooks pointing to deployed wrappers
+    settings["hooks"]["PreToolUse"] = settings["hooks"].get("PreToolUse", []) + [
+        {
+            "matcher": "Bash|Write|Edit|Read|WebFetch|NotebookEdit|WebSearch",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": f"{python_exe} {pre_hook_path}",
+                }
+            ],
+        }
+    ]
+    settings["hooks"]["PostToolUse"] = settings["hooks"].get("PostToolUse", []) + [
+        {
+            "matcher": "Read|WebFetch|Bash|Grep|WebSearch",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": f"{python_exe} {post_hook_path}",
+                }
+            ],
+        }
+    ]
 
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
+
+    # Track this installation scope
+    _record_installed_scope(target_dir)
