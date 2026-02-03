@@ -229,7 +229,8 @@ def detect_non_english(content: str, min_confidence: float = 0.3) -> LanguageDet
         )
         extended_ratio = extended_count / max(total_alpha, 1)
 
-        if extended_ratio >= 0.08:  # 8%+ accented characters suggests non-English
+        _EXTENDED_LATIN_THRESHOLD = 0.12  # 12%+ accented characters suggests non-English
+        if extended_ratio >= _EXTENDED_LATIN_THRESHOLD:
             detected_scripts.add("LATIN_EXTENDED")
             confidence = min(1.0, extended_ratio * 5)
 

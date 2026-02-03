@@ -279,6 +279,9 @@ def update(check: bool):
     """
     import subprocess
 
+    # Timeout for git operations (seconds) — prevents hanging on network issues
+    GIT_TIMEOUT = 30
+
     patterns_dir = Path("~/.tweek/patterns").expanduser()
     patterns_repo = "https://github.com/gettweek/tweek.git"
 
@@ -298,7 +301,8 @@ def update(check: bool):
                 ["git", "clone", "--depth", "1", patterns_repo, str(patterns_dir)],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=GIT_TIMEOUT,
             )
             console.print("[green]✓[/green] Patterns installed successfully")
 
@@ -312,6 +316,9 @@ def update(check: bool):
                 free_max = data.get("free_tier_max", 23)
                 console.print(f"[white]Installed {count} patterns ({free_max} free, {count - free_max} pro)[/white]")
 
+        except subprocess.TimeoutExpired:
+            console.print(f"[red]✗[/red] Git clone timed out after {GIT_TIMEOUT}s")
+            return
         except subprocess.CalledProcessError as e:
             console.print(f"[red]✗[/red] Failed to clone patterns: {e.stderr}")
             return
@@ -329,13 +336,15 @@ def update(check: bool):
                 result = subprocess.run(
                     ["git", "-C", str(patterns_dir), "fetch", "--dry-run"],
                     capture_output=True,
-                    text=True
+                    text=True,
+                    timeout=GIT_TIMEOUT,
                 )
                 # Check if there are updates
                 result2 = subprocess.run(
                     ["git", "-C", str(patterns_dir), "status", "-uno"],
                     capture_output=True,
-                    text=True
+                    text=True,
+                    timeout=GIT_TIMEOUT,
                 )
                 if "behind" in result2.stdout:
                     console.print("[yellow]Updates available.[/yellow]")
@@ -353,7 +362,8 @@ def update(check: bool):
                 ["git", "-C", str(patterns_dir), "pull", "--ff-only"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=GIT_TIMEOUT,
             )
 
             if "Already up to date" in result.stdout:
@@ -365,6 +375,9 @@ def update(check: bool):
                 if result.stdout.strip():
                     console.print(f"[white]{result.stdout.strip()}[/white]")
 
+        except subprocess.TimeoutExpired:
+            console.print(f"[red]✗[/red] Git pull timed out after {GIT_TIMEOUT}s")
+            return
         except subprocess.CalledProcessError as e:
             console.print(f"[red]✗[/red] Failed to update patterns: {e.stderr}")
             console.print("[white]Try: rm -rf ~/.tweek/patterns && tweek update[/white]")

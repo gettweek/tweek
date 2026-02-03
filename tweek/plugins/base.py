@@ -59,11 +59,19 @@ class ReDoSProtection:
     # Dangerous pattern indicators (simple heuristics)
     # These are common patterns that can cause exponential backtracking
     DANGEROUS_PATTERNS = [
-        # Nested quantifiers
+        # Nested quantifiers with dot
         r'\(\.\*\)\+',           # (.*)+
         r'\(\.\+\)\+',           # (.+)+
         r'\(\.\*\)\*',           # (.*)*
         r'\(\.\+\)\*',           # (.+)*
+        # Nested quantifiers with character classes
+        r'\(\[a-z[^\]]*\]\+\)\+',    # ([a-z]+)+
+        r'\(\\w\+\)\+',             # (\w+)+
+        r'\(\\d\+\)\+',             # (\d+)+
+        r'\(\\s\+\)\+',             # (\s+)+
+        # Multi-char groups with nested quantifiers
+        r'\(\.\{2,\}?\)\+',         # (.{2,})+
+        r'\([^)]+\{[0-9,]+\}\)\+',  # (x{n,m})+
         # Overlapping alternation with quantifiers
         r'\([^)]*\|[^)]*\)\+',   # (a|a)+
         r'\([^)]*\|[^)]*\)\*',   # (a|a)*

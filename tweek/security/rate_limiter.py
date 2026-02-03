@@ -297,6 +297,101 @@ class CircuitBreaker:
         return metrics
 
 
+class PersistentCircuitBreaker(CircuitBreaker):
+    """Circuit breaker with JSON file persistence across process invocations.
+
+    Uses fcntl.flock for safe concurrent access. Falls back to fresh
+    in-memory state if the persistence file is corrupted or inaccessible.
+    """
+
+    def __init__(
+        self,
+        config: Optional[CircuitBreakerConfig] = None,
+        state_path: Optional[Path] = None,
+    ):
+        super().__init__(config)
+        self._state_path = state_path or (Path.home() / ".tweek" / ".circuit_breaker.json")
+
+    def _load_states(self) -> None:
+        """Load persisted states from JSON file under flock."""
+        import fcntl
+        try:
+            self._state_path.parent.mkdir(parents=True, exist_ok=True)
+            if not self._state_path.exists():
+                return
+            with open(self._state_path, "r") as f:
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    raw = json.load(f)
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+            for key, data in raw.items():
+                self._states[key] = CircuitBreakerState(
+                    state=CircuitState(data.get("state", "closed")),
+                    failure_count=data.get("failure_count", 0),
+                    success_count=data.get("success_count", 0),
+                    last_failure_time=(
+                        datetime.fromisoformat(data["last_failure_time"])
+                        if data.get("last_failure_time") else None
+                    ),
+                    last_state_change=(
+                        datetime.fromisoformat(data["last_state_change"])
+                        if data.get("last_state_change") else None
+                    ),
+                    half_open_requests=data.get("half_open_requests", 0),
+                )
+        except (json.JSONDecodeError, OSError, KeyError, ValueError):
+            pass  # Corrupt file — start fresh
+
+    def _save_states(self) -> None:
+        """Persist current states to JSON file under flock."""
+        import fcntl
+        try:
+            self._state_path.parent.mkdir(parents=True, exist_ok=True)
+            serializable = {}
+            for key, state in self._states.items():
+                serializable[key] = {
+                    "state": state.state.value,
+                    "failure_count": state.failure_count,
+                    "success_count": state.success_count,
+                    "last_failure_time": (
+                        state.last_failure_time.isoformat()
+                        if state.last_failure_time else None
+                    ),
+                    "last_state_change": (
+                        state.last_state_change.isoformat()
+                        if state.last_state_change else None
+                    ),
+                    "half_open_requests": state.half_open_requests,
+                }
+            with open(self._state_path, "w") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                try:
+                    json.dump(serializable, f)
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
+        except OSError:
+            pass  # Best-effort persistence
+
+    def record_success(self, key: str = "default") -> CircuitState:
+        self._load_states()
+        result = super().record_success(key)
+        self._save_states()
+        return result
+
+    def record_failure(self, key: str = "default") -> CircuitState:
+        self._load_states()
+        result = super().record_failure(key)
+        self._save_states()
+        return result
+
+    def can_execute(self, key: str = "default") -> Tuple[bool, CircuitState, Optional[int]]:
+        self._load_states()
+        result = super().can_execute(key)
+        self._save_states()
+        return result
+
+
 class RateLimiter:
     """
     Rate limiter for detecting resource theft and abuse patterns.
@@ -459,11 +554,14 @@ class RateLimiter:
             RateLimitResult with allowed status and any violations
         """
         if not session_id:
-            # No session ID - generate unique one per process invocation
+            # No session ID - generate unique one per invocation.
+            # os.urandom(16) adds 128 bits of entropy so each call is unique
+            # even with identical PID/CWD.
             import os as _os
             import uuid as _uuid
             session_id = hashlib.sha256(
                 f"tweek-{_os.getpid()}-{_os.getcwd()}-{_uuid.getnode()}".encode()
+                + _os.urandom(16)
             ).hexdigest()[:16]
 
         # Check circuit breaker first

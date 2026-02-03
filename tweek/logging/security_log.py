@@ -24,6 +24,24 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Pattern
 
 
+def _sanitize_for_log(text: Optional[str]) -> Optional[str]:
+    """Sanitize text for log storage to prevent log injection.
+
+    Replaces control characters that could break log parsers:
+    newlines, carriage returns, tabs, null bytes, and ANSI escapes.
+    """
+    if text is None:
+        return None
+    return (
+        text
+        .replace("\x00", "\\x00")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace("\x1b", "\\x1b")
+    )
+
+
 class LogRedactor:
     """
     Redacts sensitive information from log data.
@@ -483,6 +501,10 @@ class SecurityLogger:
         redacted_command = self.redactor.redact_command(event.command) if event.command else None
         redacted_reason = self.redactor.redact_string(event.decision_reason) if event.decision_reason else None
         redacted_metadata = self.redactor.redact_dict(event.metadata) if event.metadata else None
+
+        # Sanitize text fields to prevent log injection
+        redacted_command = _sanitize_for_log(redacted_command)
+        redacted_reason = _sanitize_for_log(redacted_reason)
 
         with self._get_connection() as conn:
             cursor = conn.execute("""

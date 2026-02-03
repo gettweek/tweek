@@ -73,6 +73,7 @@ class TestMemoryReadForPattern:
 
     def test_high_approval_returns_adjustment(self, memory_db):
         """With enough approvals, should suggest relaxation."""
+        from datetime import datetime, timedelta
         from tweek.memory.schemas import PatternDecisionEntry
         for i in range(30):
             memory_db.record_decision(PatternDecisionEntry(
@@ -82,6 +83,17 @@ class TestMemoryReadForPattern:
                 tool_name="Bash", content_hash=f"h{i}",
                 path_prefix=None, project_hash="proj123",
             ))
+
+        # Spread timestamps over 2 hours so temporal spread check passes
+        conn = memory_db._get_connection()
+        rows = conn.execute(
+            "SELECT id FROM pattern_decisions WHERE pattern_name = 'noisy_pattern' ORDER BY id"
+        ).fetchall()
+        base_time = datetime.utcnow() - timedelta(hours=2)
+        for idx, row in enumerate(rows):
+            ts = (base_time + timedelta(minutes=idx * 4)).isoformat()
+            conn.execute("UPDATE pattern_decisions SET timestamp = ? WHERE id = ?", (ts, row["id"]))
+        conn.commit()
 
         result = memory_read_for_pattern(
             pattern_name="noisy_pattern",

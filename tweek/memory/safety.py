@@ -35,13 +35,17 @@ MAX_RELAXATION = {
 # The system tries scopes narrowest-first and returns the first match.
 # Global (pattern-only) is intentionally absent — too broad to be safe.
 SCOPED_THRESHOLDS = {
-    "exact": 1,          # pattern + tool + path + project
-    "tool_project": 3,   # pattern + tool + project
-    "path": 5,           # pattern + path_prefix
+    "exact": 3,          # pattern + tool + path + project
+    "tool_project": 5,   # pattern + tool + project
+    "path": 8,           # pattern + path_prefix
 }
 
 # Minimum weighted decisions (backward compat — smallest scope threshold)
 MIN_DECISION_THRESHOLD = SCOPED_THRESHOLDS["exact"]
+
+# Decisions must span at least this many hours to qualify for adjustment.
+# Prevents a rapid burst of approvals from bypassing thresholds.
+MIN_DECISION_SPAN_HOURS = 1
 
 # Minimum approval ratio to suggest relaxation
 MIN_APPROVAL_RATIO = 0.90  # 90% approval rate

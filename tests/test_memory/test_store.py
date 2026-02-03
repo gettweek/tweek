@@ -33,6 +33,8 @@ def store(tmp_path):
 @pytest.fixture
 def populated_store(store):
     """Store with some test data pre-loaded."""
+    from datetime import datetime, timedelta
+
     # Record several pattern decisions
     for i in range(15):
         entry = PatternDecisionEntry(
@@ -64,6 +66,17 @@ def populated_store(store):
             project_hash="proj123",
         )
         store.record_decision(entry)
+
+    # Spread timestamps over 2 hours so temporal spread check passes
+    conn = store._get_connection()
+    rows = conn.execute(
+        "SELECT id FROM pattern_decisions ORDER BY id"
+    ).fetchall()
+    base_time = datetime.utcnow() - timedelta(hours=2)
+    for idx, row in enumerate(rows):
+        ts = (base_time + timedelta(minutes=idx * 7)).isoformat()
+        conn.execute("UPDATE pattern_decisions SET timestamp = ? WHERE id = ?", (ts, row["id"]))
+    conn.commit()
 
     return store
 

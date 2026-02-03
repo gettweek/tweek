@@ -208,6 +208,8 @@ class TestEndToEndMemoryFlow:
 
     def test_full_lifecycle(self, memory_db):
         """Simulate a pattern that keeps getting approved until memory suggests relaxation."""
+        from datetime import datetime, timedelta
+
         # Phase 1: Record many approvals
         for i in range(30):
             entry = PatternDecisionEntry(
@@ -223,6 +225,17 @@ class TestEndToEndMemoryFlow:
                 project_hash="proj1",
             )
             memory_db.record_decision(entry)
+
+        # Spread timestamps over 2 hours so temporal spread check passes
+        conn = memory_db._get_connection()
+        rows = conn.execute(
+            "SELECT id FROM pattern_decisions WHERE pattern_name = 'noisy_env_check' ORDER BY id"
+        ).fetchall()
+        base_time = datetime.utcnow() - timedelta(hours=2)
+        for idx, row in enumerate(rows):
+            ts = (base_time + timedelta(minutes=idx * 4)).isoformat()
+            conn.execute("UPDATE pattern_decisions SET timestamp = ? WHERE id = ?", (ts, row["id"]))
+        conn.commit()
 
         # Phase 2: Query for adjustment
         adjustment = memory_db.get_confidence_adjustment(

@@ -381,8 +381,12 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     session_id = input_data.get("session_id")
     working_dir = input_data.get("cwd")
 
-    # Only screen tools that return content worth analyzing
-    screened_tools = {"Read", "WebFetch", "Bash", "Grep", "WebSearch"}
+    # Screen tools that return content worth analyzing.
+    # Includes content-bearing tools that could carry prompt injection.
+    screened_tools = {
+        "Read", "WebFetch", "Bash", "Grep", "WebSearch",
+        "Skill", "NotebookEdit", "Edit", "Write",
+    }
     if tool_name not in screened_tools:
         return {}
 

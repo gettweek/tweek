@@ -26,6 +26,7 @@ from tweek.memory.schemas import (
 from tweek.memory.safety import (
     MIN_APPROVAL_RATIO,
     MIN_CONFIDENCE_SCORE,
+    MIN_DECISION_SPAN_HOURS,
     MIN_DECISION_THRESHOLD,
     SCOPED_THRESHOLDS,
     compute_suggested_decision,
@@ -35,6 +36,12 @@ from tweek.memory.safety import (
 
 # Half-life in days for time decay
 DECAY_HALF_LIFE_DAYS = 30
+
+# Valid table names for dynamic SQL (used by get_stats, export_all, clear_table)
+_VALID_TABLES = frozenset({
+    "pattern_decisions", "source_trust", "workflow_baselines",
+    "learned_whitelists", "memory_audit",
+})
 
 # Default global memory DB path
 GLOBAL_MEMORY_PATH = Path.home() / ".tweek" / "memory.db"
@@ -339,6 +346,7 @@ class MemoryStore:
                         SUM(CASE WHEN user_response = 'approved' THEN decay_weight ELSE 0 END)
                         / SUM(decay_weight)
                     ELSE 0.5 END as approval_ratio,
+                    MIN(timestamp) as first_decision,
                     MAX(timestamp) as last_decision
                 FROM pattern_decisions
                 WHERE {where_clause} AND decay_weight > 0.01
@@ -358,6 +366,23 @@ class MemoryStore:
 
             # Check if this scope has enough data
             if total_weighted < threshold:
+                continue
+
+            # Temporal spread: decisions must span MIN_DECISION_SPAN_HOURS
+            # to prevent rapid-fire approval bypasses
+            first_ts = row["first_decision"]
+            last_ts = row["last_decision"]
+            if first_ts and last_ts and first_ts != last_ts:
+                try:
+                    t0 = datetime.fromisoformat(first_ts)
+                    t1 = datetime.fromisoformat(last_ts)
+                    span_hours = (t1 - t0).total_seconds() / 3600
+                    if span_hours < MIN_DECISION_SPAN_HOURS:
+                        continue
+                except (ValueError, TypeError):
+                    pass  # Malformed timestamps — skip check, don't block
+            elif total > 1:
+                # Multiple decisions with same timestamp — too rapid
                 continue
 
             # Compute suggested decision with scope-specific threshold
@@ -818,8 +843,8 @@ class MemoryStore:
         conn = self._get_connection()
         stats = {}
 
-        for table in ("pattern_decisions", "source_trust", "workflow_baselines",
-                       "learned_whitelists", "memory_audit"):
+        for table in _VALID_TABLES:
+            # table names are from a frozen constant, safe for interpolation
             row = conn.execute(f"SELECT COUNT(*) as cnt FROM {table}").fetchone()
             stats[table] = row["cnt"]
 
@@ -879,8 +904,8 @@ class MemoryStore:
         conn = self._get_connection()
         data = {}
 
-        for table in ("pattern_decisions", "source_trust", "workflow_baselines",
-                       "learned_whitelists"):
+        for table in sorted(_VALID_TABLES - {"memory_audit"}):
+            # table names are from a frozen constant, safe for interpolation
             rows = conn.execute(f"SELECT * FROM {table}").fetchall()
             data[table] = [dict(r) for r in rows]
 
@@ -892,12 +917,8 @@ class MemoryStore:
 
         Returns the number of deleted rows.
         """
-        valid_tables = {
-            "pattern_decisions", "source_trust", "workflow_baselines",
-            "learned_whitelists", "memory_audit",
-        }
-        if table_name not in valid_tables:
-            raise ValueError(f"Invalid table: {table_name}. Must be one of {valid_tables}")
+        if table_name not in _VALID_TABLES:
+            raise ValueError(f"Invalid table: {table_name}. Must be one of {_VALID_TABLES}")
 
         conn = self._get_connection()
         cursor = conn.execute(f"DELETE FROM {table_name}")

@@ -1,14 +1,18 @@
 """Tests for context-scoped memory thresholds.
 
 Verifies that narrower context requires fewer decisions to relax patterns:
-  exact (pattern+tool+path+project) = 1 decision
-  tool_project (pattern+tool+project) = 3 decisions
-  path (pattern+path) = 5 decisions
+  exact (pattern+tool+path+project) = 3 decisions
+  tool_project (pattern+tool+project) = 5 decisions
+  path (pattern+path) = 8 decisions
   global (pattern only) = NEVER
+
+Decisions must also span MIN_DECISION_SPAN_HOURS (1 hour) to prevent
+rapid-fire approval bypasses.
 """
 from __future__ import annotations
 
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -79,6 +83,23 @@ def _record_denial(
     ))
 
 
+def _spread_timestamps(store: MemoryStore, pattern_name: str = "test_pattern") -> None:
+    """Spread timestamps over 3 hours so temporal spread check passes.
+
+    Uses 40-minute intervals to ensure even 3 decisions span > 1 hour.
+    """
+    conn = store._get_connection()
+    rows = conn.execute(
+        "SELECT id FROM pattern_decisions WHERE pattern_name = ? ORDER BY id",
+        (pattern_name,),
+    ).fetchall()
+    base_time = datetime.utcnow() - timedelta(hours=3)
+    for idx, row in enumerate(rows):
+        ts = (base_time + timedelta(minutes=idx * 40)).isoformat()
+        conn.execute("UPDATE pattern_decisions SET timestamp = ? WHERE id = ?", (ts, row["id"]))
+    conn.commit()
+
+
 # ---------------------------------------------------------------------------
 # Threshold constants
 # ---------------------------------------------------------------------------
@@ -87,28 +108,30 @@ class TestScopedThresholds:
     """Verify the threshold constants are correct."""
 
     def test_exact_threshold(self):
-        assert SCOPED_THRESHOLDS["exact"] == 1
+        assert SCOPED_THRESHOLDS["exact"] == 3
 
     def test_tool_project_threshold(self):
-        assert SCOPED_THRESHOLDS["tool_project"] == 3
+        assert SCOPED_THRESHOLDS["tool_project"] == 5
 
     def test_path_threshold(self):
-        assert SCOPED_THRESHOLDS["path"] == 5
+        assert SCOPED_THRESHOLDS["path"] == 8
 
     def test_no_global_scope(self):
         assert "global" not in SCOPED_THRESHOLDS
 
 
 # ---------------------------------------------------------------------------
-# Exact scope: 1 approval is enough
+# Exact scope: 3 approvals needed
 # ---------------------------------------------------------------------------
 
 class TestExactScope:
-    """pattern + tool + path + project — 1 decision threshold."""
+    """pattern + tool + path + project — 3 decision threshold."""
 
-    def test_single_approval_relaxes(self, tmp_path):
+    def test_three_approvals_relaxes(self, tmp_path):
         store = _make_store(tmp_path)
-        _record_approval(store)
+        for _ in range(3):
+            _record_approval(store)
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -122,6 +145,25 @@ class TestExactScope:
         assert adj is not None
         assert adj.adjusted_decision == "log"
         assert adj.scope == "exact"
+
+    def test_two_approvals_not_enough(self, tmp_path):
+        store = _make_store(tmp_path)
+        for _ in range(2):
+            _record_approval(store)
+        _spread_timestamps(store)
+
+        adj = store.get_confidence_adjustment(
+            pattern_name="test_pattern",
+            tool_name="Bash",
+            path_prefix="src/lib",
+            project_hash="abc123",
+            current_decision="ask",
+            original_severity="high",
+            original_confidence="heuristic",
+        )
+        # 2 < 3 threshold, should not suggest
+        if adj is not None:
+            assert adj.adjusted_decision is None
 
     def test_single_denial_does_not_relax(self, tmp_path):
         store = _make_store(tmp_path)
@@ -143,7 +185,9 @@ class TestExactScope:
     def test_different_tool_not_exact(self, tmp_path):
         """Approval with Bash should not relax for Read at exact scope."""
         store = _make_store(tmp_path)
-        _record_approval(store, tool_name="Bash")
+        for _ in range(3):
+            _record_approval(store, tool_name="Bash")
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -155,22 +199,22 @@ class TestExactScope:
             original_confidence="heuristic",
         )
         # Should NOT match exact scope (tool mismatch)
-        # May match path scope if enough data, but 1 decision < 5 threshold
         if adj is not None:
             assert adj.scope != "exact"
 
 
 # ---------------------------------------------------------------------------
-# Tool+project scope: 3 approvals needed
+# Tool+project scope: 5 approvals needed
 # ---------------------------------------------------------------------------
 
 class TestToolProjectScope:
-    """pattern + tool + project — 3 decision threshold."""
+    """pattern + tool + project — 5 decision threshold."""
 
-    def test_three_approvals_different_paths_relaxes(self, tmp_path):
+    def test_five_approvals_different_paths_relaxes(self, tmp_path):
         store = _make_store(tmp_path)
-        for i in range(3):
+        for i in range(5):
             _record_approval(store, path_prefix=f"src/path_{i}")
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -185,10 +229,11 @@ class TestToolProjectScope:
         assert adj.adjusted_decision == "log"
         assert adj.scope == "tool_project"
 
-    def test_two_approvals_not_enough(self, tmp_path):
+    def test_four_approvals_not_enough(self, tmp_path):
         store = _make_store(tmp_path)
-        for i in range(2):
+        for i in range(4):
             _record_approval(store, path_prefix=f"src/path_{i}")
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -199,23 +244,24 @@ class TestToolProjectScope:
             original_severity="high",
             original_confidence="heuristic",
         )
-        # 2 < 3 threshold, should not suggest
+        # 4 < 5 threshold, should not suggest
         if adj is not None:
             assert adj.adjusted_decision is None
 
 
 # ---------------------------------------------------------------------------
-# Path scope: 5 approvals needed
+# Path scope: 8 approvals needed
 # ---------------------------------------------------------------------------
 
 class TestPathScope:
-    """pattern + path_prefix — 5 decision threshold."""
+    """pattern + path_prefix — 8 decision threshold."""
 
-    def test_five_approvals_different_tools_relaxes(self, tmp_path):
+    def test_eight_approvals_different_tools_relaxes(self, tmp_path):
         store = _make_store(tmp_path)
-        tools = ["Bash", "Read", "Write", "Edit", "WebFetch"]
+        tools = ["Bash", "Read", "Write", "Edit", "WebFetch", "Grep", "Glob", "WebSearch"]
         for tool in tools:
             _record_approval(store, tool_name=tool, project_hash=f"proj_{tool}")
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -230,10 +276,11 @@ class TestPathScope:
         assert adj.adjusted_decision == "log"
         assert adj.scope == "path"
 
-    def test_four_approvals_not_enough_for_path(self, tmp_path):
+    def test_seven_approvals_not_enough_for_path(self, tmp_path):
         store = _make_store(tmp_path)
-        for i in range(4):
+        for i in range(7):
             _record_approval(store, tool_name=f"Tool_{i}", project_hash=f"proj_{i}")
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -308,11 +355,13 @@ class TestScopeCascade:
 
     def test_exact_takes_priority_over_tool_project(self, tmp_path):
         store = _make_store(tmp_path)
-        # 1 exact match
-        _record_approval(store)
-        # 3 more in same tool+project but different paths
-        for i in range(3):
+        # 3 exact matches (threshold for exact scope)
+        for _ in range(3):
+            _record_approval(store)
+        # 5 more in same tool+project but different paths (meets tool_project threshold)
+        for i in range(5):
             _record_approval(store, path_prefix=f"other/path_{i}")
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -328,9 +377,10 @@ class TestScopeCascade:
 
     def test_tool_project_used_when_no_exact(self, tmp_path):
         store = _make_store(tmp_path)
-        # 3 approvals in same tool+project, different paths
-        for i in range(3):
+        # 5 approvals in same tool+project, different paths (meets tool_project threshold)
+        for i in range(5):
             _record_approval(store, path_prefix=f"src/path_{i}")
+        _spread_timestamps(store)
 
         adj = store.get_confidence_adjustment(
             pattern_name="test_pattern",
@@ -460,22 +510,22 @@ class TestComputeSuggestedDecisionThreshold:
         assert result == "log"
 
     def test_default_threshold_is_path_scope(self):
-        """Default min_threshold should be SCOPED_THRESHOLDS['path'] = 5."""
+        """Default min_threshold should be SCOPED_THRESHOLDS['path'] = 8."""
         result = compute_suggested_decision(
             current_decision="ask",
             approval_ratio=1.0,
-            total_weighted_decisions=4.0,
+            total_weighted_decisions=7.0,
             original_severity="high",
             original_confidence="heuristic",
-            # No min_threshold — should default to 5
+            # No min_threshold — should default to 8
         )
-        assert result is None  # 4 < 5
+        assert result is None  # 7 < 8
 
         result = compute_suggested_decision(
             current_decision="ask",
             approval_ratio=1.0,
-            total_weighted_decisions=5.0,
+            total_weighted_decisions=8.0,
             original_severity="high",
             original_confidence="heuristic",
         )
-        assert result == "log"  # 5 >= 5
+        assert result == "log"  # 8 >= 8

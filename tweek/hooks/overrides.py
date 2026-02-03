@@ -272,10 +272,28 @@ def get_trust_mode(overrides: Optional[SecurityOverrides] = None) -> str:
 
     Returns: "interactive" or "automated"
     """
+    # Valid trust level values
+    _valid_trust_levels = frozenset({"interactive", "automated"})
+
     # 1. Explicit environment variable (highest priority)
     env_trust = os.environ.get("TWEEK_TRUST_LEVEL", "").lower().strip()
-    if env_trust in ("interactive", "automated"):
+    if env_trust in _valid_trust_levels:
+        # Check if locked by CI/admin (prevents override by untrusted code)
+        locked = os.environ.get("TWEEK_TRUST_LEVEL_LOCKED", "").lower().strip()
+        if locked in _valid_trust_levels:
+            import logging as _logging
+            _logging.getLogger("tweek.overrides").info(
+                "TWEEK_TRUST_LEVEL_LOCKED=%s overrides TWEEK_TRUST_LEVEL=%s",
+                locked, env_trust,
+            )
+            return locked
         return env_trust
+    elif env_trust:
+        import logging as _logging
+        _logging.getLogger("tweek.overrides").warning(
+            "Invalid TWEEK_TRUST_LEVEL=%r, ignoring. Valid: %s",
+            env_trust, _valid_trust_levels,
+        )
 
     # 2. Parent process heuristic (macOS/Linux)
     try:

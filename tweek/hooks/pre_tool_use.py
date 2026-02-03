@@ -465,14 +465,31 @@ class TierManager:
 
         for target_path_str in target_paths:
             try:
-                target_resolved = Path(target_path_str).expanduser().resolve()
+                target_path = Path(target_path_str).expanduser()
+                target_resolved = target_path.resolve()
             except (OSError, ValueError):
                 continue
+
+            # Symlink detection: if the path or any parent is a symlink,
+            # log it and never relax the tier (fail-closed).
+            _is_symlink = False
+            try:
+                if target_path.is_symlink():
+                    _is_symlink = True
+                else:
+                    for parent in target_path.parents:
+                        if parent.is_symlink():
+                            _is_symlink = True
+                            break
+            except (OSError, ValueError):
+                pass
 
             # Check if path is inside the project
             try:
                 target_resolved.relative_to(cwd_resolved)
-                continue  # Inside project -- no escalation
+                if not _is_symlink:
+                    continue  # Inside project, not a symlink -- no escalation
+                # Symlink inside project pointing elsewhere — still check further
             except ValueError:
                 pass  # Outside project -- check further
 

@@ -250,6 +250,6 @@ class TestDecisionRank:
         assert DECISION_RANK["log"] > DECISION_RANK["allow"]
 
     def test_constants(self):
-        assert MIN_DECISION_THRESHOLD == 1  # SCOPED_THRESHOLDS["exact"]
+        assert MIN_DECISION_THRESHOLD == 3  # SCOPED_THRESHOLDS["exact"]
         assert MIN_APPROVAL_RATIO == 0.90
         assert MIN_CONFIDENCE_SCORE == 0.80
