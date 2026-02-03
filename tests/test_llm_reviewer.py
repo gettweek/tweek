@@ -20,6 +20,12 @@ import os
 import pytest
 from unittest.mock import patch, MagicMock
 
+import tweek.security.llm_reviewer as llm_mod
+
+HAS_ANTHROPIC = hasattr(llm_mod, 'anthropic')
+HAS_OPENAI = hasattr(llm_mod, 'openai')
+HAS_GENAI = hasattr(llm_mod, 'genai')
+
 from tweek.security.llm_reviewer import (
     RiskLevel,
     LLMReviewResult,
@@ -708,6 +714,7 @@ class TestDefaults:
 # PROVIDER IMPLEMENTATION TESTS (with mocked SDKs)
 # =============================================================================
 
+@pytest.mark.skipif(not HAS_ANTHROPIC, reason="anthropic SDK not installed")
 class TestAnthropicReviewProvider:
     @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", True)
     def test_properties(self):
@@ -775,6 +782,7 @@ class TestAnthropicReviewProvider:
             assert exc_info.value.is_timeout is False
 
 
+@pytest.mark.skipif(not HAS_OPENAI, reason="openai SDK not installed")
 class TestOpenAIReviewProvider:
     @patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", True)
     def test_properties(self):
@@ -845,6 +853,7 @@ class TestOpenAIReviewProvider:
             assert exc_info.value.is_timeout is True
 
 
+@pytest.mark.skipif(not HAS_GENAI, reason="google-generativeai SDK not installed")
 class TestGoogleReviewProvider:
     @patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", True)
     def test_properties(self):

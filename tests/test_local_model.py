@@ -46,6 +46,9 @@ from tweek.plugins.screening.local_model_reviewer import LocalModelReviewerPlugi
 # SKIP CONDITIONS
 # =============================================================================
 
+import tweek.security.local_model as _lm_mod
+HAS_ORT = hasattr(_lm_mod, "ort")
+
 requires_local_model = pytest.mark.skipif(
     not LOCAL_MODEL_AVAILABLE,
     reason="Local model dependencies not installed (pip install tweek[local-models])",
@@ -960,6 +963,7 @@ class TestLoadMetadata:
 
 
 @pytest.mark.local_model
+@pytest.mark.skipif(not HAS_ORT, reason="onnxruntime not installed")
 class TestLoadErrors:
     """Test load() method error paths."""
 

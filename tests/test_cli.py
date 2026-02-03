@@ -12,6 +12,7 @@ Tests coverage of:
 """
 
 import json
+import os
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -50,13 +51,14 @@ class TestInstallCommand:
         """Test global protect claude-code creates settings.json."""
         claude_dir = tmp_path / ".claude"
 
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.cli_install.Path.home', return_value=tmp_path):
-                result = runner.invoke(
-                    main,
-                    ['protect', 'claude-code', '--skip-env-scan'],
-                    catch_exceptions=False
-                )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    result = runner.invoke(
+                        main,
+                        ['protect', 'claude-code', '--skip-env-scan'],
+                        catch_exceptions=False
+                    )
 
         # Should complete successfully
         assert result.exit_code == 0 or "Installation complete" in result.output
@@ -77,21 +79,25 @@ class TestInstallCommand:
 
     def test_install_with_preset(self, runner, tmp_path):
         """Test protect claude-code with security preset."""
-        with patch.object(Path, 'home', return_value=tmp_path):
-            result = runner.invoke(
-                main,
-                ['protect', 'claude-code', '--preset', 'paranoid', '--skip-env-scan']
-            )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    result = runner.invoke(
+                        main,
+                        ['protect', 'claude-code', '--preset', 'paranoid', '--skip-env-scan']
+                    )
 
         assert "paranoid" in result.output.lower() or result.exit_code == 0
 
     def test_install_skip_proxy_check(self, runner, tmp_path):
         """Test protect claude-code with --skip-proxy-check skips openclaw detection."""
-        with patch.object(Path, 'home', return_value=tmp_path):
-            result = runner.invoke(
-                main,
-                ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check']
-            )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    result = runner.invoke(
+                        main,
+                        ['protect', 'claude-code', '--skip-env-scan', '--skip-proxy-check']
+                    )
 
         # Should not mention openclaw
         assert "openclaw" not in result.output.lower()
@@ -107,14 +113,16 @@ class TestInstallCommand:
             "config_path": str(tmp_path / ".openclaw"),
         }
 
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
-                with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
-                    result = runner.invoke(
-                        main,
-                        ['protect', 'claude-code', '--skip-env-scan'],
-                        input='n\n'  # Answer 'no' to proxy override prompt
-                    )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
+                        with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
+                            result = runner.invoke(
+                                main,
+                                ['protect', 'claude-code', '--skip-env-scan'],
+                                input='n\n'  # Answer 'no' to proxy override prompt
+                            )
 
         # Should mention openclaw was detected
         assert "openclaw" in result.output.lower() or result.exit_code == 0
@@ -129,14 +137,16 @@ class TestInstallCommand:
             "config_path": str(tmp_path / ".openclaw"),
         }
 
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
-                with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
-                    result = runner.invoke(
-                        main,
-                        ['protect', 'claude-code', '--skip-env-scan'],
-                        input='n\n'  # Answer 'no' to proxy override prompt
-                    )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
+                        with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
+                            result = runner.invoke(
+                                main,
+                                ['protect', 'claude-code', '--skip-env-scan'],
+                                input='n\n'  # Answer 'no' to proxy override prompt
+                            )
 
         # Should mention gateway is running
         assert "gateway" in result.output.lower() or "running" in result.output.lower() or result.exit_code == 0
@@ -151,13 +161,15 @@ class TestInstallCommand:
             "config_path": None,
         }
 
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
-                with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
-                    result = runner.invoke(
-                        main,
-                        ['protect', 'claude-code', '--skip-env-scan', '--force-proxy']
-                    )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
+                        with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
+                            result = runner.invoke(
+                                main,
+                                ['protect', 'claude-code', '--skip-env-scan', '--force-proxy']
+                            )
 
         # Should mention force/override
         assert "override" in result.output.lower() or "proxy" in result.output.lower() or result.exit_code == 0
@@ -174,13 +186,15 @@ class TestInstallCommand:
 
         tweek_dir = tmp_path / ".tweek"
 
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
-                with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
-                    result = runner.invoke(
-                        main,
-                        ['protect', 'claude-code', '--skip-env-scan', '--force-proxy']
-                    )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
+                        with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
+                            result = runner.invoke(
+                                main,
+                                ['protect', 'claude-code', '--skip-env-scan', '--force-proxy']
+                            )
 
         # Check config file was created
         config_file = tweek_dir / "config.yaml"
@@ -201,14 +215,16 @@ class TestInstallCommand:
             "config_path": None,
         }
 
-        with patch.object(Path, 'home', return_value=tmp_path):
-            with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
-                with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
-                    result = runner.invoke(
-                        main,
-                        ['protect', 'claude-code', '--skip-env-scan'],
-                        input='y\n'  # Answer 'yes' to proxy override prompt
-                    )
+        with patch.dict(os.environ, {'HOME': str(tmp_path)}):
+            with patch.object(Path, 'home', return_value=tmp_path):
+                with patch('tweek.cli_install.Path.home', return_value=tmp_path):
+                    with patch('tweek.proxy.get_openclaw_status', return_value=openclaw_status):
+                        with patch('tweek.proxy.detect_proxy_conflicts', return_value=[]):
+                            result = runner.invoke(
+                                main,
+                                ['protect', 'claude-code', '--skip-env-scan'],
+                                input='y\n'  # Answer 'yes' to proxy override prompt
+                            )
 
         # Should confirm proxy override
         assert "proxy" in result.output.lower() or result.exit_code == 0

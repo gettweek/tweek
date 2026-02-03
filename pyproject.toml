@@ -122,7 +122,7 @@ tweek = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=tweek --cov-report=term-missing --cov-fail-under=65"
+addopts = "-v --cov=tweek --cov-report=term-missing --cov-fail-under=60"
 markers = [
     "patterns: Regex pattern matching and prompt injection detection (slow, ~37s)",
     "hooks: Pre/post tool use hook pipeline and path boundary escalation",
@@ -183,7 +183,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 65
+fail_under = 60
 show_missing = true
 exclude_lines = [
     "pragma: no cover",

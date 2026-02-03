@@ -24,13 +24,14 @@ from __future__ import annotations
 import click
 
 from tweek import __version__
+from tweek.cli_helpers import TieredGroup
 
 
 # =============================================================================
 # MAIN CLI GROUP
 # =============================================================================
 
-@click.group()
+@click.group(cls=TieredGroup)
 @click.version_option(version=__version__, prog_name="tweek")
 def main():
     """Tweek - Security for AI agents.

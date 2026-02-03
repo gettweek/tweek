@@ -305,6 +305,187 @@ def _detect_all_tools():
     return tools
 
 
+# ---------------------------------------------------------------------------
+# TieredGroup — progressive disclosure for CLI help
+# ---------------------------------------------------------------------------
+
+# Command tiers: shown in order in default --help output.
+# Commands not listed here go into "All other commands" (compressed).
+COMMAND_TIERS = {
+    "Getting Started": [
+        "protect",
+        "status",
+        "doctor",
+        "update",
+        "upgrade",
+    ],
+    "Security & Trust": [
+        "trust",
+        "untrust",
+        "config",
+        "audit",
+    ],
+}
+
+# All commands that appear in an explicit tier above
+_TIERED_COMMANDS = {cmd for cmds in COMMAND_TIERS.values() for cmd in cmds}
+
+
+class TieredGroup(click.Group):
+    """A Click Group that displays commands in tiered categories.
+
+    Default ``--help`` shows core commands with full descriptions and
+    compresses remaining commands into a single line.  Pass ``--help-all``
+    to see every command with its description, grouped by category.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.params.append(
+            click.Option(
+                ["--help-all"],
+                is_flag=True,
+                expose_value=False,
+                is_eager=True,
+                callback=self._show_help_all,
+                help="Show all commands with full descriptions.",
+            )
+        )
+
+    def _show_help_all(self, ctx, _param, value):
+        if not value:
+            return
+        # Build the full categorised help text and print it
+        formatter = ctx.make_formatter()
+        self.format_usage(ctx, formatter)
+        self.format_help_text(ctx, formatter)
+        self._format_all_commands(ctx, formatter)
+        formatter.write("\n")
+        click.echo(formatter.getvalue().rstrip("\n"))
+        ctx.exit(0)
+
+    # -- default help (tiered) ------------------------------------------------
+
+    def format_commands(self, ctx, formatter):
+        """Override: render tiered command list instead of flat alphabetical."""
+        commands = self._sorted_commands(ctx)
+        if not commands:
+            return
+
+        cmd_map = {name: cmd for name, cmd in commands}
+        max_len = max(len(name) for name, _ in commands)
+
+        # Tier 1+2: explicit categories with full descriptions
+        for tier_name, tier_cmds in COMMAND_TIERS.items():
+            rows = []
+            for name in tier_cmds:
+                cmd = cmd_map.get(name)
+                if cmd is None:
+                    continue
+                help_text = cmd.get_short_help_str(limit=150)
+                rows.append((name, help_text))
+            if rows:
+                with formatter.section(tier_name):
+                    formatter.write_dl(rows)
+
+        # Remaining: compressed into a single line
+        other_names = [name for name, _ in commands if name not in _TIERED_COMMANDS]
+        if other_names:
+            with formatter.section("All other commands"):
+                # Wrap the names at ~60 chars per line for readability
+                lines = _wrap_names(other_names, width=60)
+                for line in lines:
+                    formatter.write(f"  {line}\n")
+
+            formatter.write(
+                "\n  Run 'tweek <command> --help' for details on any command.\n"
+                "  Run 'tweek --help-all' for the full command list.\n"
+            )
+
+    # -- --help-all output (full categorised) ---------------------------------
+
+    _FULL_TIERS = {
+        **COMMAND_TIERS,
+        "Diagnostics": [
+            "logs",
+            "feedback",
+            "override",
+        ],
+        "Infrastructure": [
+            "vault",
+            "proxy",
+            "mcp",
+            "plugins",
+            "skills",
+            "dry-run",
+            "memory",
+            "model",
+        ],
+        "Lifecycle": [
+            "install",
+            "uninstall",
+            "unprotect",
+            "license",
+        ],
+    }
+
+    def _format_all_commands(self, ctx, formatter):
+        """Render every command grouped into categories."""
+        commands = self._sorted_commands(ctx)
+        if not commands:
+            return
+        cmd_map = {name: cmd for name, cmd in commands}
+        shown = set()
+
+        for tier_name, tier_cmds in self._FULL_TIERS.items():
+            rows = []
+            for name in tier_cmds:
+                cmd = cmd_map.get(name)
+                if cmd is None:
+                    continue
+                rows.append((name, cmd.get_short_help_str(limit=150)))
+                shown.add(name)
+            if rows:
+                with formatter.section(tier_name):
+                    formatter.write_dl(rows)
+
+        # Catch-all for anything not in _FULL_TIERS (future-proofing)
+        leftover = [(n, c.get_short_help_str(limit=150))
+                     for n, c in commands if n not in shown]
+        if leftover:
+            with formatter.section("Other"):
+                formatter.write_dl(leftover)
+
+    # -- helpers --------------------------------------------------------------
+
+    def _sorted_commands(self, ctx):
+        """Return (name, command) pairs sorted alphabetically, skipping hidden."""
+        source = self.list_commands(ctx)
+        pairs = []
+        for name in source:
+            cmd = self.get_command(ctx, name)
+            if cmd is None or cmd.hidden:
+                continue
+            pairs.append((name, cmd))
+        return pairs
+
+
+def _wrap_names(names, width=60):
+    """Wrap a list of command names into lines of roughly *width* chars."""
+    lines = []
+    current = ""
+    for name in names:
+        candidate = f"{current}, {name}" if current else name
+        if len(candidate) > width and current:
+            lines.append(current)
+            current = name
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
+
+
 def _load_overrides_yaml() -> tuple:
     """Load ~/.tweek/overrides.yaml. Returns (data_dict, file_path)."""
     import yaml
