@@ -33,3 +33,26 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
+
+  integration-test:
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -m integration -v --no-cov --timeout=120
+        env:
+          PYTHON_KEYRING_BACKEND: keyring.backends.null.Keyring

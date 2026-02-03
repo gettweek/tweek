@@ -32,6 +32,7 @@ from tweek.cli_helpers import (
     print_success,
     print_warning,
     _has_tweek_hooks,
+    _detect_all_tools,
 )
 
 
@@ -123,6 +124,94 @@ def parse_env_keys(env_path: Path) -> List[str]:
 # Install helpers
 # ---------------------------------------------------------------------------
 
+
+def _download_local_model(quick: bool) -> bool:
+    """Download the local classifier model if dependencies are available.
+
+    Called during ``tweek install`` to ensure the on-device prompt-injection
+    classifier is ready to use immediately after installation.
+
+    Args:
+        quick: If True, skip informational output and just download.
+
+    Returns:
+        True if the model is installed (was already present or downloaded
+        successfully), False otherwise.
+    """
+    try:
+        from tweek.security.local_model import LOCAL_MODEL_AVAILABLE
+        from tweek.security.model_registry import (
+            ModelDownloadError,
+            download_model,
+            get_default_model_name,
+            get_model_definition,
+            is_model_installed,
+        )
+    except ImportError:
+        if not quick:
+            console.print("\n[white]Local model module not available — skipping model download[/white]")
+        return False
+
+    if not LOCAL_MODEL_AVAILABLE:
+        if not quick:
+            console.print("\n[white]Local model dependencies not installed (optional)[/white]")
+            console.print("  [white]Install with: pip install tweek[local-models][/white]")
+        return False
+
+    default_name = get_default_model_name()
+
+    if is_model_installed(default_name):
+        console.print(f"\n[green]\u2713[/green] Local classifier model already installed ({default_name})")
+        return True
+
+    definition = get_model_definition(default_name)
+    if definition is None:
+        return False
+
+    if not quick:
+        console.print(f"\n[bold]Downloading local classifier model[/bold]")
+        console.print(f"  Model:   {definition.display_name}")
+        console.print(f"  Size:    ~{definition.size_mb:.0f} MB")
+        console.print(f"  License: {definition.license}")
+        console.print(f"  [white]This enables on-device prompt injection detection (no API key needed)[/white]")
+        console.print()
+
+    from rich.progress import Progress, BarColumn, DownloadColumn, TransferSpeedColumn
+
+    progress = Progress(
+        "[progress.description]{task.description}",
+        BarColumn(),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        console=console,
+    )
+
+    tasks = {}
+
+    def progress_callback(filename: str, downloaded: int, total: int):
+        if filename not in tasks:
+            tasks[filename] = progress.add_task(
+                f"  {filename}", total=total or None
+            )
+        progress.update(tasks[filename], completed=downloaded)
+
+    try:
+        with progress:
+            download_model(default_name, progress_callback=progress_callback)
+
+        console.print(f"[green]\u2713[/green] Local classifier model downloaded ({default_name})")
+        return True
+
+    except ModelDownloadError as e:
+        console.print(f"\n[yellow]\u26a0[/yellow] Could not download local model: {e}")
+        console.print("  [white]You can download it later with: tweek model download[/white]")
+        return False
+    except Exception as e:
+        console.print(f"\n[yellow]\u26a0[/yellow] Model download failed: {e}")
+        console.print("  [white]You can download it later with: tweek model download[/white]")
+        return False
+
+
 def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: bool, skip_env_scan: bool, interactive: bool, preset: str, ai_defaults: bool, with_sandbox: bool, force_proxy: bool, skip_proxy_check: bool, quick: bool):
     """Install Tweek hooks into Claude Code.
 
@@ -146,7 +235,7 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
         skip_env_scan = True
         skip_proxy_check = True
         if not preset:
-            preset = "cautious"
+            preset = "balanced"
 
     console.print(TWEEK_BANNER, style="cyan")
 
@@ -402,6 +491,18 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
     tweek_dir.mkdir(parents=True, exist_ok=True)
     console.print(f"[green]\u2713[/green] Tweek data directory: {tweek_dir}")
 
+    # Create .tweek.yaml in the install directory (per-directory hook control)
+    _create_tweek_yaml(install_global)
+
+    # Deploy self-documenting config templates (skip .tweek.yaml — handled above)
+    try:
+        from tweek.config.templates import deploy_all_templates
+        for name, path, created in deploy_all_templates(global_scope=install_global):
+            if created:
+                console.print(f"[green]\u2713[/green] {name}: {path}")
+    except Exception:
+        pass  # Template deployment is best-effort
+
     # ─────────────────────────────────────────────────────────────
     # Step 6: Install Tweek skill for Claude Code
     # ─────────────────────────────────────────────────────────────
@@ -458,7 +559,12 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
         console.print(f"  [white]Skill can be installed manually from the tweek repository[/white]")
 
     # ─────────────────────────────────────────────────────────────
-    # Step 7: Security Configuration
+    # Step 7: Download local classifier model
+    # ─────────────────────────────────────────────────────────────
+    _download_local_model(quick)
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 8: Security Configuration
     # ─────────────────────────────────────────────────────────────
     cfg = ConfigManager()
 
@@ -536,23 +642,29 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
         # Full interactive configuration
         console.print("\n[bold]Security Configuration[/bold]")
         console.print("Choose how to configure security settings:\n")
-        console.print("  [cyan]1.[/cyan] Paranoid - Maximum security")
-        console.print("  [cyan]2.[/cyan] Cautious - Balanced (recommended)")
-        console.print("  [cyan]3.[/cyan] Trusted  - Minimal prompts")
-        console.print("  [cyan]4.[/cyan] Custom   - Configure individually")
+        console.print("  [cyan]1.[/cyan] Paranoid  - Maximum security, prompt on everything")
+        console.print("  [cyan]2.[/cyan] Balanced  - Smart defaults with provenance tracking [green](recommended)[/green]")
+        console.print("  [cyan]3.[/cyan] Cautious  - Prompt on risky operations")
+        console.print("  [cyan]4.[/cyan] Trusted   - Minimal prompts")
+        console.print("  [cyan]5.[/cyan] Custom    - Configure individually")
         console.print()
 
-        choice = click.prompt("Select", type=click.IntRange(1, 4), default=2)
+        choice = click.prompt("Select", type=click.IntRange(1, 5), default=2)
 
         if choice == 1:
             cfg.apply_preset("paranoid")
             console.print("[green]\u2713[/green] Applied paranoid preset")
             install_summary["preset"] = "paranoid"
         elif choice == 2:
+            cfg.apply_preset("balanced")
+            console.print("[green]\u2713[/green] Applied balanced preset")
+            console.print("[white]  Clean sessions get fewer prompts; tainted sessions get extra scrutiny[/white]")
+            install_summary["preset"] = "balanced"
+        elif choice == 3:
             cfg.apply_preset("cautious")
             console.print("[green]\u2713[/green] Applied cautious preset")
             install_summary["preset"] = "cautious"
-        elif choice == 3:
+        elif choice == 4:
             cfg.apply_preset("trusted")
             console.print("[green]\u2713[/green] Applied trusted preset")
             install_summary["preset"] = "trusted"
@@ -584,14 +696,14 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
             install_summary["preset"] = "existing"
 
     # ─────────────────────────────────────────────────────────────
-    # Step 8: LLM Review Provider Selection
+    # Step 9: LLM Review Provider Selection
     # ─────────────────────────────────────────────────────────────
     llm_config = _configure_llm_provider(tweek_dir, interactive, quick)
     install_summary["llm_provider"] = llm_config.get("provider_display", "auto-detect")
     install_summary["llm_model"] = llm_config.get("model_display")
 
     # ─────────────────────────────────────────────────────────────
-    # Step 9: Scan for .env files (moved after security config)
+    # Step 10: Scan for .env files (moved after security config)
     # ─────────────────────────────────────────────────────────────
     if not skip_env_scan:
         console.print("\n[cyan]Scanning for .env files with credentials...[/cyan]\n")
@@ -672,7 +784,7 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
             console.print("[white]No .env files with credentials found[/white]")
 
     # ─────────────────────────────────────────────────────────────
-    # Step 10: Linux: Prompt for firejail installation
+    # Step 11: Linux: Prompt for firejail installation
     # ─────────────────────────────────────────────────────────────
     if IS_LINUX:
         caps = get_capabilities()
@@ -686,7 +798,7 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
                 console.print("[white]Or run 'tweek install --with-sandbox' to install now[/white]")
 
     # ─────────────────────────────────────────────────────────────
-    # Step 11: Configure Tweek proxy if override was enabled
+    # Step 12: Configure Tweek proxy if override was enabled
     # ─────────────────────────────────────────────────────────────
     if proxy_override_enabled:
         try:
@@ -720,9 +832,97 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
             console.print(f"\n[yellow]Warning: Could not save proxy config: {e}[/yellow]")
 
     # ─────────────────────────────────────────────────────────────
-    # Step 12: Post-install verification and summary
+    # Step 13: Post-install verification and summary
     # ─────────────────────────────────────────────────────────────
     _print_install_summary(install_summary, target, tweek_dir, proxy_override_enabled)
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 14: Scan for other AI tools and offer protection
+    # ─────────────────────────────────────────────────────────────
+    if not quick:
+        _offer_mcp_protection()
+
+
+
+def _offer_mcp_protection() -> None:
+    """Scan for installed MCP-capable AI tools and offer to protect them.
+
+    Detects Claude Desktop, Gemini CLI, and ChatGPT Desktop. For each tool
+    that is installed but not yet protected, prompts the user to add Tweek
+    as an MCP server.
+    """
+    from tweek.cli_protect import _protect_mcp_client
+
+    # MCP client tool IDs to scan for (exclude claude-code and openclaw —
+    # those are handled by their own install paths)
+    mcp_tool_ids = {"claude-desktop", "chatgpt", "gemini"}
+
+    try:
+        all_tools = _detect_all_tools()
+    except Exception:
+        return
+
+    unprotected = [
+        (tool_id, label)
+        for tool_id, label, installed, protected, _detail in all_tools
+        if tool_id in mcp_tool_ids and installed and not protected
+    ]
+
+    if not unprotected:
+        return
+
+    console.print("\n[bold]Other AI tools detected[/bold]")
+    console.print("Tweek can also protect these tools via MCP server integration:\n")
+
+    for tool_id, label in unprotected:
+        if click.confirm(f"  Protect {label}?", default=True):
+            try:
+                _protect_mcp_client(tool_id)
+            except Exception as e:
+                console.print(f"  [yellow]Could not configure {label}: {e}[/yellow]")
+        else:
+            console.print(f"  [dim]Skipped {label}[/dim]")
+
+    console.print()
+
+
+def _create_tweek_yaml(install_global: bool) -> None:
+    """Create .tweek.yaml in the project directory with hooks enabled.
+
+    This file controls whether PreToolUse and PostToolUse hooks run in
+    this directory. Created with both enabled by default — the user must
+    manually set them to false to disable protection.
+
+    For global installs, creates in the home directory so it applies
+    as the fallback when no project-level .tweek.yaml exists.
+    """
+    import yaml
+
+    if install_global:
+        tweek_yaml_path = Path("~/.tweek.yaml").expanduser()
+    else:
+        tweek_yaml_path = Path.cwd() / ".tweek.yaml"
+
+    # Don't overwrite if it already exists (user may have customized it)
+    if tweek_yaml_path.exists():
+        return
+
+    config = {
+        "hooks": {
+            "pre_tool_use": True,
+            "post_tool_use": True,
+        },
+    }
+
+    try:
+        with open(tweek_yaml_path, "w") as f:
+            f.write("# Tweek per-directory hook configuration\n")
+            f.write("# Set to false to disable screening in this directory.\n")
+            f.write("# This file is protected — only a human can edit it.\n")
+            yaml.dump(config, f, default_flow_style=False)
+        console.print(f"[green]\u2713[/green] Hook config: {tweek_yaml_path}")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Could not create {tweek_yaml_path}: {e}[/yellow]")
 
 
 def _check_python_version(console: Console, quick: bool) -> None:
@@ -803,10 +1003,10 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
         if local_model_ready:
             console.print(f"     [white]Local model installed ({local_model_name}) \u2014 will use it first[/white]")
         else:
-            console.print("     [white]Uses first available: Local model > Anthropic > OpenAI > Google[/white]")
-        console.print("  [cyan]2.[/cyan] Anthropic (Claude Haiku)")
+            console.print("     [white]Uses first available: Local model > Google > OpenAI > Anthropic[/white]")
+        console.print("  [cyan]2.[/cyan] Anthropic (Claude Haiku) [yellow]— billed separately from Max/Pro plans[/yellow]")
         console.print("  [cyan]3.[/cyan] OpenAI (GPT-4o-mini)")
-        console.print("  [cyan]4.[/cyan] Google (Gemini 2.0 Flash)")
+        console.print("  [cyan]4.[/cyan] Google (Gemini 2.0 Flash) [green]— free tier available[/green]")
         console.print("  [cyan]5.[/cyan] Custom endpoint (Ollama, LM Studio, Together, Groq, etc.)")
         console.print("  [cyan]6.[/cyan] Disable screening")
         if not local_model_ready:
@@ -820,8 +1020,17 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
         if choice == 1:
             result["provider"] = "auto"
         elif choice == 2:
-            result["provider"] = "anthropic"
-            result["model"] = "claude-3-5-haiku-latest"
+            console.print()
+            console.print("[yellow]  Note: Anthropic API keys are billed per-token, separately from[/yellow]")
+            console.print("[yellow]  Claude Pro/Max subscriptions. Consider Google Gemini (option 4)[/yellow]")
+            console.print("[yellow]  for a free tier alternative.[/yellow]")
+            if not click.confirm("  Continue with Anthropic?", default=True):
+                result["provider"] = "google"
+                result["model"] = "gemini-2.0-flash"
+                console.print("  Switched to Google Gemini 2.0 Flash")
+            else:
+                result["provider"] = "anthropic"
+                result["model"] = "claude-3-5-haiku-latest"
         elif choice == 3:
             result["provider"] = "openai"
             result["model"] = "gpt-4o-mini"
@@ -886,34 +1095,32 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
     if result["provider"] not in ("auto", "disabled") and not quick:
         _validate_llm_provider(result)
 
+    # Warn if no LLM provider was found (auto or quick mode)
+    if result.get("provider_display") and "disabled" in (result.get("provider_display") or "").lower():
+        _warn_no_llm_provider(quick)
+
     # Save LLM config to ~/.tweek/config.yaml
+    # Uses append_active_section to preserve template comments instead of yaml.dump
     if result["provider"] != "auto" or result.get("base_url"):
         try:
+            from tweek.config.templates import append_active_section
             config_path = tweek_dir / "config.yaml"
-            if config_path.exists():
-                with open(config_path) as f:
-                    tweek_config = yaml.safe_load(f) or {}
-            else:
-                tweek_config = {}
 
-            llm_section = tweek_config.get("llm_review", {})
-
+            # Build the active YAML section
+            lines = ["llm_review:"]
             if result["provider"] == "disabled":
-                llm_section["enabled"] = False
+                lines.append("  enabled: false")
             else:
-                llm_section["enabled"] = True
-                llm_section["provider"] = result["provider"]
+                lines.append("  enabled: true")
+                lines.append(f"  provider: {result['provider']}")
                 if result["model"] != "auto":
-                    llm_section["model"] = result["model"]
+                    lines.append(f"  model: {result['model']}")
                 if result.get("base_url"):
-                    llm_section["base_url"] = result["base_url"]
+                    lines.append(f"  base_url: {result['base_url']}")
                 if result.get("api_key_env"):
-                    llm_section["api_key_env"] = result["api_key_env"]
+                    lines.append(f"  api_key_env: {result['api_key_env']}")
 
-            tweek_config["llm_review"] = llm_section
-
-            with open(config_path, "w") as f:
-                yaml.dump(tweek_config, f, default_flow_style=False, sort_keys=False)
+            append_active_section(config_path, "\n".join(lines))
 
             if result["provider"] == "disabled":
                 console.print("[green]\u2713[/green] LLM review disabled in config")
@@ -928,6 +1135,28 @@ def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> 
             console.print(f"[green]\u2713[/green] LLM provider: {result['provider_display']}")
 
     return result
+
+
+def _warn_no_llm_provider(quick: bool) -> None:
+    """Warn user when no LLM provider is available for semantic analysis.
+
+    This runs in auto and quick modes when auto-detection finds no API key.
+    Pattern matching (262 patterns) still works, but the deeper semantic
+    analysis layer (Layer 3) will be inactive.
+    """
+    console.print()
+    console.print("[yellow]  LLM review is not available.[/yellow]")
+    console.print("  Pattern matching is still active, but LLM semantic analysis requires an API key.")
+    console.print()
+    console.print("  [bold]Recommended:[/bold] Google Gemini (free tier available)")
+    console.print("    1. Get a free key at: https://aistudio.google.com/apikey")
+    console.print("    2. Run: [cyan]tweek config edit env[/cyan]")
+    console.print("       Uncomment the GOOGLE_API_KEY line and paste your key.")
+    console.print()
+    console.print("  [yellow]Note:[/yellow] Anthropic API keys are billed separately from Claude Pro/Max plans.")
+    console.print("  Google Gemini's free tier is recommended for most users.")
+    console.print()
+    console.print("  All provider options are documented in ~/.tweek/.env")
 
 
 def _detect_llm_provider():
@@ -950,12 +1179,13 @@ def _detect_llm_provider():
     except ImportError:
         pass
 
-    # Cloud providers
+    # Cloud providers — Google first (free tier), then others (pay-per-token)
     checks = [
-        ("ANTHROPIC_API_KEY", "Anthropic", "claude-3-5-haiku-latest"),
-        ("OPENAI_API_KEY", "OpenAI", "gpt-4o-mini"),
         ("GOOGLE_API_KEY", "Google", "gemini-2.0-flash"),
         ("GEMINI_API_KEY", "Google", "gemini-2.0-flash"),
+        ("OPENAI_API_KEY", "OpenAI", "gpt-4o-mini"),
+        ("XAI_API_KEY", "xAI (Grok)", "grok-2"),
+        ("ANTHROPIC_API_KEY", "Anthropic", "claude-3-5-haiku-latest"),
     ]
 
     for env_var, name, model in checks:
@@ -1011,19 +1241,58 @@ def _validate_llm_provider(llm_config: dict) -> None:
     if not expected_vars:
         return
 
-    # Check if any expected env var is set
+    # Check if any expected env var is set in environment or vault
     found_key = False
+    key_source = None
+
     for var in expected_vars:
         if os.environ.get(var):
             found_key = True
-            console.print(f"  [green]\u2713[/green] {var} found")
+            key_source = "environment"
+            console.print(f"  [green]\u2713[/green] {var} found in environment")
             break
+
+    # Check vault if not in environment
+    if not found_key:
+        try:
+            from tweek.vault import get_vault, VAULT_AVAILABLE
+            if VAULT_AVAILABLE and get_vault:
+                vault = get_vault()
+                for var in expected_vars:
+                    if vault.get("tweek-security", var):
+                        found_key = True
+                        key_source = "vault"
+                        console.print(f"  [green]\u2713[/green] {var} found in vault")
+                        break
+        except Exception:
+            pass
 
     if not found_key:
         var_list = " or ".join(expected_vars)
-        console.print(f"  [yellow]\u26a0[/yellow] {var_list} not set in environment")
-        console.print(f"  [white]LLM review will be disabled until the key is available.[/white]")
-        console.print(f"  [white]Set it in your shell profile or .env file, then restart Claude Code.[/white]")
+        console.print(f"  [yellow]\u26a0[/yellow] {var_list} not found")
+        console.print()
+
+        # Offer to store the key in the vault
+        store_key = click.confirm("  Enter your API key now? (stored securely in system vault)", default=True)
+        if store_key:
+            key_name = expected_vars[0]
+            api_key_value = click.prompt(f"  {key_name}", hide_input=True)
+            if api_key_value:
+                try:
+                    from tweek.vault import get_vault, VAULT_AVAILABLE
+                    if VAULT_AVAILABLE and get_vault:
+                        vault = get_vault()
+                        vault.store("tweek-security", key_name, api_key_value)
+                        console.print(f"  [green]\u2713[/green] {key_name} stored in vault")
+                        found_key = True
+                    else:
+                        console.print(f"  [yellow]\u26a0[/yellow] Vault not available. Set {key_name} in your shell profile instead.")
+                except Exception as e:
+                    console.print(f"  [yellow]\u26a0[/yellow] Could not store in vault: {e}")
+                    console.print(f"  [white]Set {key_name} in your shell profile instead.[/white]")
+
+    if not found_key:
+        console.print(f"  [white]LLM review will be disabled until a key is available.[/white]")
 
         # Offer fallback
         console.print()
@@ -1167,11 +1436,12 @@ def _print_install_summary(
     # Next steps
     console.print()
     console.print("[white]Next steps:[/white]")
-    console.print("[white]  tweek doctor       \u2014 Verify installation[/white]")
-    console.print("[white]  tweek update       \u2014 Get latest attack patterns[/white]")
-    console.print("[white]  tweek config list  \u2014 See security settings[/white]")
+    console.print("[white]  tweek doctor        \u2014 Verify installation[/white]")
+    console.print("[white]  tweek update        \u2014 Get latest attack patterns[/white]")
+    console.print("[white]  tweek configure     \u2014 Tune LLM, vault, proxy, sandbox[/white]")
+    console.print("[white]  tweek config list   \u2014 See security settings[/white]")
     if proxy_override_enabled:
-        console.print("[white]  tweek proxy start  \u2014 Enable API interception[/white]")
+        console.print("[white]  tweek proxy start   \u2014 Enable API interception[/white]")
 
 
 # ---------------------------------------------------------------------------
@@ -1190,7 +1460,7 @@ Examples:
 )
 @click.option("--scope", type=click.Choice(["global", "project", "both"]),
               default=None, help="Installation scope (interactive if not specified)")
-@click.option("--preset", type=click.Choice(["paranoid", "cautious", "trusted"]),
+@click.option("--preset", type=click.Choice(["paranoid", "cautious", "balanced", "trusted"]),
               default=None, help="Security preset (interactive if not specified)")
 @click.option("--quick", is_flag=True,
               help="Non-interactive install with cautious defaults")
@@ -1228,7 +1498,7 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
             backup=backup,
             skip_env_scan=True,
             interactive=False,
-            preset=preset or "cautious",
+            preset=preset or "balanced",
             ai_defaults=False,
             with_sandbox=False,
             force_proxy=force_proxy,
@@ -1244,12 +1514,13 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
     console.print("This wizard will help you set up Tweek step by step.")
     console.print("  1. Install hooks")
     console.print("  2. Choose a security preset")
-    console.print("  3. Verify credential vault")
-    console.print("  4. Optional MCP proxy")
+    console.print("  3. Download classifier model")
+    console.print("  4. Verify credential vault")
+    console.print("  5. Optional MCP proxy")
     console.print()
 
     # Step 1: Install hooks
-    console.print("[bold cyan]Step 1/4: Hook Installation[/bold cyan]")
+    console.print("[bold cyan]Step 1/5: Hook Installation[/bold cyan]")
     if scope is None:
         scope_choice = click.prompt(
             "Where should Tweek protect?",
@@ -1269,19 +1540,20 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
     console.print()
 
     # Step 2: Security preset
-    console.print("[bold cyan]Step 2/4: Security Preset[/bold cyan]")
+    console.print("[bold cyan]Step 2/5: Security Preset[/bold cyan]")
     if preset is None:
         console.print("  [cyan]1.[/cyan] paranoid  \u2014 Block everything suspicious, prompt on risky")
-        console.print("  [cyan]2.[/cyan] cautious  \u2014 Block dangerous, prompt on risky [white](recommended)[/white]")
-        console.print("  [cyan]3.[/cyan] trusted   \u2014 Allow most operations, block only dangerous")
+        console.print("  [cyan]2.[/cyan] balanced  \u2014 Smart defaults with provenance tracking [white](recommended)[/white]")
+        console.print("  [cyan]3.[/cyan] cautious  \u2014 Block dangerous, prompt on risky")
+        console.print("  [cyan]4.[/cyan] trusted   \u2014 Allow most operations, block only dangerous")
         console.print()
 
         preset_choice = click.prompt(
             "Select preset",
-            type=click.Choice(["1", "2", "3"]),
+            type=click.Choice(["1", "2", "3", "4"]),
             default="2",
         )
-        preset_map = {"1": "paranoid", "2": "cautious", "3": "trusted"}
+        preset_map = {"1": "paranoid", "2": "balanced", "3": "cautious", "4": "trusted"}
         preset_name = preset_map[preset_choice]
     else:
         preset_name = preset
@@ -1295,8 +1567,13 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
         print_warning(f"Could not apply preset: {e}")
     console.print()
 
-    # Step 3: Credential vault
-    console.print("[bold cyan]Step 3/4: Credential Vault[/bold cyan]")
+    # Step 3: Download classifier model
+    console.print("[bold cyan]Step 3/5: Local Classifier Model[/bold cyan]")
+    _download_local_model(quick=False)
+    console.print()
+
+    # Step 4: Credential vault
+    console.print("[bold cyan]Step 4/5: Credential Vault[/bold cyan]")
     try:
         from tweek.platform import get_capabilities
         caps = get_capabilities()
@@ -1308,8 +1585,8 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
         print_warning("Could not check vault availability.")
     console.print()
 
-    # Step 4: Optional MCP proxy
-    console.print("[bold cyan]Step 4/4: MCP Proxy (optional)[/bold cyan]")
+    # Step 5: Optional MCP proxy
+    console.print("[bold cyan]Step 5/5: MCP Proxy (optional)[/bold cyan]")
     setup_mcp = click.confirm("Set up MCP proxy for Claude Desktop?", default=False)
     if setup_mcp:
         try:
@@ -1320,6 +1597,9 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
             print_warning("MCP package not installed. Install with: pip install tweek[mcp]")
     else:
         console.print("[white]Skipped.[/white]")
+
+    # Scan for other AI tools
+    _offer_mcp_protection()
 
     console.print()
     console.print("[bold green]Setup complete![/bold green]")

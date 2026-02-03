@@ -80,7 +80,7 @@ class TestMemoryReadForPattern:
                 original_severity="medium", original_confidence="heuristic",
                 decision="ask", user_response="approved",
                 tool_name="Bash", content_hash=f"h{i}",
-                path_prefix=None, project_hash=None,
+                path_prefix=None, project_hash="proj123",
             ))
 
         result = memory_read_for_pattern(
@@ -88,6 +88,7 @@ class TestMemoryReadForPattern:
             pattern_severity="medium",
             pattern_confidence="heuristic",
             tool_name="Bash",
+            project_hash="proj123",
         )
         assert result is not None
         assert result["adjusted_decision"] == "log"

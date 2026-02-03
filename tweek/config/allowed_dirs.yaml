@@ -1,23 +1,22 @@
-# Tweek Directory Safety Configuration
+# Tweek Directory Safety Configuration (bundled default)
 #
-# This file controls WHERE Tweek hooks are active.
-# This is a SAFETY FEATURE to prevent accidental activation in production.
+# This file ships with the Tweek package and provides the production default.
+# To override, create ~/.tweek/allowed_dirs.yaml (user-level config takes
+# full precedence when it exists).
 #
 # Options:
-#   global_enabled: true  - Activate Tweek everywhere (production mode)
-#   allowed_directories:  - List of directories where Tweek activates
+#   global_enabled: true  - Activate Tweek everywhere (default for end users)
+#   allowed_directories:  - Restrict Tweek to specific directories only
 #
-# IMPORTANT: Without this file, Tweek is DISABLED everywhere.
+# Lookup order:
+#   1. ~/.tweek/allowed_dirs.yaml  (user override — not in repo)
+#   2. This file                   (bundled default)
 
-# Set to true to enable Tweek globally (for production deployment)
-global_enabled: false
+# Production default: Tweek is active everywhere after install
+global_enabled: true
 
-# Directories where Tweek hooks will activate
-# Tweek will also activate in subdirectories of these paths
-allowed_directories:
-  # Test environment only (safe for development)
-  - ~/AI/tweek/test-environment
-
-  # Add more directories as needed:
-  # - ~/projects/sensitive-project
-  # - /path/to/another/project
+# When global_enabled is false, only activate in these directories.
+# Tweek also activates in subdirectories of listed paths.
+# allowed_directories:
+#   - ~/projects/my-project
+#   - /path/to/another/project

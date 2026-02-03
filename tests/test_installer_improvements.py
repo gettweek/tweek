@@ -19,6 +19,7 @@ from click.testing import CliRunner
 from rich.console import Console
 
 import sys
+import shutil
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tweek.cli import main
@@ -52,6 +53,18 @@ def clean_llm_env(monkeypatch):
     """Remove LLM API keys from env to avoid side effects."""
     for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def mock_claude_on_path():
+    """Mock Claude Code binary as available (not installed in CI)."""
+    _original = shutil.which
+    def _which(cmd):
+        if cmd == "claude":
+            return "/usr/local/bin/claude"
+        return _original(cmd)
+    with patch('tweek.cli_install.shutil.which', new=_which):
+        yield
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -303,12 +316,13 @@ class TestDetectLLMProvider:
         assert result is not None
         assert result["name"] == "Google"
 
-    def test_prefers_anthropic_over_openai(self, monkeypatch):
-        """Anthropic should be preferred when multiple keys exist."""
+    def test_prefers_google_over_anthropic(self, monkeypatch):
+        """Google should be preferred (free tier) when multiple keys exist."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-google-key")
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-anthropic")
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
         result = _detect_llm_provider()
-        assert result["name"] == "Anthropic"
+        assert result["name"] == "Google"
 
     def test_returns_none_when_no_keys(self):
         """Should return None when no API keys and no local model."""
@@ -430,8 +444,9 @@ class TestConfigureLLMProvider:
         tweek_dir = tmp_path / ".tweek"
         tweek_dir.mkdir()
 
-        # Simulate user choosing option 2 (Anthropic)
-        with patch('tweek.cli_install.click.prompt', side_effect=[2, "continue"]):
+        # Simulate user choosing option 2 (Anthropic), confirming billing warning
+        with patch('tweek.cli_install.click.prompt', side_effect=[2, "continue"]), \
+             patch('tweek.cli_install.click.confirm', return_value=True):
             result = _configure_llm_provider(tweek_dir, interactive=True, quick=False)
 
         assert result["provider"] == "anthropic"
@@ -551,18 +566,20 @@ class TestValidateLLMProvider:
     def test_warns_missing_key(self, capsys):
         """Should warn when required API key is missing."""
         config = {"provider": "anthropic"}
-        with patch('tweek.cli_install.click.prompt', return_value="continue"):
+        with patch('tweek.cli_install.click.confirm', return_value=False), \
+             patch('tweek.cli_install.click.prompt', return_value="continue"):
             _validate_llm_provider(config)
         captured = capsys.readouterr()
-        assert "not set" in captured.out.lower()
+        assert "not found" in captured.out.lower()
 
     def test_offers_auto_fallback(self, monkeypatch, capsys):
         """Should offer auto-detect fallback when key is missing."""
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
         config = {"provider": "anthropic"}
 
-        # User chooses to switch to auto
-        with patch('tweek.cli_install.click.prompt', return_value="auto"):
+        # User declines to enter key, then chooses to switch to auto
+        with patch('tweek.cli_install.click.confirm', return_value=False), \
+             patch('tweek.cli_install.click.prompt', return_value="auto"):
             _validate_llm_provider(config)
 
         # Config should be updated to auto

@@ -39,6 +39,7 @@ class ConfidenceAdjustment:
     last_decision: Optional[str]
     adjusted_decision: Optional[str] = None  # suggested decision override
     confidence_score: float = 0.0  # 0.0-1.0 how confident the suggestion is
+    scope: Optional[str] = None  # which scope matched: exact/tool_project/path
 
 
 @dataclass

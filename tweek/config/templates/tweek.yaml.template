@@ -1,0 +1,20 @@
+# ============================================================================
+# Tweek Hook Control (.tweek.yaml)
+# ============================================================================
+#
+# Per-directory control for Tweek security screening hooks.
+# Place this file in any directory to control whether hooks run there.
+#
+# This file is protected by Tweek's self-protection — only a human
+# editing directly can change these settings.
+#
+# Hooks:
+#   pre_tool_use   Screens tool calls BEFORE execution (can block)
+#   post_tool_use  Screens tool responses AFTER execution (advisory)
+#
+# Set to false to disable screening in this directory.
+# ============================================================================
+
+hooks:
+  pre_tool_use: true
+  post_tool_use: true

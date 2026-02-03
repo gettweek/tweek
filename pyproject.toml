@@ -57,6 +57,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.5.0",
+    "pytest-timeout>=2.2.0",
     "hypothesis>=6.98.0",
     "black>=23.0",
     "ruff>=0.1.0",
@@ -115,6 +116,7 @@ exclude = ["website*", "tests*", "scripts*", "test-environment*", "docs*"]
 tweek = [
     "config/*.yaml",
     "config/_integrity.json",
+    "config/templates/*",
     "skill_template/*.md",
     "skill_template/scripts/*.py",
 ]
@@ -122,7 +124,7 @@ tweek = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=tweek --cov-report=term-missing --cov-fail-under=60"
+addopts = "-v --cov=tweek --cov-report=term-missing --cov-fail-under=60 -m 'not integration'"
 markers = [
     "patterns: Regex pattern matching and prompt injection detection (slow, ~37s)",
     "hooks: Pre/post tool use hook pipeline and path boundary escalation",
@@ -137,6 +139,7 @@ markers = [
     "memory: Memory store, safety, and query system",
     "core: Approval queue, audit, diagnostics, feedback, rate limiting, sessions",
     "local_model: Local ONNX model inference, registry, and CLI commands",
+    "integration: End-to-end integration tests with isolated venv install (slow)",
 ]
 
 [tool.black]

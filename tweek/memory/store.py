@@ -27,6 +27,7 @@ from tweek.memory.safety import (
     MIN_APPROVAL_RATIO,
     MIN_CONFIDENCE_SCORE,
     MIN_DECISION_THRESHOLD,
+    SCOPED_THRESHOLDS,
     compute_suggested_decision,
     is_immune_pattern,
 )
@@ -269,11 +270,19 @@ class MemoryStore:
         current_decision: str = "ask",
         original_severity: str = "medium",
         original_confidence: str = "heuristic",
+        tool_name: Optional[str] = None,
+        project_hash: Optional[str] = None,
     ) -> Optional[ConfidenceAdjustment]:
         """Query memory for a confidence adjustment on a pattern.
 
-        Returns a ConfidenceAdjustment if memory has enough data,
-        or None if insufficient data / pattern is immune.
+        Uses a narrowest-first scope cascade:
+          1. exact:        pattern + tool + path + project  (threshold: 1)
+          2. tool_project: pattern + tool + project         (threshold: 3)
+          3. path:         pattern + path_prefix            (threshold: 5)
+          4. global:       NEVER — intentionally omitted
+
+        Returns a ConfidenceAdjustment if memory has enough data at any
+        scope, or None if insufficient data / pattern is immune.
         """
         conn = self._get_connection()
 
@@ -286,96 +295,117 @@ class MemoryStore:
             )
             return None
 
-        # Query the confidence view
-        if path_prefix:
-            row = conn.execute(
-                """
-                SELECT * FROM pattern_confidence_view
-                WHERE pattern_name = ? AND path_prefix = ?
-                """,
-                (pattern_name, path_prefix),
-            ).fetchone()
-        else:
-            row = conn.execute(
-                """
-                SELECT * FROM pattern_confidence_view
-                WHERE pattern_name = ? AND path_prefix IS NULL
-                """,
-                (pattern_name,),
-            ).fetchone()
+        # Build scope cascade: (scope_name, sql_where, params, threshold)
+        scopes = []
 
-        # Also try without path prefix as fallback
-        if not row and path_prefix:
+        if tool_name and path_prefix and project_hash:
+            scopes.append((
+                "exact",
+                "pattern_name = ? AND tool_name = ? AND path_prefix = ? AND project_hash = ?",
+                (pattern_name, tool_name, path_prefix, project_hash),
+                SCOPED_THRESHOLDS["exact"],
+            ))
+
+        if tool_name and project_hash:
+            scopes.append((
+                "tool_project",
+                "pattern_name = ? AND tool_name = ? AND project_hash = ?",
+                (pattern_name, tool_name, project_hash),
+                SCOPED_THRESHOLDS["tool_project"],
+            ))
+
+        if path_prefix:
+            scopes.append((
+                "path",
+                "pattern_name = ? AND path_prefix = ?",
+                (pattern_name, path_prefix),
+                SCOPED_THRESHOLDS["path"],
+            ))
+
+        # No global fallback — intentionally omitted
+
+        # Try each scope narrowest-first
+        for scope_name, where_clause, params, threshold in scopes:
             row = conn.execute(
-                """
+                f"""
                 SELECT
                     pattern_name,
-                    NULL as path_prefix,
-                    SUM(total_decisions) as total_decisions,
-                    SUM(weighted_approvals) as weighted_approvals,
-                    SUM(weighted_denials) as weighted_denials,
-                    CASE WHEN SUM(weighted_approvals) + SUM(weighted_denials) > 0 THEN
-                        SUM(weighted_approvals) / (SUM(weighted_approvals) + SUM(weighted_denials))
+                    COUNT(*) as total_decisions,
+                    SUM(CASE WHEN user_response = 'approved' THEN decay_weight ELSE 0 END)
+                        as weighted_approvals,
+                    SUM(CASE WHEN user_response = 'denied' THEN decay_weight ELSE 0 END)
+                        as weighted_denials,
+                    CASE WHEN SUM(decay_weight) > 0 THEN
+                        SUM(CASE WHEN user_response = 'approved' THEN decay_weight ELSE 0 END)
+                        / SUM(decay_weight)
                     ELSE 0.5 END as approval_ratio,
-                    MAX(last_decision) as last_decision
-                FROM pattern_confidence_view
-                WHERE pattern_name = ?
+                    MAX(timestamp) as last_decision
+                FROM pattern_decisions
+                WHERE {where_clause} AND decay_weight > 0.01
                 GROUP BY pattern_name
                 """,
-                (pattern_name,),
+                params,
             ).fetchone()
 
-        if not row:
+            if not row:
+                continue
+
+            total = row["total_decisions"]
+            weighted_approvals = row["weighted_approvals"] or 0.0
+            weighted_denials = row["weighted_denials"] or 0.0
+            approval_ratio = row["approval_ratio"] or 0.5
+            total_weighted = weighted_approvals + weighted_denials
+
+            # Check if this scope has enough data
+            if total_weighted < threshold:
+                continue
+
+            # Compute suggested decision with scope-specific threshold
+            suggested = compute_suggested_decision(
+                current_decision=current_decision,
+                approval_ratio=approval_ratio,
+                total_weighted_decisions=total_weighted,
+                original_severity=original_severity,
+                original_confidence=original_confidence,
+                min_threshold=threshold,
+            )
+
+            # Confidence score: based on data quantity and consistency
+            confidence_score = 0.0
+            if total_weighted >= threshold:
+                data_factor = min(total_weighted / (threshold * 3), 1.0)
+                ratio_factor = approval_ratio if suggested == "log" else (1 - approval_ratio)
+                confidence_score = data_factor * ratio_factor
+
+            adjustment = ConfidenceAdjustment(
+                pattern_name=pattern_name,
+                path_prefix=path_prefix,
+                total_decisions=total,
+                weighted_approvals=weighted_approvals,
+                weighted_denials=weighted_denials,
+                approval_ratio=approval_ratio,
+                last_decision=row["last_decision"],
+                adjusted_decision=suggested,
+                confidence_score=confidence_score,
+                scope=scope_name,
+            )
+
             self._audit(
                 "read", "pattern_decisions",
                 f"{pattern_name}:{path_prefix}",
-                "no_data",
+                f"scope={scope_name}, total={total}, ratio={approval_ratio:.2f}, "
+                f"suggested={suggested}, confidence={confidence_score:.2f}",
             )
-            return None
 
-        total = row["total_decisions"]
-        weighted_approvals = row["weighted_approvals"] or 0.0
-        weighted_denials = row["weighted_denials"] or 0.0
-        approval_ratio = row["approval_ratio"] or 0.5
-        total_weighted = weighted_approvals + weighted_denials
+            return adjustment
 
-        # Compute suggested decision
-        suggested = compute_suggested_decision(
-            current_decision=current_decision,
-            approval_ratio=approval_ratio,
-            total_weighted_decisions=total_weighted,
-            original_severity=original_severity,
-            original_confidence=original_confidence,
-        )
-
-        # Confidence score: based on data quantity and consistency
-        confidence_score = 0.0
-        if total_weighted >= MIN_DECISION_THRESHOLD:
-            # Scale 0-1 based on how far above threshold and ratio strength
-            data_factor = min(total_weighted / (MIN_DECISION_THRESHOLD * 3), 1.0)
-            ratio_factor = approval_ratio if suggested == "log" else (1 - approval_ratio)
-            confidence_score = data_factor * ratio_factor
-
-        adjustment = ConfidenceAdjustment(
-            pattern_name=pattern_name,
-            path_prefix=path_prefix,
-            total_decisions=total,
-            weighted_approvals=weighted_approvals,
-            weighted_denials=weighted_denials,
-            approval_ratio=approval_ratio,
-            last_decision=row["last_decision"],
-            adjusted_decision=suggested,
-            confidence_score=confidence_score,
-        )
-
+        # No scope had enough data
         self._audit(
             "read", "pattern_decisions",
             f"{pattern_name}:{path_prefix}",
-            f"total={total}, ratio={approval_ratio:.2f}, suggested={suggested}, "
-            f"confidence={confidence_score:.2f}",
+            "no_data_any_scope",
         )
-
-        return adjustment
+        return None
 
     # =====================================================================
     # Source Trust

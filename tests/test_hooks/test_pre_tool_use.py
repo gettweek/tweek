@@ -3,7 +3,7 @@
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # Add parent to path for imports
 import sys
@@ -249,11 +249,19 @@ class TestProcessHook:
         assert result == {}
 
     def test_prompts_for_hostile_bash_commands(self, mock_logger):
-        """Should prompt for hostile Bash commands."""
-        result = process_hook({
-            "tool_name": "Bash",
-            "tool_input": {"command": "cat .env"}
-        }, mock_logger)
+        """Should prompt for hostile Bash commands.
+
+        Mocks provenance taint adjustment to test core enforcement logic
+        without clean-session relaxation of heuristic patterns.
+        """
+        with patch(
+            "tweek.memory.provenance.adjust_enforcement_for_taint",
+            side_effect=lambda base_decision, **kw: base_decision,
+        ):
+            result = process_hook({
+                "tool_name": "Bash",
+                "tool_input": {"command": "cat .env"}
+            }, mock_logger)
         hook_output = result.get("hookSpecificOutput", {})
         assert hook_output.get("permissionDecision") == "ask"
         assert "TWEEK" in hook_output.get("permissionDecisionReason", "")

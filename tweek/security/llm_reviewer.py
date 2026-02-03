@@ -651,25 +651,66 @@ class FallbackReviewProvider(ReviewProvider):
 def _get_api_key(provider_name: str, api_key_env: Optional[str] = None) -> Optional[str]:
     """Resolve the API key for a provider.
 
+    Lookup order:
+      1. Environment variable (explicit override or provider default)
+      2. ~/.tweek/.env file (persisted during install)
+      3. Tweek vault (macOS Keychain / Linux Secret Service)
+
     Args:
-        provider_name: Provider name (anthropic, openai, google)
+        provider_name: Provider name (anthropic, openai, google, xai)
         api_key_env: Override env var name, or None for provider default
 
     Returns:
         API key string, or None if not found
     """
+    # 1. Check environment variables
     if api_key_env:
-        return os.environ.get(api_key_env)
-
-    default_envs = DEFAULT_API_KEY_ENVS.get(provider_name)
-    if isinstance(default_envs, list):
-        for env_name in default_envs:
-            key = os.environ.get(env_name)
+        key = os.environ.get(api_key_env)
+        if key:
+            return key
+        # Fall through to vault lookup with this specific env var name
+        env_names = [api_key_env]
+    else:
+        default_envs = DEFAULT_API_KEY_ENVS.get(provider_name)
+        if isinstance(default_envs, list):
+            for env_name in default_envs:
+                key = os.environ.get(env_name)
+                if key:
+                    return key
+            env_names = default_envs
+        elif isinstance(default_envs, str):
+            key = os.environ.get(default_envs)
             if key:
                 return key
-        return None
-    elif isinstance(default_envs, str):
-        return os.environ.get(default_envs)
+            env_names = [default_envs]
+        else:
+            return None
+
+    # 2. Check ~/.tweek/.env file (persisted during install)
+    try:
+        from dotenv import load_dotenv
+        tweek_env = Path.home() / ".tweek" / ".env"
+        if tweek_env.exists():
+            load_dotenv(tweek_env, override=False)
+            for env_name in env_names:
+                key = os.environ.get(env_name)
+                if key:
+                    return key
+    except ImportError:
+        pass  # dotenv not installed
+
+    # 3. Check Tweek vault (macOS Keychain / Linux Secret Service)
+    try:
+        from tweek.vault import get_vault, VAULT_AVAILABLE
+        if VAULT_AVAILABLE and get_vault:
+            vault = get_vault()
+            for env_name in env_names:
+                key = vault.get("tweek-security", env_name)
+                if key:
+                    return key
+    except Exception:
+        pass  # Vault lookup is best-effort
+
     return None
 
 
@@ -731,15 +772,17 @@ def _build_escalation_provider(
 ) -> Optional[ReviewProvider]:
     """Build a cloud LLM provider for escalation from local model.
 
-    Tries Anthropic, OpenAI, Google, and xAI (Grok) in order.
+    Tries Google (free tier), OpenAI, xAI (Grok), and Anthropic in order.
+    Google is preferred because it offers a free tier; Anthropic is last
+    because API keys are billed separately from Claude Pro/Max plans.
     Returns None if no cloud provider is available.
     """
-    # 1. Anthropic
-    if ANTHROPIC_AVAILABLE:
-        key = api_key or _get_api_key("anthropic", api_key_env if api_key_env else None)
+    # 1. Google (free tier available)
+    if GOOGLE_AVAILABLE:
+        key = api_key or _get_api_key("google", api_key_env if api_key_env else None)
         if key:
-            resolved_model = model if model != "auto" else DEFAULT_MODELS["anthropic"]
-            return AnthropicReviewProvider(
+            resolved_model = model if model != "auto" else DEFAULT_MODELS["google"]
+            return GoogleReviewProvider(
                 model=resolved_model, api_key=key, timeout=timeout,
             )
 
@@ -752,16 +795,7 @@ def _build_escalation_provider(
                 model=resolved_model, api_key=key, timeout=timeout,
             )
 
-    # 3. Google
-    if GOOGLE_AVAILABLE:
-        key = api_key or _get_api_key("google", api_key_env if api_key_env else None)
-        if key:
-            resolved_model = model if model != "auto" else DEFAULT_MODELS["google"]
-            return GoogleReviewProvider(
-                model=resolved_model, api_key=key, timeout=timeout,
-            )
-
-    # 4. xAI (Grok) — OpenAI-compatible endpoint
+    # 3. xAI (Grok) — OpenAI-compatible endpoint
     if OPENAI_AVAILABLE:
         key = api_key or _get_api_key("xai", api_key_env if api_key_env else None)
         if key:
@@ -769,6 +803,15 @@ def _build_escalation_provider(
             return OpenAIReviewProvider(
                 model=resolved_model, api_key=key, timeout=timeout,
                 base_url=PROVIDER_BASE_URLS["xai"],
+            )
+
+    # 4. Anthropic (billed separately from Claude Pro/Max subscriptions)
+    if ANTHROPIC_AVAILABLE:
+        key = api_key or _get_api_key("anthropic", api_key_env if api_key_env else None)
+        if key:
+            resolved_model = model if model != "auto" else DEFAULT_MODELS["anthropic"]
+            return AnthropicReviewProvider(
+                model=resolved_model, api_key=key, timeout=timeout,
             )
 
     return None
@@ -788,10 +831,10 @@ def _auto_detect_provider(
     Priority:
     0. Local ONNX model (no API key, no server needed)
     0.5. Local LLM server (Ollama/LM Studio, validated)
-    1. Anthropic cloud
+    1. Google cloud (free tier available)
     2. OpenAI cloud
-    3. Google cloud
-    4. xAI (Grok) cloud
+    3. xAI (Grok) cloud
+    4. Anthropic cloud (billed separately from Pro/Max plans)
 
     If fallback is enabled and both local + cloud are available,
     returns a FallbackReviewProvider wrapping both.
@@ -1251,30 +1294,40 @@ Respond with ONLY the JSON object."""
             )
 
         except ReviewProviderError as e:
-            if e.is_timeout:
-                return LLMReviewResult(
-                    risk_level=RiskLevel.SUSPICIOUS,
-                    reason="LLM review timed out — prompting user as precaution",
-                    confidence=0.3,
-                    details={"error": "timeout", "provider": self.provider_name},
-                    should_prompt=True
-                )
+            # Infrastructure errors (auth, network, rate limit, timeout) should
+            # NOT block the user with a scary dialog. Pattern matching is the
+            # primary defense; LLM review is a supplementary layer. Gracefully
+            # degrade and let pattern matching handle it.
+            import sys
+            error_type = "timeout" if e.is_timeout else "provider_error"
+            print(
+                f"tweek: LLM review unavailable ({self.provider_name}): {e}",
+                file=sys.stderr,
+            )
             return LLMReviewResult(
-                risk_level=RiskLevel.SUSPICIOUS,
+                risk_level=RiskLevel.SAFE,
                 reason=f"LLM review unavailable ({self.provider_name}): {e}",
-                confidence=0.3,
-                details={"error": str(e), "provider": self.provider_name},
-                should_prompt=True
+                confidence=0.0,
+                details={"error": error_type, "provider": self.provider_name,
+                         "graceful_degradation": True},
+                should_prompt=False
             )
 
         except Exception as e:
-            # Unexpected error - fail closed: treat as suspicious
+            # Unexpected error — also degrade gracefully. Pattern matching
+            # already ran; don't punish the user for an LLM config issue.
+            import sys
+            print(
+                f"tweek: LLM review error: {e}",
+                file=sys.stderr,
+            )
             return LLMReviewResult(
-                risk_level=RiskLevel.SUSPICIOUS,
+                risk_level=RiskLevel.SAFE,
                 reason=f"LLM review unavailable (unexpected error): {e}",
-                confidence=0.3,
-                details={"error": str(e), "provider": self.provider_name},
-                should_prompt=True
+                confidence=0.0,
+                details={"error": str(e), "provider": self.provider_name,
+                         "graceful_degradation": True},
+                should_prompt=False
             )
 
     # Translation prompt for non-English skill/content audit
@@ -1438,7 +1491,7 @@ def test_review():
 
     if not reviewer.enabled:
         print(f"LLM reviewer disabled (no provider available)")
-        print("Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY")
+        print("Set one of: GOOGLE_API_KEY (free tier), OPENAI_API_KEY, XAI_API_KEY, ANTHROPIC_API_KEY")
         return
 
     print(f"Using provider: {reviewer.provider_name}, model: {reviewer.model}")

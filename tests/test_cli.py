@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 import sys
+import shutil
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -42,6 +43,18 @@ def temp_home(tmp_path):
     tweek_dir = tmp_path / ".tweek"
     tweek_dir.mkdir()
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def mock_claude_on_path():
+    """Mock Claude Code binary as available (not installed in CI)."""
+    _original = shutil.which
+    def _which(cmd):
+        if cmd == "claude":
+            return "/usr/local/bin/claude"
+        return _original(cmd)
+    with patch('tweek.cli_install.shutil.which', new=_which):
+        yield
 
 
 class TestInstallCommand:

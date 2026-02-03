@@ -1,0 +1,212 @@
+# ============================================================================
+# Tweek User Configuration (~/.tweek/config.yaml)
+# ============================================================================
+#
+# This file overrides Tweek's bundled defaults. Only uncomment what you
+# want to change -- everything else uses safe production defaults.
+#
+# Config hierarchy (highest priority wins):
+#   1. Project:  .tweek/config.yaml      (per-project overrides)
+#   2. User:     ~/.tweek/config.yaml     (this file)
+#   3. Bundled:  tweek/config/tiers.yaml  (production defaults)
+#
+# Commands:
+#   tweek config edit           Open this file in your editor
+#   tweek config show-defaults  View all bundled defaults
+#   tweek config validate       Check for errors
+#   tweek config list           Show current tool/skill tiers
+#   tweek config preset <name>  Apply a preset (paranoid|cautious|trusted)
+#
+# Full docs: https://github.com/gettweek/tweek/blob/main/docs/CONFIGURATION.md
+# ============================================================================
+
+
+# ---------------------------------------------------------------------------
+# LLM Review Provider (Layer 3 — semantic analysis)
+# ---------------------------------------------------------------------------
+# Analyzes suspicious commands/content using an LLM for deeper screening.
+# Works alongside pattern matching (Layer 2) — not a replacement.
+#
+# Auto-detect order: Local ONNX model > Google > OpenAI > xAI > Anthropic
+#
+# IMPORTANT: API keys go in ~/.tweek/.env (not here). Run:
+#   tweek config edit env
+#
+# BILLING NOTE: Anthropic API keys are billed per-token, SEPARATELY from
+# Claude Pro/Max subscriptions. Google Gemini has a free tier — recommended.
+#
+# llm_review:
+#   enabled: true
+#   provider: auto              # auto | google | openai | xai | anthropic | local
+#   model: auto                 # auto = provider default. Defaults per provider:
+#                               #   google:    gemini-2.0-flash
+#                               #   openai:    gpt-4o-mini
+#                               #   xai:       grok-2
+#                               #   anthropic: claude-3-5-haiku-latest
+#                               #   local:     deberta-v3-injection
+#   timeout_seconds: 5.0        # Max wait for LLM response
+#   base_url: null              # For OpenAI-compatible endpoints (Ollama, LM Studio, etc.)
+#   api_key_env: null           # Override env var name (default: provider-specific)
+#
+#   # Local LLM server settings (Ollama, LM Studio)
+#   local:
+#     enabled: true
+#     probe_timeout: 0.5        # Max probe time per server (seconds)
+#     timeout_seconds: 3.0      # Per-request timeout (local should be fast)
+#     ollama_host: null          # Override (default: OLLAMA_HOST env or localhost:11434)
+#     lm_studio_host: null       # Override (default: localhost:1234)
+#     preferred_models: []       # User override for model ranking
+#     validate_on_first_use: true
+#     min_validation_score: 0.6  # Must pass 3/5 validation commands
+#
+#   # Fallback chain (try local first, then cloud)
+#   fallback:
+#     enabled: true
+#     order: [local, cloud]
+
+
+# ---------------------------------------------------------------------------
+# Local ONNX Model (Layer 3 — on-device classifier)
+# ---------------------------------------------------------------------------
+# On-device prompt injection classifier. No API key needed.
+# Install: pip install tweek[local-models] && tweek model download
+# When installed, runs before cloud LLM and escalates uncertain results.
+#
+# local_model:
+#   enabled: true
+#   model: auto                     # auto = default model, or explicit name
+#   escalate_to_llm: true           # Escalate uncertain results to cloud LLM
+#   escalate_min_confidence: 0.1    # Below this = safe, skip escalation
+#   escalate_max_confidence: 0.9    # Above this = use local result, skip escalation
+
+
+# ---------------------------------------------------------------------------
+# Rate Limiting (Layer 1 — burst detection)
+# ---------------------------------------------------------------------------
+# Detects rapid-fire tool calls that may indicate automated attacks.
+#
+# rate_limiting:
+#   enabled: true
+#   burst_window_seconds: 5         # Time window for burst detection
+#   burst_threshold: 15             # Max calls in burst window
+#   max_per_minute: 60              # Overall rate limit
+#   max_dangerous_per_minute: 10    # Limit for dangerous-tier tools
+#   max_same_command_per_minute: 5  # Repeated identical commands
+
+
+# ---------------------------------------------------------------------------
+# Session Analysis (Layer 4 — cross-turn anomaly detection)
+# ---------------------------------------------------------------------------
+# Tracks patterns across multiple tool calls to detect multi-step attacks.
+#
+# session_analysis:
+#   enabled: true
+#   lookback_minutes: 30            # How far back to analyze
+#   alert_on_risk_score: 0.5        # Threshold for session risk alerts
+
+
+# ---------------------------------------------------------------------------
+# Heuristic Scorer (Layer 2.5 — signal-based escalation)
+# ---------------------------------------------------------------------------
+# Bridges pattern matching and LLM review. When no regex matches but
+# content looks suspicious, scores it and may escalate to LLM.
+#
+# heuristic_scorer:
+#   enabled: true
+#   threshold: 0.4                  # Score [0.0-1.0] to trigger LLM escalation
+#   log_all_scores: false           # Log below-threshold scores (for tuning)
+
+
+# ---------------------------------------------------------------------------
+# Tool Tier Overrides
+# ---------------------------------------------------------------------------
+# Override the default security tier for specific tools.
+# Tiers: safe | default | risky | dangerous
+#
+# Bundled defaults:
+#   Read:         default    (read-only but needs path screening)
+#   Glob:         safe       (file pattern matching)
+#   Grep:         safe       (search file contents)
+#   Edit:         default    (modify existing files)
+#   Write:        risky      (create/overwrite files)
+#   NotebookEdit: default    (edit Jupyter notebooks)
+#   WebFetch:     risky      (fetch content from URLs)
+#   WebSearch:    risky      (search the web)
+#   Bash:         dangerous  (execute shell commands)
+#   Task:         default    (spawn subagent tasks)
+#
+# tools:
+#   Read: default
+#   Bash: dangerous
+
+
+# ---------------------------------------------------------------------------
+# Skill Tier Overrides
+# ---------------------------------------------------------------------------
+# Override the default tier for Claude Code skills.
+#
+# Bundled defaults:
+#   review-pr:        safe       (read-only PR review)
+#   explore:          safe       (read-only codebase exploration)
+#   commit:           default    (git commit operations)
+#   frontend-design:  risky      (generate frontend code)
+#   dev-browser:      risky      (browser automation)
+#   deploy:           dangerous  (deployment operations)
+#
+# skills:
+#   commit: default
+#   deploy: dangerous
+
+
+# ---------------------------------------------------------------------------
+# Non-English Language Handling
+# ---------------------------------------------------------------------------
+# English-only regex patterns can miss injection in other languages.
+# Options:
+#   escalate  - Auto-escalate to LLM review tier (default, recommended)
+#   translate - Translate to English before pattern matching (requires API key)
+#   both      - Escalate AND translate (maximum coverage)
+#   none      - No special handling (English-only patterns may miss attacks)
+#
+# non_english_handling: escalate
+
+
+# ---------------------------------------------------------------------------
+# Content-Based Escalations
+# ---------------------------------------------------------------------------
+# Regex patterns that bump a tool's tier based on content.
+# These ADD to the bundled escalations (they don't replace them).
+#
+# escalations:
+#   - pattern: '\b(prod|production)\b'
+#     description: "Production environment reference"
+#     escalate_to: risky
+#
+#   - pattern: 'rm\s+(-rf|-fr|--recursive)'
+#     description: "Recursive deletion"
+#     escalate_to: dangerous
+
+
+# ---------------------------------------------------------------------------
+# Path Boundary Escalation
+# ---------------------------------------------------------------------------
+# Escalates tier when tools access files outside the project directory.
+#
+# path_boundary:
+#   enabled: true
+#   default_escalate_to: risky     # Generic out-of-project access
+#   sensitive_directories:
+#     - pattern: ".ssh"
+#       escalate_to: dangerous
+#       description: "SSH directory access"
+#     - pattern: ".aws"
+#       escalate_to: dangerous
+#       description: "AWS credentials directory"
+
+
+# ---------------------------------------------------------------------------
+# Default Tier
+# ---------------------------------------------------------------------------
+# Fallback tier for tools/skills not explicitly classified.
+#
+# default_tier: default

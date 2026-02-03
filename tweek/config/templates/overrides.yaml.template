@@ -1,0 +1,121 @@
+# ============================================================================
+# Tweek Security Overrides (~/.tweek/overrides.yaml)
+# ============================================================================
+#
+# Human-only security configuration. This file is protected by Tweek's
+# self-protection — AI agents cannot modify it. Only a human editing
+# directly can change these settings.
+#
+# Features:
+#   - Whitelist: Exempt specific paths/tools/URLs from all screening
+#   - Pattern Toggles: Enable/disable individual detection patterns
+#   - Trust Levels: Control severity thresholds
+#   - Enforcement: Customize severity+confidence decision matrix
+#
+# Edit this file:  tweek config edit overrides
+# Full reference:  https://github.com/gettweek/tweek/blob/main/docs/CONFIGURATION.md
+# ============================================================================
+
+
+# ---------------------------------------------------------------------------
+# Whitelist Rules
+# ---------------------------------------------------------------------------
+# Skip ALL screening for matching targets. Use sparingly — whitelisted
+# content bypasses pattern matching, LLM review, and all other checks.
+#
+# whitelist:
+#   # Exempt a specific file for specific tools
+#   - path: ~/projects/my-app/templates.yaml
+#     tools: [Read]
+#     reason: "Known-safe templates file"
+#
+#   # Exempt an entire directory (prefix match)
+#   - path: ~/projects/trusted-project
+#     tools: [Read, Grep]
+#     reason: "Trusted project directory"
+#
+#   # Exempt a URL prefix
+#   - url_prefix: "https://api.example.com/"
+#     tools: [WebFetch]
+#     reason: "Internal API endpoint"
+#
+#   # Exempt a command prefix
+#   - tool: Bash
+#     command_prefix: "npm test"
+#     reason: "Running project tests"
+
+
+# ---------------------------------------------------------------------------
+# Pattern Toggles
+# ---------------------------------------------------------------------------
+# Control which of the 262 detection patterns are active.
+# Run 'tweek config list' to see all pattern names.
+#
+# patterns:
+#   # Globally disable specific patterns
+#   disabled:
+#     - name: env_command
+#       reason: "Used frequently in our workflow"
+#     - name: docker_mount_sensitive
+#       reason: "Our CI uses Docker volume mounts"
+#
+#   # Disable patterns only in specific directories
+#   scoped_disables:
+#     - name: hook_modification
+#       paths:
+#         - ~/projects/my-security-tool
+#       reason: "This repo contains hook management code"
+#
+#   # Force-enable patterns (overrides any disable rule)
+#   force_enabled:
+#     - credential_theft_critical
+#     - private_key_access
+
+
+# ---------------------------------------------------------------------------
+# Trust Level Configuration
+# ---------------------------------------------------------------------------
+# Controls how much screening is applied based on session type.
+#
+# Auto-detection: interactive sessions get full screening, automated
+# sessions (CI, cron, systemd) can have different thresholds.
+# Override with env var: TWEEK_TRUST_LEVEL=interactive|automated
+#
+# trust:
+#   default_mode: interactive       # Default when auto-detect is ambiguous
+#   interactive:
+#     min_severity: low             # Prompt on all severities
+#   automated:
+#     min_severity: high            # Only prompt on high and critical
+#     skip_llm_for_default_tier: true
+
+
+# ---------------------------------------------------------------------------
+# Enforcement Policy
+# ---------------------------------------------------------------------------
+# Customize the severity+confidence decision matrix.
+# Decisions: deny (hard block) | ask (prompt user) | log (silent allow)
+#
+# Default matrix:
+#   CRITICAL + deterministic → deny
+#   CRITICAL + heuristic/contextual → ask
+#   HIGH/MEDIUM → ask
+#   LOW → log
+#
+# enforcement:
+#   critical:
+#     deterministic: deny
+#     heuristic: ask
+#     contextual: ask
+#   high:
+#     deterministic: ask
+#     heuristic: ask
+#     contextual: ask
+#   medium:
+#     deterministic: ask
+#     heuristic: ask
+#     contextual: ask
+#   low:
+#     deterministic: log
+#     heuristic: log
+#     contextual: log

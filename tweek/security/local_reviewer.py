@@ -41,6 +41,16 @@ class LocalModelReviewProvider(ReviewProvider):
         self._model_name = model_name
         self._escalation_provider = escalation_provider
 
+    # Tools where the local prompt-injection classifier is effective.
+    # The DeBERTa model was trained on natural-language prompt injection,
+    # NOT on shell command evaluation.  For Bash/Edit/Write the model
+    # produces severe false positives (e.g. classifying "./run.sh 2>&1"
+    # as injection at 100% confidence).  Those tools should be handled by
+    # pattern matching + cloud LLM escalation instead.
+    _CONTENT_TOOLS: frozenset = frozenset({
+        "Read", "WebFetch", "Grep", "WebSearch",
+    })
+
     def call(self, system_prompt: str, user_prompt: str, max_tokens: int = 256) -> str:
         """Run local inference and return JSON result.
 
@@ -48,8 +58,11 @@ class LocalModelReviewProvider(ReviewProvider):
         runs local inference, and returns a JSON string in the same format
         that LLMReviewer._parse_response() expects.
 
-        If the local model is uncertain and an escalation provider is
-        available, the request is forwarded to the cloud LLM.
+        The local model is only used for content-screening tools (Read,
+        WebFetch, Grep, WebSearch) where the input is natural-language text
+        that the classifier was trained on.  For command-execution tools
+        (Bash, Edit, Write, etc.) the request is forwarded to the
+        escalation provider or returned as low-confidence safe.
 
         Args:
             system_prompt: System-level instructions (used for escalation only).
@@ -60,6 +73,23 @@ class LocalModelReviewProvider(ReviewProvider):
             JSON string with risk_level, reason, and confidence.
         """
         from tweek.security.local_model import get_local_model
+
+        # Detect the tool from the analysis prompt (e.g. "Tool: Bash")
+        tool_name = self._extract_tool(user_prompt)
+
+        # The DeBERTa prompt-injection model only works on natural-language
+        # content.  For shell commands and code, defer to cloud LLM or
+        # pattern matching.
+        if tool_name and tool_name not in self._CONTENT_TOOLS:
+            if self._escalation_provider:
+                return self._escalation_provider.call(
+                    system_prompt, user_prompt, max_tokens
+                )
+            return json.dumps({
+                "risk_level": "safe",
+                "reason": f"Local model not applicable for {tool_name} commands",
+                "confidence": 0.0,
+            })
 
         # Extract command from untrusted_command tags
         command = self._extract_command(user_prompt)
@@ -123,6 +153,18 @@ class LocalModelReviewProvider(ReviewProvider):
     @property
     def model_name(self) -> str:
         return self._model_name
+
+    @staticmethod
+    def _extract_tool(user_prompt: str) -> Optional[str]:
+        """Extract the tool name from the analysis prompt.
+
+        The LLMReviewer ANALYSIS_PROMPT includes a ``Tool: <name>`` line.
+
+        Returns:
+            Tool name (e.g. "Bash", "Read"), or None if not found.
+        """
+        match = re.search(r"^Tool:\s*(\S+)", user_prompt, re.MULTILINE)
+        return match.group(1) if match else None
 
     @staticmethod
     def _extract_command(user_prompt: str) -> str:

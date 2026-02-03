@@ -346,6 +346,10 @@ def is_protected_config_file(file_path: str) -> bool:
             if part == ".tweek":
                 return True
 
+        # Protect .tweek.yaml (per-directory hook control)
+        if resolved.name == ".tweek.yaml":
+            return True
+
     except (OSError, ValueError):
         pass
     return False

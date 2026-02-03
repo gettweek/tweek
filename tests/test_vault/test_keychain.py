@@ -1,12 +1,19 @@
 """Tests for the Keychain vault."""
 
+import platform
 import pytest
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-pytestmark = pytest.mark.core
+pytestmark = [
+    pytest.mark.core,
+    pytest.mark.skipif(
+        platform.system() != "Darwin",
+        reason="Keychain tests require macOS Keychain"
+    ),
+]
 
 from tweek.vault.keychain import KeychainVault, VaultError
 

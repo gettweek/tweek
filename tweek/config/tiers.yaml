@@ -19,7 +19,7 @@ version: 2
 
 # LLM Review Configuration
 # Supports: anthropic, openai, google, xai (Grok), or any OpenAI-compatible endpoint
-# Provider "auto" checks: local (if enabled) → ANTHROPIC_API_KEY → OPENAI_API_KEY → GOOGLE_API_KEY → XAI_API_KEY
+# Provider "auto" checks: local ONNX → GOOGLE_API_KEY → OPENAI_API_KEY → XAI_API_KEY → ANTHROPIC_API_KEY
 llm_review:
   enabled: true
   provider: auto              # auto | local | anthropic | openai | google | xai | fallback
@@ -119,6 +119,7 @@ tools:
   # Dangerous - system commands, highest scrutiny
   Bash: dangerous
   Task: default  # Subagents inherit parent screening
+  Skill: safe    # Skill invocation — tracked for context, not screened itself
 
 # Skill classifications (user-defined skills)
 skills:

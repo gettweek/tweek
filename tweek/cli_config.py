@@ -10,6 +10,8 @@ Commands for configuring Tweek security policies:
     tweek config validate           Validate configuration for errors
     tweek config diff               Show what would change if a preset were applied
     tweek config llm                Show LLM review configuration and provider status
+    tweek config edit               Open config files in your editor
+    tweek config show-defaults      View bundled default configuration
 """
 
 import click
@@ -506,3 +508,136 @@ def config_llm(verbose: bool, validate: bool):
             console.print(f"  [red]Validation error: {e}[/red]")
 
     console.print()
+
+
+@config.command("edit",
+    epilog="""\b
+Examples:
+  tweek config edit                Open interactive file selector
+  tweek config edit config         Open security settings directly
+  tweek config edit env            Open API keys file
+  tweek config edit overrides      Open security overrides
+  tweek config edit hooks          Open hook control file
+  tweek config edit --create       Create missing files from templates first
+"""
+)
+@click.argument("file_id", required=False, default=None)
+@click.option("--create", "create_missing", is_flag=True,
+              help="Create missing config files from templates")
+def config_edit(file_id: str, create_missing: bool):
+    """Open Tweek configuration files in your editor.
+
+    Lists all config files with descriptions and status, then opens
+    the selected file in $VISUAL, $EDITOR, or a platform default.
+    """
+    import os
+    import shutil
+    import subprocess
+    from pathlib import Path
+    from tweek.config.templates import CONFIG_FILES, deploy_template, resolve_target_path
+
+    # Determine editor
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+    if not editor:
+        for candidate in ["nano", "vim", "vi"]:
+            if shutil.which(candidate):
+                editor = candidate
+                break
+    if not editor:
+        console.print("[red]No editor found. Set $EDITOR or $VISUAL.[/red]")
+        return
+
+    # Build file list with resolved paths and existence status
+    entries = []
+    for entry in CONFIG_FILES:
+        target = resolve_target_path(entry)
+        entries.append({**entry, "resolved_path": target, "exists": target.exists()})
+
+    # Direct access by ID
+    if file_id:
+        valid_ids = [e["id"] for e in entries]
+        if file_id not in valid_ids:
+            console.print(f"[red]Unknown file: {file_id}[/red]")
+            console.print(f"[white]Valid options: {', '.join(valid_ids)}[/white]")
+            return
+        selected = next(e for e in entries if e["id"] == file_id)
+        _open_config_file(selected, editor, create_missing)
+        return
+
+    # Interactive: show file list
+    console.print()
+    console.print("[bold]Tweek Configuration Files[/bold]")
+    console.print("\u2500" * 70)
+
+    for i, entry in enumerate(entries, 1):
+        if not entry["editable"]:
+            status = "[dim](read-only)[/dim]"
+        elif entry["exists"]:
+            status = "[green]\u2713 exists[/green]"
+        else:
+            status = "[yellow]\u2717 missing[/yellow]"
+
+        path_display = str(entry["resolved_path"]).replace(str(Path.home()), "~")
+        console.print(f"  [cyan]{i}.[/cyan] {entry['name']:<22s} {path_display}")
+        console.print(f"     {status}  [dim]{entry['description']}[/dim]")
+
+    console.print()
+
+    choice = click.prompt(
+        f"Select file (1-{len(entries)})",
+        type=click.IntRange(1, len(entries)),
+    )
+
+    selected = entries[choice - 1]
+    _open_config_file(selected, editor, create_missing)
+
+
+def _open_config_file(entry: dict, editor: str, create_missing: bool):
+    """Open a single config file in the user's editor."""
+    import os
+    import subprocess
+    from tweek.config.templates import deploy_template
+
+    target = entry["resolved_path"]
+
+    if not entry["editable"]:
+        pager = os.environ.get("PAGER", "less")
+        console.print(f"[white]Opening read-only reference: {target}[/white]")
+        subprocess.run([pager, str(target)])
+        return
+
+    if not target.exists():
+        if create_missing or click.confirm(
+            f"  {entry['name']} does not exist. Create from template?", default=True
+        ):
+            if entry.get("template"):
+                deploy_template(entry["template"], target)
+                console.print(f"[green]\u2713[/green] Created {target} from template")
+            else:
+                console.print(f"[yellow]No template available for {entry['name']}[/yellow]")
+                return
+        else:
+            return
+
+    console.print(f"[white]Opening: {target}[/white]")
+    subprocess.run([editor, str(target)])
+
+
+@config.command("show-defaults")
+def config_show_defaults():
+    """Display the bundled default configuration.
+
+    Shows all available options with their default values from tiers.yaml.
+    This is read-only — to override, edit ~/.tweek/config.yaml.
+    """
+    import os
+    import subprocess
+    from pathlib import Path
+
+    defaults_path = Path(__file__).resolve().parent / "config" / "tiers.yaml"
+    if not defaults_path.exists():
+        console.print("[red]Default configuration not found[/red]")
+        return
+
+    pager = os.environ.get("PAGER", "less")
+    subprocess.run([pager, str(defaults_path)])

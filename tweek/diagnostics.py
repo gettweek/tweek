@@ -54,6 +54,7 @@ def run_health_checks(verbose: bool = False) -> List[HealthCheck]:
         _check_mcp_available,
         _check_proxy_config,
         _check_plugin_integrity,
+        _check_local_model,
         _check_llm_review,
     ]
 
@@ -587,6 +588,108 @@ def _check_plugin_integrity(verbose: bool = False) -> HealthCheck:
             label="Plugin Integrity",
             status=CheckStatus.WARNING,
             message=f"Cannot check plugins: {e}",
+        )
+
+
+def _check_local_model(verbose: bool = False) -> HealthCheck:
+    """Check local classifier model status and verify inference works."""
+    try:
+        from tweek.security.local_model import LOCAL_MODEL_AVAILABLE, get_local_model
+        from tweek.security.model_registry import (
+            get_default_model_name,
+            get_model_size,
+            is_model_installed,
+            verify_model_hashes,
+        )
+    except ImportError:
+        return HealthCheck(
+            name="local_model",
+            label="Local Model",
+            status=CheckStatus.SKIPPED,
+            message="Local model module not available",
+            fix_hint="Install with: pip install tweek[local-models]",
+        )
+
+    if not LOCAL_MODEL_AVAILABLE:
+        return HealthCheck(
+            name="local_model",
+            label="Local Model",
+            status=CheckStatus.SKIPPED,
+            message="Dependencies not installed (optional)",
+            fix_hint="Install with: pip install tweek[local-models]",
+        )
+
+    default_name = get_default_model_name()
+
+    if not is_model_installed(default_name):
+        return HealthCheck(
+            name="local_model",
+            label="Local Model",
+            status=CheckStatus.WARNING,
+            message="Dependencies installed but model not downloaded",
+            fix_hint="Run: tweek model download",
+        )
+
+    # Model is installed — get size info
+    size = get_model_size(default_name)
+    size_str = f"{size / 1024 / 1024:.1f} MB" if size else "unknown size"
+
+    # Verify SHA-256 integrity before running inference
+    try:
+        hash_results = verify_model_hashes(default_name)
+        mismatched = [f for f, status in hash_results.items() if status == "mismatch"]
+        if mismatched:
+            files_str = ", ".join(mismatched)
+            return HealthCheck(
+                name="local_model",
+                label="Local Model",
+                status=CheckStatus.ERROR,
+                message=f"SHA-256 integrity check failed for: {files_str}",
+                fix_hint="Run: tweek model download --force  (to re-download)",
+            )
+    except Exception:
+        pass  # Hash verification is best-effort; don't block on it
+
+    # Run inference smoke test to verify the model actually works
+    try:
+        model = get_local_model(default_name)
+        if model is None:
+            return HealthCheck(
+                name="local_model",
+                label="Local Model",
+                status=CheckStatus.ERROR,
+                message=f"{default_name} installed ({size_str}) but failed to load",
+                fix_hint="Try: tweek model download --force",
+            )
+
+        result = model.predict("hello world")
+        if result is None or not hasattr(result, "risk_level"):
+            return HealthCheck(
+                name="local_model",
+                label="Local Model",
+                status=CheckStatus.ERROR,
+                message=f"{default_name} installed ({size_str}) but inference returned no result",
+                fix_hint="Try: tweek model download --force",
+            )
+
+        msg = f"{default_name} installed ({size_str}), inference OK"
+        if verbose:
+            msg += f" ({result.inference_time_ms:.0f}ms)"
+
+        return HealthCheck(
+            name="local_model",
+            label="Local Model",
+            status=CheckStatus.OK,
+            message=msg,
+        )
+
+    except Exception as e:
+        return HealthCheck(
+            name="local_model",
+            label="Local Model",
+            status=CheckStatus.ERROR,
+            message=f"{default_name} installed ({size_str}) but inference failed: {e}",
+            fix_hint="Try: tweek model download --force",
         )
 
 

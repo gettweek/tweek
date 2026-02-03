@@ -173,7 +173,7 @@ class TestComputeSuggestedDecision:
         result = compute_suggested_decision(
             current_decision="ask",
             approval_ratio=1.0,
-            total_weighted_decisions=5,  # Below MIN_DECISION_THRESHOLD (10)
+            total_weighted_decisions=2,  # Below default threshold (path=5)
             original_severity="high",
             original_confidence="heuristic",
         )
@@ -250,6 +250,6 @@ class TestDecisionRank:
         assert DECISION_RANK["log"] > DECISION_RANK["allow"]
 
     def test_constants(self):
-        assert MIN_DECISION_THRESHOLD == 10
+        assert MIN_DECISION_THRESHOLD == 1  # SCOPED_THRESHOLDS["exact"]
         assert MIN_APPROVAL_RATIO == 0.90
         assert MIN_CONFIDENCE_SCORE == 0.80

@@ -28,6 +28,7 @@ from tweek.security.model_registry import (
     is_model_installed,
     list_installed_models,
     verify_model,
+    verify_model_hashes,
     get_model_size,
     _build_hf_url,
 )
@@ -183,10 +184,9 @@ class TestModelInstallation:
         assert DEFAULT_MODEL in installed
 
     def test_verify_model_all_files_present(self):
-        status = verify_model(DEFAULT_MODEL)
-        assert status["model.onnx"] is True
-        assert status["tokenizer.json"] is True
-        assert status["model_meta.yaml"] is True
+        status = verify_model_hashes(DEFAULT_MODEL)
+        assert status["model.onnx"] == "ok"
+        assert status["tokenizer.json"] == "ok"
 
     def test_verify_nonexistent_model_returns_empty(self):
         status = verify_model("nonexistent-model")
@@ -1612,10 +1612,18 @@ class TestDownloadModel:
             b"tokenizer_data", b"",
         ])
 
+        # Build a mock sha256 that returns expected catalog hashes in order
+        expected_hashes = list(MODEL_CATALOG["deberta-v3-injection"].file_hashes.values())
+        hash_iter = iter(expected_hashes)
+        mock_hasher = MagicMock()
+        mock_hasher.hexdigest = MagicMock(side_effect=hash_iter)
+        mock_sha256 = MagicMock(return_value=mock_hasher)
+
         with patch("tweek.security.model_registry.is_model_installed", return_value=True), \
              patch("tweek.security.model_registry.get_model_dir") as mock_dir, \
              patch("tweek.security.model_registry.urllib.request.urlopen", return_value=mock_response), \
              patch("tweek.security.model_registry._get_hf_headers", return_value={"User-Agent": "test"}), \
+             patch("tweek.security.model_registry.hashlib.sha256", mock_sha256), \
              patch("builtins.open", mock_open()), \
              patch("tweek.security.model_registry.yaml.dump"):
 
@@ -1625,6 +1633,7 @@ class TestDownloadModel:
                 side_effect=lambda name: MagicMock(
                     rename=MagicMock(),
                     unlink=MagicMock(),
+                    read_bytes=MagicMock(return_value=b"fake"),
                 )
             )
             mock_dir.return_value = mock_model_dir
@@ -1759,10 +1768,18 @@ class TestDownloadModel:
 
         callback = MagicMock()
 
+        # Build a mock sha256 that returns expected catalog hashes in order
+        expected_hashes = list(MODEL_CATALOG["deberta-v3-injection"].file_hashes.values())
+        hash_iter = iter(expected_hashes)
+        mock_hasher = MagicMock()
+        mock_hasher.hexdigest = MagicMock(side_effect=hash_iter)
+        mock_sha256 = MagicMock(return_value=mock_hasher)
+
         with patch("tweek.security.model_registry.is_model_installed", return_value=False), \
              patch("tweek.security.model_registry.get_model_dir") as mock_dir, \
              patch("tweek.security.model_registry.urllib.request.urlopen", return_value=mock_response), \
              patch("tweek.security.model_registry._get_hf_headers", return_value={"User-Agent": "test"}), \
+             patch("tweek.security.model_registry.hashlib.sha256", mock_sha256), \
              patch("builtins.open", mock_open()), \
              patch("tweek.security.model_registry.yaml.dump"):
 
@@ -1772,6 +1789,7 @@ class TestDownloadModel:
                 side_effect=lambda name: MagicMock(
                     rename=MagicMock(),
                     unlink=MagicMock(),
+                    read_bytes=MagicMock(return_value=b"fake"),
                 )
             )
             mock_dir.return_value = mock_model_dir
@@ -1793,10 +1811,18 @@ class TestDownloadModel:
         def capture_yaml_dump(data, f, **kwargs):
             yaml_dump_calls.append(data)
 
+        # Build a mock sha256 that returns expected catalog hashes in order
+        expected_hashes = list(MODEL_CATALOG["deberta-v3-injection"].file_hashes.values())
+        hash_iter = iter(expected_hashes)
+        mock_hasher = MagicMock()
+        mock_hasher.hexdigest = MagicMock(side_effect=hash_iter)
+        mock_sha256 = MagicMock(return_value=mock_hasher)
+
         with patch("tweek.security.model_registry.is_model_installed", return_value=False), \
              patch("tweek.security.model_registry.get_model_dir") as mock_dir, \
              patch("tweek.security.model_registry.urllib.request.urlopen", return_value=mock_response), \
              patch("tweek.security.model_registry._get_hf_headers", return_value={"User-Agent": "test"}), \
+             patch("tweek.security.model_registry.hashlib.sha256", mock_sha256), \
              patch("builtins.open", mock_open()), \
              patch("tweek.security.model_registry.yaml.dump", side_effect=capture_yaml_dump):
 
@@ -1806,6 +1832,7 @@ class TestDownloadModel:
                 side_effect=lambda name: MagicMock(
                     rename=MagicMock(),
                     unlink=MagicMock(),
+                    read_bytes=MagicMock(return_value=b"fake"),
                 )
             )
             mock_dir.return_value = mock_model_dir
@@ -1919,13 +1946,22 @@ class TestDownloadModel:
             m = MagicMock()
             m.rename = MagicMock()
             m.unlink = MagicMock()
+            m.read_bytes = MagicMock(return_value=b"fake")
             rename_mocks.append(m)
             return m
+
+        # Build a mock sha256 that returns expected catalog hashes in order
+        expected_hashes = list(MODEL_CATALOG["deberta-v3-injection"].file_hashes.values())
+        hash_iter = iter(expected_hashes)
+        mock_hasher = MagicMock()
+        mock_hasher.hexdigest = MagicMock(side_effect=hash_iter)
+        mock_sha256 = MagicMock(return_value=mock_hasher)
 
         with patch("tweek.security.model_registry.is_model_installed", return_value=False), \
              patch("tweek.security.model_registry.get_model_dir") as mock_dir, \
              patch("tweek.security.model_registry.urllib.request.urlopen", return_value=mock_response), \
              patch("tweek.security.model_registry._get_hf_headers", return_value={"User-Agent": "test"}), \
+             patch("tweek.security.model_registry.hashlib.sha256", mock_sha256), \
              patch("builtins.open", mock_open()), \
              patch("tweek.security.model_registry.yaml.dump"):
 
@@ -1948,16 +1984,28 @@ class TestDownloadModel:
             b"data2", b"",
         ])
 
+        # Build a mock sha256 that returns expected catalog hashes in order
+        expected_hashes = list(MODEL_CATALOG["deberta-v3-injection"].file_hashes.values())
+        hash_iter = iter(expected_hashes)
+        mock_hasher = MagicMock()
+        mock_hasher.hexdigest = MagicMock(side_effect=hash_iter)
+        mock_sha256 = MagicMock(return_value=mock_hasher)
+
         with patch("tweek.security.model_registry.is_model_installed", return_value=False), \
              patch("tweek.security.model_registry.get_model_dir") as mock_dir, \
              patch("tweek.security.model_registry.urllib.request.urlopen", return_value=mock_response), \
              patch("tweek.security.model_registry._get_hf_headers", return_value={"User-Agent": "test"}), \
+             patch("tweek.security.model_registry.hashlib.sha256", mock_sha256), \
              patch("builtins.open", mock_open()), \
              patch("tweek.security.model_registry.yaml.dump"):
 
             mock_model_dir = MagicMock(spec=Path)
             mock_model_dir.__truediv__ = MagicMock(
-                side_effect=lambda name: MagicMock(rename=MagicMock(), unlink=MagicMock())
+                side_effect=lambda name: MagicMock(
+                    rename=MagicMock(),
+                    unlink=MagicMock(),
+                    read_bytes=MagicMock(return_value=b"fake"),
+                )
             )
             mock_dir.return_value = mock_model_dir
 
@@ -2025,7 +2073,7 @@ class TestVerifyModelEdgeCases:
 
     def test_verify_unknown_model_returns_empty(self):
         """Verifying an unknown model name returns empty dict (lines 339-340)."""
-        result = verify_model("totally-fake-model-name")
+        result = verify_model_hashes("totally-fake-model-name")
         assert result == {}
 
     def test_verify_partial_install_missing_onnx(self, tmp_path):
@@ -2036,10 +2084,9 @@ class TestVerifyModelEdgeCases:
         (model_dir / "model_meta.yaml").write_text("name: test")
 
         with patch("tweek.security.model_registry.get_model_dir", return_value=model_dir):
-            status = verify_model("deberta-v3-injection")
-            assert status["model.onnx"] is False
-            assert status["tokenizer.json"] is True
-            assert status["model_meta.yaml"] is True
+            status = verify_model_hashes("deberta-v3-injection")
+            assert status["model.onnx"] == "missing"
+            assert status["tokenizer.json"] == "mismatch"  # exists but hash won't match
 
     def test_verify_partial_install_missing_tokenizer(self, tmp_path):
         """When tokenizer.json is missing but model.onnx exists (line 346)."""
@@ -2049,23 +2096,23 @@ class TestVerifyModelEdgeCases:
         (model_dir / "model_meta.yaml").write_text("name: test")
 
         with patch("tweek.security.model_registry.get_model_dir", return_value=model_dir):
-            status = verify_model("deberta-v3-injection")
-            assert status["model.onnx"] is True
-            assert status["tokenizer.json"] is False
-            assert status["model_meta.yaml"] is True
+            status = verify_model_hashes("deberta-v3-injection")
+            assert status["model.onnx"] == "mismatch"  # exists but hash won't match
+            assert status["tokenizer.json"] == "missing"
 
     def test_verify_missing_metadata(self, tmp_path):
-        """When model_meta.yaml is missing (line 348)."""
+        """When model_meta.yaml is missing, verify_model_hashes still checks catalog files."""
         model_dir = tmp_path / "deberta-v3-injection"
         model_dir.mkdir()
         (model_dir / "model.onnx").write_bytes(b"fake_model")
         (model_dir / "tokenizer.json").write_text("{}")
 
         with patch("tweek.security.model_registry.get_model_dir", return_value=model_dir):
-            status = verify_model("deberta-v3-injection")
-            assert status["model.onnx"] is True
-            assert status["tokenizer.json"] is True
-            assert status["model_meta.yaml"] is False
+            status = verify_model_hashes("deberta-v3-injection")
+            # verify_model_hashes only checks files in definition.files, not model_meta.yaml
+            assert status["model.onnx"] == "mismatch"
+            assert status["tokenizer.json"] == "mismatch"
+            assert "model_meta.yaml" not in status
 
     def test_verify_empty_directory(self, tmp_path):
         """When model directory exists but is completely empty."""
@@ -2073,23 +2120,21 @@ class TestVerifyModelEdgeCases:
         model_dir.mkdir()
 
         with patch("tweek.security.model_registry.get_model_dir", return_value=model_dir):
-            status = verify_model("deberta-v3-injection")
-            assert status["model.onnx"] is False
-            assert status["tokenizer.json"] is False
-            assert status["model_meta.yaml"] is False
+            status = verify_model_hashes("deberta-v3-injection")
+            assert status["model.onnx"] == "missing"
+            assert status["tokenizer.json"] == "missing"
 
     def test_verify_nonexistent_directory(self, tmp_path):
         """When model directory doesn't exist at all."""
         model_dir = tmp_path / "deberta-v3-injection"
 
         with patch("tweek.security.model_registry.get_model_dir", return_value=model_dir):
-            status = verify_model("deberta-v3-injection")
-            assert status["model.onnx"] is False
-            assert status["tokenizer.json"] is False
-            assert status["model_meta.yaml"] is False
+            status = verify_model_hashes("deberta-v3-injection")
+            assert status["model.onnx"] == "missing"
+            assert status["tokenizer.json"] == "missing"
 
     def test_verify_complete_install(self, tmp_path):
-        """When all files are present, all should be True."""
+        """When all files are present, verify_model_hashes reports their hash status."""
         model_dir = tmp_path / "deberta-v3-injection"
         model_dir.mkdir()
         (model_dir / "model.onnx").write_bytes(b"fake_model")
@@ -2097,8 +2142,10 @@ class TestVerifyModelEdgeCases:
         (model_dir / "model_meta.yaml").write_text("name: test")
 
         with patch("tweek.security.model_registry.get_model_dir", return_value=model_dir):
-            status = verify_model("deberta-v3-injection")
-            assert all(status.values())
+            status = verify_model_hashes("deberta-v3-injection")
+            # All catalog files exist but have wrong content, so hashes won't match
+            assert all(v in ("ok", "mismatch", "no_hash") for v in status.values())
+            assert "missing" not in status.values()
 
 
 @pytest.mark.local_model

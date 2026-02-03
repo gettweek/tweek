@@ -40,7 +40,9 @@ class ModelDefinition:
     license: str = "unknown"
     size_mb: float = 0.0  # approximate download size
     files: List[str] = field(default_factory=list)
+    file_hashes: Dict[str, str] = field(default_factory=dict)  # filename -> sha256
     hf_subfolder: str = ""  # subfolder in the HF repo (e.g., "onnx")
+    hf_revision: str = "main"  # git revision (commit SHA for pinned downloads)
     requires_auth: bool = False
     default: bool = False
 
@@ -73,7 +75,12 @@ MODEL_CATALOG: Dict[str, ModelDefinition] = {
         license="Apache-2.0",
         size_mb=750.0,
         files=["model.onnx", "tokenizer.json"],
+        file_hashes={
+            "model.onnx": "f0ea7f239f765aedbde7c9e163a7cb38a79c5b8853d3f76db5152172047b228c",
+            "tokenizer.json": "752fe5f0d5678ad563e1bd2ecc1ddf7a3ba7e2024d0ac1dba1a72975e26dff2f",
+        },
         hf_subfolder="onnx",
+        hf_revision="e6535ca4ce3ba852083e75ec585d7c8aeb4be4c5",
         requires_auth=False,
         default=True,
         escalate_min_confidence=0.1,
@@ -167,11 +174,15 @@ class ModelDownloadError(Exception):
     pass
 
 
-def _build_hf_url(repo: str, filename: str, subfolder: str = "") -> str:
-    """Build a HuggingFace CDN download URL."""
+def _build_hf_url(repo: str, filename: str, subfolder: str = "", revision: str = "main") -> str:
+    """Build a HuggingFace CDN download URL.
+
+    When *revision* is a commit SHA, the URL points to an immutable
+    snapshot — the same bytes every time, safe to verify with SHA-256.
+    """
     if subfolder:
-        return f"https://huggingface.co/{repo}/resolve/main/{subfolder}/{filename}"
-    return f"https://huggingface.co/{repo}/resolve/main/{filename}"
+        return f"https://huggingface.co/{repo}/resolve/{revision}/{subfolder}/{filename}"
+    return f"https://huggingface.co/{repo}/resolve/{revision}/{filename}"
 
 
 def _get_hf_headers() -> Dict[str, str]:
@@ -234,9 +245,12 @@ def download_model(
     # Create SSL context
     ssl_context = ssl.create_default_context()
 
-    # Download each file
+    # Download each file, pinned to a specific revision for reproducibility
     for filename in definition.files:
-        url = _build_hf_url(definition.hf_repo, filename, definition.hf_subfolder)
+        url = _build_hf_url(
+            definition.hf_repo, filename,
+            definition.hf_subfolder, definition.hf_revision,
+        )
         dest = model_dir / filename
         tmp_dest = model_dir / f".{filename}.tmp"
 
@@ -257,6 +271,20 @@ def download_model(
                     downloaded += len(chunk)
                     if progress_callback:
                         progress_callback(filename, downloaded, total)
+
+            # Verify SHA-256 if the catalog provides an expected hash
+            expected_hash = definition.file_hashes.get(filename)
+            if expected_hash:
+                actual_hash = hashlib.sha256(tmp_dest.read_bytes()).hexdigest()
+                if actual_hash != expected_hash:
+                    tmp_dest.unlink(missing_ok=True)
+                    raise ModelDownloadError(
+                        f"SHA-256 mismatch for {filename}: "
+                        f"expected {expected_hash[:16]}..., "
+                        f"got {actual_hash[:16]}... "
+                        f"The file may be corrupted or tampered with. "
+                        f"Try again with --force, or report this issue."
+                    )
 
             # Atomic rename
             tmp_dest.rename(dest)
@@ -284,6 +312,8 @@ def download_model(
             raise ModelDownloadError(
                 f"Network error downloading {filename}: {e.reason}"
             ) from e
+        except ModelDownloadError:
+            raise  # Re-raise SHA mismatch without wrapping
         except Exception as e:
             tmp_dest.unlink(missing_ok=True)
             raise ModelDownloadError(
@@ -327,7 +357,7 @@ def remove_model(name: str) -> bool:
 
 
 def verify_model(name: str) -> Dict[str, bool]:
-    """Verify a model installation.
+    """Verify a model installation (file existence only).
 
     Args:
         name: Model name.
@@ -346,6 +376,42 @@ def verify_model(name: str) -> Dict[str, bool]:
         status[filename] = (model_dir / filename).exists()
 
     status["model_meta.yaml"] = (model_dir / "model_meta.yaml").exists()
+
+
+def verify_model_hashes(name: str) -> Dict[str, Optional[str]]:
+    """Verify SHA-256 integrity of an installed model's files.
+
+    Args:
+        name: Model name from the catalog.
+
+    Returns:
+        Dict mapping filename to verification status:
+        - ``"ok"`` — hash matches catalog
+        - ``"mismatch"`` — hash does not match (corrupted or tampered)
+        - ``"missing"`` — file not found on disk
+        - ``"no_hash"`` — catalog has no expected hash for this file
+        Returns empty dict if model is not in the catalog.
+    """
+    definition = MODEL_CATALOG.get(name)
+    if definition is None:
+        return {}
+
+    model_dir = get_model_dir(name)
+    results: Dict[str, Optional[str]] = {}
+
+    for filename in definition.files:
+        expected = definition.file_hashes.get(filename)
+        path = model_dir / filename
+
+        if not path.exists():
+            results[filename] = "missing"
+        elif not expected:
+            results[filename] = "no_hash"
+        else:
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            results[filename] = "ok" if actual == expected else "mismatch"
+
+    return results
 
     return status
 

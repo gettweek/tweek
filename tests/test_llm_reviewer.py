@@ -60,17 +60,20 @@ def reset_singleton():
 
 @pytest.fixture
 def clean_env():
-    """Remove all LLM-related env vars for clean testing."""
+    """Remove all LLM-related env vars and prevent ~/.tweek/.env loading."""
     env_vars = [
         "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
         "GOOGLE_API_KEY", "GEMINI_API_KEY",
         "TOGETHER_API_KEY", "GROQ_API_KEY",
+        "XAI_API_KEY",
     ]
     saved = {}
     for var in env_vars:
         if var in os.environ:
             saved[var] = os.environ.pop(var)
-    yield
+    # Prevent _get_api_key from re-loading real keys from ~/.tweek/.env
+    with patch("dotenv.load_dotenv"):
+        yield
     for var, val in saved.items():
         os.environ[var] = val
     for var in env_vars:
@@ -181,22 +184,26 @@ class TestAutoDetection:
     @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", True)
     @patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", True)
     @patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", True)
-    def test_anthropic_preferred_when_available(self, clean_env):
+    def test_google_preferred_when_available(self, clean_env):
+        """Google (free tier) should be preferred over OpenAI and Anthropic."""
+        os.environ["GOOGLE_API_KEY"] = "goog-key"
         os.environ["ANTHROPIC_API_KEY"] = "ant-key"
         os.environ["OPENAI_API_KEY"] = "oai-key"
 
-        with patch("tweek.security.llm_reviewer.AnthropicReviewProvider") as mock_cls:
+        with patch("tweek.security.llm_reviewer.GoogleReviewProvider") as mock_cls:
             mock_cls.return_value = MagicMock(spec=ReviewProvider)
             provider = _auto_detect_provider("auto", None, None, None, 5.0)
             mock_cls.assert_called_once_with(
-                model=DEFAULT_MODELS["anthropic"], api_key="ant-key", timeout=5.0,
+                model=DEFAULT_MODELS["google"], api_key="goog-key", timeout=5.0,
             )
 
-    @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", False)
+    @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", True)
     @patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", True)
-    @patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", True)
-    def test_openai_fallback_when_no_anthropic(self, clean_env):
+    @patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", False)
+    def test_openai_fallback_when_no_google(self, clean_env):
+        """OpenAI should be used when Google is unavailable."""
         os.environ["OPENAI_API_KEY"] = "oai-key"
+        os.environ["ANTHROPIC_API_KEY"] = "ant-key"
 
         with patch("tweek.security.llm_reviewer.OpenAIReviewProvider") as mock_cls:
             mock_cls.return_value = MagicMock(spec=ReviewProvider)
@@ -205,17 +212,18 @@ class TestAutoDetection:
                 model=DEFAULT_MODELS["openai"], api_key="oai-key", timeout=5.0,
             )
 
-    @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", False)
+    @patch("tweek.security.llm_reviewer.ANTHROPIC_AVAILABLE", True)
     @patch("tweek.security.llm_reviewer.OPENAI_AVAILABLE", False)
-    @patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", True)
-    def test_google_fallback_when_no_anthropic_or_openai(self, clean_env):
-        os.environ["GOOGLE_API_KEY"] = "goog-key"
+    @patch("tweek.security.llm_reviewer.GOOGLE_AVAILABLE", False)
+    def test_anthropic_fallback_when_no_google_or_openai(self, clean_env):
+        """Anthropic should be last resort cloud provider."""
+        os.environ["ANTHROPIC_API_KEY"] = "ant-key"
 
-        with patch("tweek.security.llm_reviewer.GoogleReviewProvider") as mock_cls:
+        with patch("tweek.security.llm_reviewer.AnthropicReviewProvider") as mock_cls:
             mock_cls.return_value = MagicMock(spec=ReviewProvider)
             provider = _auto_detect_provider("auto", None, None, None, 5.0)
             mock_cls.assert_called_once_with(
-                model=DEFAULT_MODELS["google"], api_key="goog-key", timeout=5.0,
+                model=DEFAULT_MODELS["anthropic"], api_key="ant-key", timeout=5.0,
             )
 
     @patch("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False)
@@ -444,30 +452,33 @@ class TestLLMReviewer:
         assert result.risk_level == RiskLevel.SUSPICIOUS
         assert result.should_prompt is False  # < 0.7
 
-    def test_review_timeout_fails_closed(self):
+    def test_review_timeout_degrades_gracefully(self):
         reviewer, mock_prov = self._make_reviewer_with_mock_provider()
         mock_prov.call.side_effect = ReviewProviderError("timeout", is_timeout=True)
 
         result = reviewer.review("slow command", "Bash", "dangerous")
-        assert result.risk_level == RiskLevel.SUSPICIOUS
-        assert result.should_prompt is True
-        assert "timed out" in result.reason
+        assert result.risk_level == RiskLevel.SAFE
+        assert result.should_prompt is False
+        assert result.confidence == 0.0
+        assert result.details.get("graceful_degradation") is True
 
-    def test_review_api_error_fails_closed(self):
+    def test_review_api_error_degrades_gracefully(self):
         reviewer, mock_prov = self._make_reviewer_with_mock_provider()
         mock_prov.call.side_effect = ReviewProviderError("rate limited")
 
         result = reviewer.review("some command", "Bash", "risky")
-        assert result.risk_level == RiskLevel.SUSPICIOUS
-        assert result.should_prompt is True
+        assert result.risk_level == RiskLevel.SAFE
+        assert result.should_prompt is False
+        assert result.details.get("graceful_degradation") is True
 
-    def test_review_unexpected_error_fails_closed(self):
+    def test_review_unexpected_error_degrades_gracefully(self):
         reviewer, mock_prov = self._make_reviewer_with_mock_provider()
         mock_prov.call.side_effect = RuntimeError("unexpected")
 
         result = reviewer.review("some command", "Bash", "risky")
-        assert result.risk_level == RiskLevel.SUSPICIOUS
-        assert result.should_prompt is True
+        assert result.risk_level == RiskLevel.SAFE
+        assert result.should_prompt is False
+        assert result.details.get("graceful_degradation") is True
 
     def test_review_command_truncated_to_2000(self):
         reviewer, mock_prov = self._make_reviewer_with_mock_provider(

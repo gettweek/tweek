@@ -31,8 +31,17 @@ MAX_RELAXATION = {
     "allow": "allow",  # Already at minimum
 }
 
-# Minimum weighted decisions before memory can suggest adjustments
-MIN_DECISION_THRESHOLD = 10
+# Context-scoped decision thresholds: narrower context = fewer decisions needed.
+# The system tries scopes narrowest-first and returns the first match.
+# Global (pattern-only) is intentionally absent — too broad to be safe.
+SCOPED_THRESHOLDS = {
+    "exact": 1,          # pattern + tool + path + project
+    "tool_project": 3,   # pattern + tool + project
+    "path": 5,           # pattern + path_prefix
+}
+
+# Minimum weighted decisions (backward compat — smallest scope threshold)
+MIN_DECISION_THRESHOLD = SCOPED_THRESHOLDS["exact"]
 
 # Minimum approval ratio to suggest relaxation
 MIN_APPROVAL_RATIO = 0.90  # 90% approval rate
@@ -115,18 +124,28 @@ def compute_suggested_decision(
     total_weighted_decisions: float,
     original_severity: str,
     original_confidence: str,
+    min_threshold: Optional[float] = None,
 ) -> Optional[str]:
     """Compute what decision memory would suggest, if any.
 
     Returns None if memory has no suggestion (insufficient data or
     pattern is immune).
+
+    Args:
+        min_threshold: Override the minimum weighted-decision threshold.
+            Used by scoped queries where narrower context requires fewer
+            decisions. Defaults to SCOPED_THRESHOLDS["path"] (broadest
+            allowed scope).
     """
+    if min_threshold is None:
+        min_threshold = SCOPED_THRESHOLDS["path"]
+
     # Immune patterns get no suggestions
     if is_immune_pattern(original_severity, original_confidence):
         return None
 
-    # Insufficient data
-    if total_weighted_decisions < MIN_DECISION_THRESHOLD:
+    # Insufficient data for this scope
+    if total_weighted_decisions < min_threshold:
         return None
 
     # deny is never relaxed

@@ -46,6 +46,8 @@ def memory_read_for_pattern(
             current_decision=current_decision,
             original_severity=pattern_severity,
             original_confidence=pattern_confidence,
+            tool_name=tool_name,
+            project_hash=project_hash,
         )
 
         if adjustment is None:

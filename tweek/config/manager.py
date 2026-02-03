@@ -152,6 +152,23 @@ class ConfigManager:
             },
             "default_tier": "default",
         },
+        "balanced": {
+            # Same tool tiers as cautious, but the preset name signals
+            # provenance-aware enforcement: clean sessions get relaxed
+            # thresholds (fewer false positives), tainted sessions get
+            # escalated scrutiny. See tweek.memory.provenance.
+            "tools": {
+                "Read": "safe",
+                "Glob": "safe",
+                "Grep": "safe",
+                "Edit": "default",
+                "Write": "default",
+                "WebFetch": "risky",
+                "WebSearch": "risky",
+                "Bash": "dangerous",
+            },
+            "default_tier": "default",
+        },
         "trusted": {
             "tools": {
                 "Read": "safe",
