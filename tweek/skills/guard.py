@@ -36,19 +36,19 @@ PROTECTED_SKILL_PATHS = [
 
 # Regex patterns for detecting skill-related shell commands
 _SKILL_DIR_PATTERNS = [
-    # Moving/copying out of jail
+    # Moving/copying out of jail (expanded tool list)
     re.compile(
-        r"(cp|mv|rsync|ln)\s+.*\.tweek/skills/(jail|chamber)",
+        r"(cp|mv|rsync|ln|install|dd|tee)\s+.*\.tweek/skills/(jail|chamber)",
         re.IGNORECASE,
     ),
-    # Moving/copying into Claude's skill directories
+    # Moving/copying into Claude's skill directories (expanded tool list)
     re.compile(
-        r"(cp|mv|rsync|ln)\s+.*\.claude/skills/",
+        r"(cp|mv|rsync|ln|install|dd|tee)\s+.*\.claude/skills/",
         re.IGNORECASE,
     ),
-    # Moving/copying into OpenClaw's skill directories
+    # Moving/copying into OpenClaw's skill directories (expanded tool list)
     re.compile(
-        r"(cp|mv|rsync|ln)\s+.*\.openclaw/workspace/skills/",
+        r"(cp|mv|rsync|ln|install|dd|tee)\s+.*\.openclaw/workspace/skills/",
         re.IGNORECASE,
     ),
     # Symlink attacks targeting skill directories
@@ -64,13 +64,36 @@ _SKILL_DIR_PATTERNS = [
         r"ln\s+(-sf?\s+)?.*\.openclaw/workspace/skills",
         re.IGNORECASE,
     ),
-    # Direct creation of SKILL.md via shell
+    # Direct creation of SKILL.md via shell (redirect)
     re.compile(
         r"(echo|cat|tee|printf)\s+.*>\s*.*\.claude/skills/.*SKILL\.md",
         re.IGNORECASE,
     ),
     re.compile(
         r"(echo|cat|tee|printf)\s+.*>\s*.*\.openclaw/workspace/skills/.*SKILL\.md",
+        re.IGNORECASE,
+    ),
+    # Pipe-to-tee targeting skill directories
+    re.compile(
+        r"\|\s*tee\s+.*\.(claude|tweek|openclaw).*skills",
+        re.IGNORECASE,
+    ),
+    # Interpreter one-liner writes targeting skill directories
+    re.compile(
+        r"python3?\s+-c\s+.*open\s*\(.*\.(claude|tweek|openclaw).*skills",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"perl\s+-e\s+.*open\s*\(.*\.(claude|tweek|openclaw).*skills",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"ruby\s+-e\s+.*File\.(write|open).*\.(claude|tweek|openclaw).*skills",
+        re.IGNORECASE,
+    ),
+    # Shell variable substitution targeting skill directories
+    re.compile(
+        r"\$(\(|HOME|{).*\.(claude|tweek|openclaw).*skills/(jail|chamber)",
         re.IGNORECASE,
     ),
 ]

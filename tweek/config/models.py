@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -205,9 +205,18 @@ class OpenClawConfig(BaseModel):
     gateway_port: int = Field(default=18789, gt=0, le=65535)
     scanner_port: int = Field(default=9878, gt=0, le=65535)
     plugin_installed: bool = False
-    preset: str = "cautious"
+    preset: Literal["paranoid", "cautious", "balanced", "trusted"] = "cautious"
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def check_port_collision(self) -> "OpenClawConfig":
+        if self.gateway_port == self.scanner_port:
+            raise ValueError(
+                f"gateway_port and scanner_port must differ "
+                f"(both set to {self.gateway_port})"
+            )
+        return self
 
 
 # ============================================================================

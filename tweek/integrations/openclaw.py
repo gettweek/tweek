@@ -7,17 +7,24 @@ the OpenClaw ecosystem.
 """
 
 import json
+import os
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from tweek.integrations.openclaw_detection import (
+    OPENCLAW_CONFIG,
+    OPENCLAW_DEFAULT_PORT,
+    OPENCLAW_HOME,
+    OPENCLAW_SKILLS_DIR,
+    check_gateway_active,
+    check_npm_installation,
+    check_running_process,
+    read_config_port,
+)
 
-# OpenClaw default paths and ports
-OPENCLAW_DEFAULT_PORT = 18789
-OPENCLAW_HOME = Path.home() / ".openclaw"
-OPENCLAW_CONFIG = OPENCLAW_HOME / "openclaw.json"
-OPENCLAW_SKILLS_DIR = OPENCLAW_HOME / "workspace" / "skills"
 OPENCLAW_PLUGIN_NAME = "@tweek/openclaw-plugin"
 
 # Scanning server port (separate from Tweek proxy port)
@@ -63,43 +70,21 @@ def detect_openclaw_installation() -> dict:
         "skills_dir": None,
     }
 
-    # Check npm global installation
-    try:
-        proc = subprocess.run(
-            ["npm", "list", "-g", "openclaw", "--json"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if proc.returncode == 0:
-            data = json.loads(proc.stdout)
-            deps = data.get("dependencies", {})
-            if "openclaw" in deps:
-                info["installed"] = True
-                info["version"] = deps["openclaw"].get("version")
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
-        pass
-
-    # Check which/where
-    if not info["installed"]:
-        try:
-            import os
-            cmd = ["which", "openclaw"] if os.name != "nt" else ["where", "openclaw"]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-            if proc.returncode == 0 and proc.stdout.strip():
-                info["installed"] = True
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+    # Check npm global installation (shared detection)
+    npm_info = check_npm_installation()
+    if npm_info:
+        info["installed"] = True
+        info["version"] = npm_info.get("version")
 
     # Check for OpenClaw home directory
     if OPENCLAW_HOME.exists():
         info["installed"] = True
-
-        # Check for skills directory
         if OPENCLAW_SKILLS_DIR.exists():
             info["skills_dir"] = OPENCLAW_SKILLS_DIR
 
     # Check for config file and extract port
+    # Note: uses local OPENCLAW_CONFIG reference (not shared module) so
+    # tests can patch tweek.integrations.openclaw.OPENCLAW_CONFIG
     if OPENCLAW_CONFIG.exists():
         info["config_path"] = OPENCLAW_CONFIG
         try:
@@ -111,28 +96,13 @@ def detect_openclaw_installation() -> dict:
         except (json.JSONDecodeError, IOError):
             pass
 
-    # Check for running process
-    try:
-        proc = subprocess.run(
-            ["pgrep", "-f", "openclaw"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if proc.returncode == 0 and proc.stdout.strip():
-            info["process_running"] = True
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    # Check for running process (shared detection)
+    process_info = check_running_process()
+    if process_info:
+        info["process_running"] = True
 
-    # Check if gateway port is active
-    import socket
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(1)
-            result = s.connect_ex(("127.0.0.1", info["gateway_port"]))
-            info["gateway_active"] = result == 0
-    except (socket.error, OSError):
-        pass
+    # Check if gateway port is active (shared detection)
+    info["gateway_active"] = check_gateway_active(info["gateway_port"])
 
     return info
 
@@ -268,10 +238,16 @@ def _write_openclaw_config(
 
     preset_config = preset_configs.get(preset, preset_configs["cautious"])
 
+    # Read scanner auth token if it exists
+    token_file = Path.home() / ".tweek" / ".scanner_token"
+    scanner_token = None
+    if token_file.exists():
+        scanner_token = token_file.read_text().strip()
+
     # Merge into existing config
     plugins = config.setdefault("plugins", {})
     entries = plugins.setdefault("entries", {})
-    entries["tweek"] = {
+    tweek_entry = {
         "enabled": True,
         "config": {
             "preset": preset,
@@ -279,6 +255,9 @@ def _write_openclaw_config(
             **preset_config,
         },
     }
+    if scanner_token:
+        tweek_entry["config"]["scannerToken"] = scanner_token
+    entries["tweek"] = tweek_entry
 
     try:
         OPENCLAW_HOME.mkdir(parents=True, exist_ok=True)
@@ -397,10 +376,28 @@ def setup_openclaw_protection(
         "plugin_installed": result.plugin_installed,
     }
 
+    # Sanitize preset for safe YAML interpolation
+    allowed_presets = {"paranoid", "cautious", "balanced", "trusted"}
+    safe_preset = preset if preset in allowed_presets else "cautious"
+
     try:
+        # Write to temp file, then atomically replace
+        tweek_dir.mkdir(parents=True, exist_ok=True)
         if yaml:
-            with open(tweek_config_path, "w") as f:
-                yaml.dump(tweek_config, f, default_flow_style=False)
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(tweek_dir), suffix=".yaml.tmp"
+            )
+            try:
+                with os.fdopen(fd, "w") as f:
+                    yaml.dump(tweek_config, f, default_flow_style=False)
+                os.replace(tmp_path, str(tweek_config_path))
+            except Exception:
+                # Clean up temp file on failure
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         else:
             # Manual YAML writing as fallback
             existing_lines = []
@@ -418,16 +415,29 @@ def setup_openclaw_protection(
                     existing_lines.append(line)
 
             openclaw_lines = [
+                "# Generated by tweek",
                 "openclaw:",
                 "  enabled: true",
                 f"  gateway_port: {result.gateway_port}",
                 f"  scanner_port: {result.scanner_port}",
-                f"  preset: {preset}",
+                f"  preset: {safe_preset}",
                 f"  plugin_installed: {'true' if result.plugin_installed else 'false'}",
             ]
 
             all_lines = existing_lines + openclaw_lines
-            tweek_config_path.write_text("\n".join(all_lines) + "\n")
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(tweek_dir), suffix=".yaml.tmp"
+            )
+            try:
+                with os.fdopen(fd, "w") as f:
+                    f.write("\n".join(all_lines) + "\n")
+                os.replace(tmp_path, str(tweek_config_path))
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
     except Exception as e:
         result.warnings.append(f"Could not update Tweek config: {e}")
 

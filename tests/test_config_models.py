@@ -611,9 +611,20 @@ class TestOpenClawConfig:
         assert cfg.plugin_installed is True
         assert cfg.preset == "paranoid"
 
-    def test_extra_fields_allowed(self):
-        cfg = OpenClawConfig(extra_key="value")
-        assert cfg.extra_key == "value"
+    def test_extra_fields_rejected(self):
+        with pytest.raises(ValidationError):
+            OpenClawConfig(extra_key="value")
+
+    def test_preset_validation(self):
+        for valid in ("paranoid", "cautious", "balanced", "trusted"):
+            cfg = OpenClawConfig(preset=valid)
+            assert cfg.preset == valid
+        with pytest.raises(ValidationError):
+            OpenClawConfig(preset="invalid")
+
+    def test_port_collision_rejected(self):
+        with pytest.raises(ValidationError, match="must differ"):
+            OpenClawConfig(gateway_port=9000, scanner_port=9000)
 
 
 # =============================================================================
