@@ -44,9 +44,69 @@ Built-in desktop client tools (Bash, Read, Write, Edit, etc.) cannot be intercep
 
 ## Proxy Server (`tweek mcp proxy`)
 
-The proxy sits between LLM clients and upstream MCP servers. All tool calls are transparently intercepted, screened through Tweek's defense-in-depth pipeline, and optionally queued for human approval.
+The proxy sits between LLM clients and upstream MCP servers. All tool calls are transparently intercepted, screened through Tweek's defense-in-depth pipeline, and optionally queued for human approval. The proxy also provides built-in `tweek_vault` and `tweek_status` tools alongside proxied upstream tools.
 
 **Source:** `tweek/mcp/proxy.py`
+
+### Built-in Tools
+
+#### `tweek_vault`
+
+Retrieve a credential from Tweek's secure vault (system credential store). Use this instead of reading secret files or hardcoding secrets.
+
+**Input Schema:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `skill` | string | yes | Skill namespace for the credential |
+| `key` | string | yes | Credential key name |
+
+**Response (JSON):**
+
+```json
+{"value": "sk-abc123", "skill": "myapp", "key": "API_KEY"}
+```
+
+Or if blocked by screening:
+
+```json
+{"blocked": true, "reason": "Blocked by compliance scan"}
+```
+
+#### `tweek_status`
+
+Show Tweek security status including active plugins, recent activity, threat summary, and proxy statistics.
+
+**Input Schema:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `detail` | enum: `summary`, `plugins`, `activity`, `threats` | no | Level of detail (default: `summary`) |
+
+**Response (JSON):**
+
+```json
+{
+  "version": "0.2.0",
+  "source": "mcp_proxy",
+  "mode": "proxy",
+  "proxy_requests": 42,
+  "proxy_blocked": 3,
+  "proxy_approvals": 1,
+  "plugins": {"total": 12, "enabled": 8},
+  "recent_activity": [...]
+}
+```
+
+Built-in tools can be individually enabled/disabled in `~/.tweek/config.yaml`:
+
+```yaml
+mcp:
+  proxy:
+    tools:
+      vault: true
+      status: true
+```
 
 ### How It Works
 
@@ -215,7 +275,7 @@ The database uses WAL journal mode for concurrent access and includes retry logi
 
 ## Screening Pipeline (`tweek/mcp/screening.py`)
 
-Shared screening logic used by both the gateway and proxy. The pipeline runs these stages in order:
+Shared screening logic used by the proxy. The pipeline runs these stages in order:
 
 1. **Tier Resolution** -- Determine the effective security tier for the tool
 2. **Compliance Scanning** -- Run all enabled compliance plugins on input content

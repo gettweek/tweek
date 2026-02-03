@@ -413,21 +413,25 @@ def update(check: bool):
 Examples:
   tweek doctor                           Run all health checks
   tweek doctor --verbose                 Show detailed check information
+  tweek doctor --fix                     Offer to fix issues interactively
   tweek doctor --json                    Output results as JSON for scripting
 """
 )
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed check information")
+@click.option("--fix", is_flag=True, help="Offer to fix issues interactively")
 @click.option("--json-output", "--json", "json_out", is_flag=True, help="Output results as JSON")
-def doctor(verbose: bool, json_out: bool):
+def doctor(verbose: bool, fix: bool, json_out: bool):
     """Run health checks on your Tweek installation.
 
     Checks hooks, configuration, patterns, database, vault, sandbox,
     license, MCP, proxy, and plugin integrity.
+
+    Use --fix to interactively resolve warnings and errors.
     """
     from tweek.diagnostics import run_health_checks
     from tweek.cli_helpers import print_doctor_results, print_doctor_json
 
-    checks = run_health_checks(verbose=verbose)
+    checks = run_health_checks(verbose=verbose, interactive=fix)
 
     if json_out:
         print_doctor_json(checks)

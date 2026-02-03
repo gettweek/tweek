@@ -164,11 +164,47 @@ def parse_env_keys(env_path: Path) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
+def _ensure_local_model_deps() -> bool:
+    """Install onnxruntime, tokenizers, numpy if missing.
+
+    Returns True if deps are available after this call.
+    """
+    try:
+        import onnxruntime  # noqa: F401
+        import tokenizers  # noqa: F401
+        import numpy  # noqa: F401
+        return True
+    except ImportError:
+        pass
+
+    console.print("\n[cyan]Installing local model dependencies...[/cyan]")
+    try:
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "onnxruntime>=1.16.0", "tokenizers>=0.15.0", "numpy>=1.24.0"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode == 0:
+            console.print("[green]\u2713[/green] Local model dependencies installed")
+            return True
+        else:
+            console.print(f"[yellow]\u26a0[/yellow] Could not install dependencies: {result.stderr.strip()[:200]}")
+            console.print("  [white]Install manually with: pip install tweek[local-models][/white]")
+            return False
+    except Exception as e:
+        console.print(f"[yellow]\u26a0[/yellow] Could not install dependencies: {e}")
+        console.print("  [white]Install manually with: pip install tweek[local-models][/white]")
+        return False
+
+
 def _download_local_model(quick: bool) -> bool:
-    """Download the local classifier model if dependencies are available.
+    """Download the local classifier model, installing deps if needed.
 
     Called during ``tweek install`` to ensure the on-device prompt-injection
-    classifier is ready to use immediately after installation.
+    classifier is ready to use immediately after installation. Dependencies
+    are installed automatically if missing.
 
     Args:
         quick: If True, skip informational output and just download.
@@ -178,7 +214,6 @@ def _download_local_model(quick: bool) -> bool:
         successfully), False otherwise.
     """
     try:
-        from tweek.security.local_model import LOCAL_MODEL_AVAILABLE
         from tweek.security.model_registry import (
             ModelDownloadError,
             download_model,
@@ -191,10 +226,20 @@ def _download_local_model(quick: bool) -> bool:
             console.print("\n[white]Local model module not available — skipping model download[/white]")
         return False
 
+    # Auto-install deps if missing (onnxruntime, tokenizers, numpy)
+    deps_available = _ensure_local_model_deps()
+    if not deps_available:
+        return False
+
+    # Re-import after potential install
+    try:
+        from tweek.security.local_model import LOCAL_MODEL_AVAILABLE
+    except ImportError:
+        return False
+
     if not LOCAL_MODEL_AVAILABLE:
         if not quick:
-            console.print("\n[white]Local model dependencies not installed (optional)[/white]")
-            console.print("  [white]Install with: pip install tweek[local-models][/white]")
+            console.print("\n[yellow]\u26a0[/yellow] Local model dependencies not fully functional after install")
         return False
 
     default_name = get_default_model_name()
@@ -684,11 +729,21 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
         # Full interactive configuration
         console.print("\n[bold]Security Configuration[/bold]")
         console.print("Choose how to configure security settings:\n")
-        console.print("  [cyan]1.[/cyan] Paranoid  - Maximum security, prompt on everything")
-        console.print("  [cyan]2.[/cyan] Balanced  - Smart defaults with provenance tracking [green](recommended)[/green]")
-        console.print("  [cyan]3.[/cyan] Cautious  - Prompt on risky operations")
-        console.print("  [cyan]4.[/cyan] Trusted   - Minimal prompts")
-        console.print("  [cyan]5.[/cyan] Custom    - Configure individually")
+        console.print("  [cyan]1.[/cyan] Paranoid")
+        console.print("     [white]Block everything suspicious. Manual approval required.[/white]")
+        console.print("     [dim]Best for: production systems, sensitive codebases[/dim]")
+        console.print("  [cyan]2.[/cyan] Balanced [green](recommended)[/green]")
+        console.print("     [white]Smart defaults with provenance tracking. Clean sessions[/white]")
+        console.print("     [white]get fewer prompts; tainted sessions get extra scrutiny.[/white]")
+        console.print("     [dim]Best for: most development workflows[/dim]")
+        console.print("  [cyan]3.[/cyan] Cautious")
+        console.print("     [white]Block high-risk actions, warn on medium-risk.[/white]")
+        console.print("     [dim]Best for: teams with mixed trust levels[/dim]")
+        console.print("  [cyan]4.[/cyan] Trusted")
+        console.print("     [white]Monitor only, never block. Logging still active.[/white]")
+        console.print("     [dim]Best for: air-gapped systems, solo trusted projects[/dim]")
+        console.print("  [cyan]5.[/cyan] Custom")
+        console.print("     [white]Configure tool and skill tiers individually.[/white]")
         console.print()
 
         choice = click.prompt("Select", type=click.IntRange(1, 5), default=2)
@@ -879,44 +934,49 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
     _print_install_summary(install_summary, target, tweek_dir, proxy_override_enabled)
 
     # ─────────────────────────────────────────────────────────────
-    # Step 14: Scan for other AI tools and offer protection
+    # Step 14: Detect all AI tools and offer protection
     # ─────────────────────────────────────────────────────────────
     if not quick:
-        _offer_mcp_protection()
+        unprotected = _detect_and_show_tools()
+        if unprotected:
+            _offer_tool_protection(unprotected)
 
 
 
-def _offer_mcp_protection() -> None:
-    """Scan for installed MCP-capable AI tools and offer to protect them.
-
-    Detects Claude Desktop, Gemini CLI, and ChatGPT Desktop. For each tool
-    that is installed but not yet protected, prompts the user to add Tweek
-    as an MCP server.
-    """
-    from tweek.cli_protect import _protect_mcp_client
-
-    # MCP client tool IDs to scan for (exclude claude-code and openclaw —
-    # those are handled by their own install paths)
-    mcp_tool_ids = {"claude-desktop", "chatgpt", "gemini"}
-
+def _detect_and_show_tools() -> list:
+    """Detect all AI tools and display status. Returns unprotected tools."""
     try:
         all_tools = _detect_all_tools()
     except Exception:
-        return
+        return []
 
-    unprotected = [
-        (tool_id, label)
-        for tool_id, label, installed, protected, _detail in all_tools
-        if tool_id in mcp_tool_ids and installed and not protected
+    console.print("\n[bold]Detected AI Tools[/bold]")
+    for tool_id, label, installed, protected, detail in all_tools:
+        if installed and protected:
+            console.print(f"  [green]\u2713[/green] {label:<20} [green]protected[/green]")
+        elif installed:
+            console.print(f"  [yellow]\u25cb[/yellow] {label:<20} [yellow]not configured[/yellow]")
+        else:
+            console.print(f"  [dim]\u2717 {label:<20} not found[/dim]")
+    console.print()
+
+    return [t for t in all_tools if t[2] and not t[3]]
+
+
+def _offer_tool_protection(unprotected_tools: list) -> None:
+    """Offer to protect each unprotected MCP-based AI tool."""
+    from tweek.cli_protect import _protect_mcp_client
+
+    mcp_tool_ids = {"claude-desktop", "chatgpt", "gemini"}
+    mcp_unprotected = [
+        (tid, lbl) for tid, lbl, *_ in unprotected_tools if tid in mcp_tool_ids
     ]
-
-    if not unprotected:
+    if not mcp_unprotected:
         return
 
-    console.print("\n[bold]Other AI tools detected[/bold]")
-    console.print("Tweek can also protect these tools via MCP server integration:\n")
-
-    for tool_id, label in unprotected:
+    console.print("[bold]Configure MCP protection for other tools?[/bold]")
+    console.print("Tweek can protect these via MCP server integration:\n")
+    for tool_id, label in mcp_unprotected:
         if click.confirm(f"  Protect {label}?", default=True):
             try:
                 _protect_mcp_client(tool_id)
@@ -924,8 +984,14 @@ def _offer_mcp_protection() -> None:
                 console.print(f"  [yellow]Could not configure {label}: {e}[/yellow]")
         else:
             console.print(f"  [dim]Skipped {label}[/dim]")
-
     console.print()
+
+
+def _offer_mcp_protection() -> None:
+    """Legacy wrapper: detect + offer protection for MCP tools."""
+    unprotected = _detect_and_show_tools()
+    if unprotected:
+        _offer_tool_protection(unprotected)
 
 
 def _create_tweek_yaml(install_global: bool) -> None:
@@ -1202,12 +1268,17 @@ def _warn_no_llm_provider(quick: bool) -> None:
 
 
 def _detect_llm_provider():
-    """Detect which LLM provider is available based on environment.
+    """Detect which LLM provider is available based on environment and SDK.
 
-    Priority: Local ONNX model > Anthropic > OpenAI > Google.
+    Priority: Local ONNX model > Google > OpenAI > xAI > Anthropic.
     Returns dict with 'name' and 'model', or None if none available.
+
+    Both the API key AND the SDK must be available for cloud providers.
+    This aligns with the doctor's detection logic to avoid contradictions
+    where install says a provider is configured but doctor says it isn't.
     """
     import os
+    from importlib import import_module
 
     # Check local ONNX model first (no API key needed)
     try:
@@ -1221,18 +1292,24 @@ def _detect_llm_provider():
     except ImportError:
         pass
 
-    # Cloud providers — Google first (free tier), then others (pay-per-token)
+    # Cloud providers — check both API key AND SDK importability
+    # sdk_module is the Python package that must be importable
     checks = [
-        ("GOOGLE_API_KEY", "Google", "gemini-2.0-flash"),
-        ("GEMINI_API_KEY", "Google", "gemini-2.0-flash"),
-        ("OPENAI_API_KEY", "OpenAI", "gpt-4o-mini"),
-        ("XAI_API_KEY", "xAI (Grok)", "grok-2"),
-        ("ANTHROPIC_API_KEY", "Anthropic", "claude-3-5-haiku-latest"),
+        ("GOOGLE_API_KEY", "Google", "gemini-2.0-flash", "google.generativeai"),
+        ("GEMINI_API_KEY", "Google", "gemini-2.0-flash", "google.generativeai"),
+        ("OPENAI_API_KEY", "OpenAI", "gpt-4o-mini", "openai"),
+        ("XAI_API_KEY", "xAI (Grok)", "grok-2", "openai"),
+        ("ANTHROPIC_API_KEY", "Anthropic", "claude-3-5-haiku-latest", "anthropic"),
     ]
 
-    for env_var, name, model in checks:
+    for env_var, name, model, sdk_module in checks:
         if os.environ.get(env_var):
-            return {"name": name, "model": model, "env_var": env_var}
+            try:
+                import_module(sdk_module)
+                return {"name": name, "model": model, "env_var": env_var}
+            except ImportError:
+                # Key exists but SDK not installed — skip this provider
+                continue
 
     return None
 
@@ -1333,6 +1410,10 @@ def _validate_llm_provider(llm_config: dict) -> None:
                     console.print(f"  [yellow]\u26a0[/yellow] Could not store in vault: {e}")
                     console.print(f"  [white]Set {key_name} in your shell profile instead.[/white]")
 
+    # Validate the key actually works with a lightweight API call
+    if found_key:
+        _validate_api_key(provider, llm_config)
+
     if not found_key:
         console.print(f"  [white]LLM review will be disabled until a key is available.[/white]")
 
@@ -1354,6 +1435,42 @@ def _validate_llm_provider(llm_config: dict) -> None:
                 llm_config["provider_display"] = "disabled (no API key found)"
                 llm_config["model_display"] = None
                 console.print(f"  [white]No API keys found \u2014 LLM review will be disabled[/white]")
+
+
+def _validate_api_key(provider: str, llm_config: dict) -> None:
+    """Make a lightweight API call to verify the key works.
+
+    This catches invalid/expired keys during install rather than at runtime.
+    On failure, warns but does not block — the key might work later.
+    """
+    console.print("  [white]Validating API key...[/white]", end="")
+    try:
+        if provider == "google":
+            import google.generativeai as genai
+            key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
+            genai.configure(api_key=key)
+            list(genai.list_models())
+            console.print(f"\r  [green]\u2713[/green] API key validated                 ")
+        elif provider == "openai":
+            import openai
+            client = openai.OpenAI(timeout=5.0)
+            client.models.list()
+            console.print(f"\r  [green]\u2713[/green] API key validated                 ")
+        elif provider == "anthropic":
+            import anthropic
+            client = anthropic.Anthropic(timeout=5.0)
+            client.messages.create(
+                model="claude-3-5-haiku-latest",
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+            console.print(f"\r  [green]\u2713[/green] API key validated                 ")
+        else:
+            console.print(f"\r  [white]\u25cb[/white] Validation skipped (unknown provider)")
+    except Exception as e:
+        err_msg = str(e)[:100]
+        console.print(f"\r  [yellow]\u26a0[/yellow] Could not validate key: {err_msg}")
+        console.print("  [white]Tweek will retry at runtime. Key may still work.[/white]")
 
 
 def _print_install_summary(
@@ -1584,10 +1701,18 @@ def install(scope, preset, quick, backup, skip_env_scan, interactive, ai_default
     # Step 2: Security preset
     console.print("[bold cyan]Step 2/5: Security Preset[/bold cyan]")
     if preset is None:
-        console.print("  [cyan]1.[/cyan] paranoid  \u2014 Block everything suspicious, prompt on risky")
-        console.print("  [cyan]2.[/cyan] balanced  \u2014 Smart defaults with provenance tracking [white](recommended)[/white]")
-        console.print("  [cyan]3.[/cyan] cautious  \u2014 Block dangerous, prompt on risky")
-        console.print("  [cyan]4.[/cyan] trusted   \u2014 Allow most operations, block only dangerous")
+        console.print("  [cyan]1.[/cyan] paranoid")
+        console.print("     [white]Block everything suspicious. Manual approval required.[/white]")
+        console.print("     [dim]Best for: production systems, sensitive codebases[/dim]")
+        console.print("  [cyan]2.[/cyan] balanced [white](recommended)[/white]")
+        console.print("     [white]Smart defaults with provenance tracking.[/white]")
+        console.print("     [dim]Best for: most development workflows[/dim]")
+        console.print("  [cyan]3.[/cyan] cautious")
+        console.print("     [white]Block high-risk, warn on medium-risk.[/white]")
+        console.print("     [dim]Best for: teams with mixed trust levels[/dim]")
+        console.print("  [cyan]4.[/cyan] trusted")
+        console.print("     [white]Monitor only, never block. Logging still active.[/white]")
+        console.print("     [dim]Best for: air-gapped systems, solo projects[/dim]")
         console.print()
 
         preset_choice = click.prompt(

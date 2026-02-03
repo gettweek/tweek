@@ -33,12 +33,13 @@ class HealthCheck:
     fix_hint: str = ""  # Recovery: "Run: tweek protect claude-code --global"
 
 
-def run_health_checks(verbose: bool = False) -> List[HealthCheck]:
+def run_health_checks(verbose: bool = False, interactive: bool = False) -> List[HealthCheck]:
     """
     Run all health checks and return results.
 
     Args:
         verbose: If True, include extra detail in messages.
+        interactive: If True, offer to fix issues interactively.
 
     Returns:
         List of HealthCheck results in check order.
@@ -71,6 +72,10 @@ def run_health_checks(verbose: bool = False) -> List[HealthCheck]:
                 message=f"Check failed: {e}",
                 fix_hint="This may indicate a corrupted installation. Try: pip install --force-reinstall tweek",
             ))
+
+    # Interactive fix mode — offer to resolve fixable issues
+    if interactive:
+        _offer_interactive_fixes(results)
 
     # Log health check results
     try:
@@ -788,3 +793,121 @@ def _check_llm_review(verbose: bool = False) -> HealthCheck:
             status=CheckStatus.WARNING,
             message=f"Cannot check LLM review: {e}",
         )
+
+
+# ==================== Interactive Fix Mode ====================
+
+
+def _offer_interactive_fixes(results: List[HealthCheck]) -> None:
+    """Offer to fix issues found during health checks.
+
+    Only runs when ``tweek doctor --fix`` is used. Prompts for each
+    fixable issue and attempts automatic remediation.
+    """
+    import click
+    from rich.console import Console
+
+    console = Console()
+    fixable = [r for r in results if r.status in (CheckStatus.WARNING, CheckStatus.ERROR)]
+
+    if not fixable:
+        return
+
+    console.print("\n[bold]Interactive Fix Mode[/bold]")
+    console.print(f"Found {len(fixable)} issue(s) that may be fixable:\n")
+
+    for check in fixable:
+        fixed = False
+
+        if check.name == "local_model" and "not downloaded" in check.message:
+            if click.confirm(f"  [{check.name}] Download local model now?", default=True):
+                fixed = _fix_download_model()
+
+        elif check.name == "local_model" and "Dependencies" in check.message:
+            if click.confirm(f"  [{check.name}] Install local model dependencies?", default=True):
+                fixed = _fix_install_model_deps()
+
+        elif check.name == "local_model" and "SHA-256" in check.message:
+            if click.confirm(f"  [{check.name}] Re-download model (integrity check failed)?", default=True):
+                fixed = _fix_redownload_model()
+
+        elif check.name == "llm_review" and "No LLM provider" in check.message:
+            if click.confirm(f"  [{check.name}] Configure LLM provider now?", default=True):
+                fixed = _fix_configure_llm()
+
+        elif check.name == "hooks_installed" and "No hooks" in check.message:
+            if click.confirm(f"  [{check.name}] Install hooks now?", default=True):
+                fixed = _fix_install_hooks()
+
+        else:
+            if check.fix_hint:
+                console.print(f"  [{check.name}] {check.message}")
+                console.print(f"    [dim]Hint: {check.fix_hint}[/dim]")
+
+        if fixed:
+            console.print(f"  [green]\u2713[/green] Fixed: {check.name}")
+        console.print()
+
+
+def _fix_download_model() -> bool:
+    """Download the local classifier model."""
+    try:
+        from tweek.cli_install import _download_local_model
+        return _download_local_model(quick=False)
+    except Exception as e:
+        from rich.console import Console
+        Console().print(f"  [red]\u2717[/red] Failed: {e}")
+        return False
+
+
+def _fix_install_model_deps() -> bool:
+    """Install onnxruntime, tokenizers, numpy."""
+    try:
+        from tweek.cli_install import _ensure_local_model_deps
+        return _ensure_local_model_deps()
+    except Exception as e:
+        from rich.console import Console
+        Console().print(f"  [red]\u2717[/red] Failed: {e}")
+        return False
+
+
+def _fix_redownload_model() -> bool:
+    """Force re-download the local model."""
+    try:
+        from tweek.security.model_registry import download_model, get_default_model_name
+        download_model(get_default_model_name(), force=True)
+        return True
+    except Exception as e:
+        from rich.console import Console
+        Console().print(f"  [red]\u2717[/red] Failed: {e}")
+        return False
+
+
+def _fix_configure_llm() -> bool:
+    """Run the LLM provider configuration wizard."""
+    try:
+        from tweek.cli_install import _configure_llm_provider
+        tweek_dir = Path("~/.tweek").expanduser()
+        _configure_llm_provider(tweek_dir, interactive=True, quick=False)
+        return True
+    except Exception as e:
+        from rich.console import Console
+        Console().print(f"  [red]\u2717[/red] Failed: {e}")
+        return False
+
+
+def _fix_install_hooks() -> bool:
+    """Run hook installation."""
+    try:
+        from tweek.cli_install import _install_claude_code_hooks
+        _install_claude_code_hooks(
+            install_global=True, dev_test=False, backup=True,
+            skip_env_scan=True, interactive=False, preset="cautious",
+            ai_defaults=False, with_sandbox=False, force_proxy=False,
+            skip_proxy_check=True, quick=True,
+        )
+        return True
+    except Exception as e:
+        from rich.console import Console
+        Console().print(f"  [red]\u2717[/red] Failed: {e}")
+        return False
