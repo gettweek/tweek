@@ -1359,8 +1359,12 @@ class TestOpenClawDetector:
 
     # --- detect() with .openclaw home directory ---
 
-    def test_detect_openclaw_home_dir(self, detector, tmp_path):
-        """Test detection via .openclaw home directory existence."""
+    def test_detect_openclaw_home_dir_alone_not_detected(self, detector, tmp_path):
+        """~/.openclaw/ directory alone should NOT mark as detected.
+
+        The directory may have been created by Tweek's own protect wizard.
+        A real installation requires npm/binary or config with non-Tweek content.
+        """
         openclaw_home = tmp_path / ".openclaw"
         openclaw_home.mkdir(parents=True)
 
@@ -1370,7 +1374,7 @@ class TestOpenClawDetector:
              patch.object(detector, "_check_running_process", return_value=None):
             result = detector.detect()
 
-        assert result.detected is True
+        assert result.detected is False
 
     # --- detect() with running process ---
 

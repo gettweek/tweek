@@ -77,10 +77,10 @@ class OpenClawDetector(ToolDetectorPlugin):
             except (json.JSONDecodeError, IOError):
                 result.port = OPENCLAW_DEFAULT_PORT
 
-        # Check for home directory existence
-        openclaw_home = Path.home() / ".openclaw"
-        if openclaw_home.exists():
-            result.detected = True
+        # Note: ~/.openclaw/ directory existence alone is NOT sufficient to
+        # mark as detected — it may have been created by Tweek's own protect
+        # wizard. Only npm/binary checks or config with non-Tweek content
+        # should flip detected=True.
 
         # Check for running process (via wrapper for testability)
         process_info = self._check_running_process()

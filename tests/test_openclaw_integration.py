@@ -33,6 +33,7 @@ class TestDetectOpenClawInstallation:
         assert set(result.keys()) == {
             "installed", "version", "config_path", "gateway_port",
             "process_running", "gateway_active", "skills_dir",
+            "tweek_configured",
         }
 
     def test_not_installed_when_nothing_found(self):
@@ -70,8 +71,13 @@ class TestDetectOpenClawInstallation:
         assert result["installed"] is True
         assert result["version"] == "2026.1.30"
 
-    def test_detected_via_home_dir(self):
-        """Detects OpenClaw via ~/.openclaw/ directory existence."""
+    def test_home_dir_alone_does_not_mark_installed(self):
+        """~/.openclaw/ directory alone should NOT mark as installed.
+
+        The directory may have been created by Tweek's own protect wizard.
+        A real installation requires npm/binary detection or config with
+        non-Tweek content.
+        """
         original_exists = Path.exists
 
         def mock_exists(self):
@@ -84,7 +90,7 @@ class TestDetectOpenClawInstallation:
             with patch.object(Path, "exists", mock_exists):
                 result = detect_openclaw_installation()
 
-        assert result["installed"] is True
+        assert result["installed"] is False
 
     def test_default_gateway_port(self):
         """Default gateway port is 18789."""
@@ -125,6 +131,143 @@ class TestDetectOpenClawInstallation:
                 result = detect_openclaw_installation()
 
         assert result["installed"] is False
+
+    def test_tweek_configured_when_plugin_enabled(self, tmp_path):
+        """tweek_configured=True when Tweek plugin is enabled in openclaw.json."""
+        config = tmp_path / ".openclaw" / "openclaw.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({
+            "gateway": {"port": 18789},
+            "plugins": {
+                "entries": {
+                    "tweek": {"enabled": True, "config": {"preset": "cautious"}},
+                }
+            },
+        }))
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+            with patch(
+                "tweek.integrations.openclaw.OPENCLAW_CONFIG", config
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_HOME", config.parent
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_SKILLS_DIR",
+                config.parent / "workspace" / "skills",
+            ):
+                result = detect_openclaw_installation()
+
+        assert result["tweek_configured"] is True
+        # Config has gateway section → counts as real install
+        assert result["installed"] is True
+
+    def test_tweek_configured_false_when_no_plugin(self, tmp_path):
+        """tweek_configured=False when no Tweek entry in openclaw.json."""
+        config = tmp_path / ".openclaw" / "openclaw.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({
+            "gateway": {"port": 18789},
+            "plugins": {"entries": {}},
+        }))
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+            with patch(
+                "tweek.integrations.openclaw.OPENCLAW_CONFIG", config
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_HOME", config.parent
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_SKILLS_DIR",
+                config.parent / "workspace" / "skills",
+            ):
+                result = detect_openclaw_installation()
+
+        assert result["tweek_configured"] is False
+
+    def test_tweek_configured_false_when_plugin_disabled(self, tmp_path):
+        """tweek_configured=False when Tweek plugin exists but is disabled."""
+        config = tmp_path / ".openclaw" / "openclaw.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({
+            "gateway": {"port": 18789},
+            "plugins": {
+                "entries": {
+                    "tweek": {"enabled": False, "config": {"preset": "cautious"}},
+                }
+            },
+        }))
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+            with patch(
+                "tweek.integrations.openclaw.OPENCLAW_CONFIG", config
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_HOME", config.parent
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_SKILLS_DIR",
+                config.parent / "workspace" / "skills",
+            ):
+                result = detect_openclaw_installation()
+
+        assert result["tweek_configured"] is False
+
+    def test_config_with_only_tweek_plugin_not_installed(self, tmp_path):
+        """Config with only Tweek plugin entry (no gateway/agent) should not mark installed.
+
+        This handles the case where Tweek's protect wizard created the config
+        but OpenClaw was never actually installed.
+        """
+        config = tmp_path / ".openclaw" / "openclaw.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({
+            "plugins": {
+                "entries": {
+                    "tweek": {"enabled": True, "config": {"preset": "paranoid"}},
+                }
+            },
+        }))
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+            with patch(
+                "tweek.integrations.openclaw.OPENCLAW_CONFIG", config
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_HOME", config.parent
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_SKILLS_DIR",
+                config.parent / "workspace" / "skills",
+            ):
+                result = detect_openclaw_installation()
+
+        assert result["installed"] is False
+        assert result["tweek_configured"] is True
+
+    def test_config_with_other_plugins_marks_installed(self, tmp_path):
+        """Config with non-Tweek plugins indicates real OpenClaw installation."""
+        config = tmp_path / ".openclaw" / "openclaw.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({
+            "plugins": {
+                "entries": {
+                    "tweek": {"enabled": True},
+                    "other-plugin": {"enabled": True},
+                }
+            },
+        }))
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
+            with patch(
+                "tweek.integrations.openclaw.OPENCLAW_CONFIG", config
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_HOME", config.parent
+            ), patch(
+                "tweek.integrations.openclaw.OPENCLAW_SKILLS_DIR",
+                config.parent / "workspace" / "skills",
+            ):
+                result = detect_openclaw_installation()
+
+        assert result["installed"] is True
 
 
 class TestSetupOpenClawProtection:

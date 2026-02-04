@@ -59,6 +59,7 @@ def detect_openclaw_installation() -> dict:
         process_running: bool
         gateway_active: bool
         skills_dir: Path or None
+        tweek_configured: bool - True if Tweek plugin is enabled in openclaw.json
     """
     info = {
         "installed": False,
@@ -68,6 +69,7 @@ def detect_openclaw_installation() -> dict:
         "process_running": False,
         "gateway_active": False,
         "skills_dir": None,
+        "tweek_configured": False,
     }
 
     # Check npm global installation (shared detection)
@@ -76,13 +78,14 @@ def detect_openclaw_installation() -> dict:
         info["installed"] = True
         info["version"] = npm_info.get("version")
 
-    # Check for OpenClaw home directory
+    # Check for OpenClaw home directory (supplemental info only — not
+    # enough on its own to mark "installed" since Tweek's own protect
+    # wizard may have created this directory)
     if OPENCLAW_HOME.exists():
-        info["installed"] = True
         if OPENCLAW_SKILLS_DIR.exists():
             info["skills_dir"] = OPENCLAW_SKILLS_DIR
 
-    # Check for config file and extract port
+    # Check for config file and extract port / tweek_configured status
     # Note: uses local OPENCLAW_CONFIG reference (not shared module) so
     # tests can patch tweek.integrations.openclaw.OPENCLAW_CONFIG
     if OPENCLAW_CONFIG.exists():
@@ -93,6 +96,21 @@ def detect_openclaw_installation() -> dict:
             port = config.get("gateway", {}).get("port")
             if port:
                 info["gateway_port"] = port
+
+            # Check if Tweek plugin is configured in openclaw.json
+            plugins = config.get("plugins", {}).get("entries", {})
+            tweek_entry = plugins.get("tweek", {})
+            info["tweek_configured"] = tweek_entry.get("enabled", False)
+
+            # Config file with content beyond just a Tweek plugin entry
+            # indicates a real OpenClaw installation
+            has_non_tweek_content = (
+                config.get("gateway")
+                or config.get("agent")
+                or any(k != "tweek" for k in plugins)
+            )
+            if has_non_tweek_content:
+                info["installed"] = True
         except (json.JSONDecodeError, IOError):
             pass
 
