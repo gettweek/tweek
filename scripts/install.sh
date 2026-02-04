@@ -131,9 +131,12 @@ try_uv() {
 
     if "$UV_CMD" tool list 2>/dev/null | grep -q "^tweek "; then
         step "Upgrading existing installation..."
-        "$UV_CMD" tool upgrade tweek 2>/dev/null || "$UV_CMD" tool install --force tweek || return 1
+        "$UV_CMD" tool upgrade tweek 2>/dev/null || "$UV_CMD" tool install --force "tweek[local-models]" || return 1
+        # Ensure local-models deps are present after upgrade
+        "$UV_CMD" tool install --upgrade-package tweek "tweek[local-models]" 2>/dev/null || true
     else
-        "$UV_CMD" tool install tweek 2>/dev/null || "$UV_CMD" tool install --force tweek || return 1
+        step "Installing tweek with classifier dependencies..."
+        "$UV_CMD" tool install "tweek[local-models]" 2>/dev/null || "$UV_CMD" tool install --force "tweek[local-models]" || return 1
     fi
 
     INSTALL_METHOD="uv"
@@ -147,9 +150,11 @@ try_pipx() {
     info "Using pipx"
     if pipx list 2>/dev/null | grep -q "tweek"; then
         step "Upgrading existing installation..."
-        pipx upgrade tweek 2>/dev/null || pipx install --force tweek || return 1
+        pipx upgrade tweek 2>/dev/null || pipx install --force "tweek[local-models]" || return 1
+        pipx inject tweek onnxruntime tokenizers numpy 2>/dev/null || true
     else
-        pipx install tweek 2>/dev/null || pipx install --force tweek || return 1
+        step "Installing tweek with classifier dependencies..."
+        pipx install "tweek[local-models]" 2>/dev/null || pipx install --force "tweek[local-models]" || return 1
     fi
     INSTALL_METHOD="pipx"
     return 0
@@ -172,7 +177,8 @@ try_pip() {
     fi
 
     warn "Using $PYTHON -m pip (consider installing uv: https://docs.astral.sh/uv/)"
-    "$PYTHON" -m pip install --user tweek || return 1
+    step "Installing tweek with classifier dependencies..."
+    "$PYTHON" -m pip install --user "tweek[local-models]" || return 1
     INSTALL_METHOD="pip"
     return 0
 }
@@ -236,8 +242,8 @@ bootstrap_uv() {
 
     # Install tweek via uv (uv downloads Python automatically if needed)
     echo ""
-    step "Installing Tweek via uv..."
-    "$UV_CMD" tool install tweek || {
+    step "Installing Tweek with classifier dependencies..."
+    "$UV_CMD" tool install "tweek[local-models]" || {
         warn "uv tool install tweek failed"
         return 1
     }
@@ -547,10 +553,26 @@ finish() {
 
 # ── Main ────────────────────────────────────────────────────────
 main() {
+    echo -e "${BOLD}Phase 1/4: Package Installation${NC}"
+    echo -e "${DIM}Installing tweek + classifier dependencies (onnxruntime, tokenizers, numpy)${NC}"
+    echo ""
     install_tweek_package
     verify_install
+
+    echo ""
+    echo -e "${BOLD}Phase 2/4: Hook Configuration${NC}"
+    echo -e "${DIM}Connecting Tweek to your AI coding tools${NC}"
+    echo ""
     setup_hooks
     setup_openclaw
+
+    echo ""
+    echo -e "${BOLD}Phase 3/4: Classifier Model${NC}"
+    echo -e "${DIM}The on-device prompt injection classifier will be downloaded${NC}"
+    echo -e "${DIM}during 'tweek protect' setup (~750 MB, no API key required)${NC}"
+    echo ""
+
+    echo -e "${BOLD}Phase 4/4: Health Check${NC}"
     run_doctor
     finish
 }

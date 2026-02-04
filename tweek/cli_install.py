@@ -234,6 +234,8 @@ def parse_env_keys(env_path: Path) -> List[str]:
 def _ensure_local_model_deps() -> bool:
     """Install onnxruntime, tokenizers, numpy if missing.
 
+    Tries pip first, then uv pip (for uv-managed venvs that lack pip).
+
     Returns True if deps are available after this call.
     """
     try:
@@ -244,26 +246,54 @@ def _ensure_local_model_deps() -> bool:
     except ImportError:
         pass
 
-    console.print("\n[cyan]Installing local model dependencies...[/cyan]")
+    import subprocess
+    import shutil
+
+    deps = ["onnxruntime>=1.16.0", "tokenizers>=0.15.0", "numpy>=1.24.0"]
+    console.print("\n[bold cyan]Installing classifier dependencies[/bold cyan]")
+    console.print("  [white]onnxruntime, tokenizers, numpy[/white]")
+    console.print()
+
+    # Method 1: Try pip (works for pip/pipx installs)
     try:
-        import subprocess
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "onnxruntime>=1.16.0", "tokenizers>=0.15.0", "numpy>=1.24.0"],
+            [sys.executable, "-m", "pip", "install", *deps],
             capture_output=True,
             text=True,
             timeout=300,
         )
         if result.returncode == 0:
-            console.print("[green]\u2713[/green] Local model dependencies installed")
+            console.print("[green]\u2713[/green] Classifier dependencies installed")
             return True
-        else:
-            console.print(f"[yellow]\u26a0[/yellow] Could not install dependencies: {result.stderr.strip()[:200]}")
-            console.print("  [white]Install manually with: pip install tweek[local-models][/white]")
-            return False
-    except Exception as e:
-        console.print(f"[yellow]\u26a0[/yellow] Could not install dependencies: {e}")
-        console.print("  [white]Install manually with: pip install tweek[local-models][/white]")
-        return False
+    except Exception:
+        pass
+
+    # Method 2: Try uv pip (works for uv tool installs where pip is absent)
+    uv_cmd = shutil.which("uv")
+    if uv_cmd:
+        console.print("  [white]pip not available in this environment, trying uv...[/white]")
+        try:
+            result = subprocess.run(
+                [uv_cmd, "pip", "install", "--python", sys.executable, *deps],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode == 0:
+                console.print("[green]\u2713[/green] Classifier dependencies installed (via uv)")
+                return True
+            else:
+                console.print(f"[yellow]\u26a0[/yellow] uv pip install failed: {result.stderr.strip()[:200]}")
+        except Exception as e:
+            console.print(f"[yellow]\u26a0[/yellow] uv pip install failed: {e}")
+
+    console.print("[yellow]\u26a0[/yellow] Could not install classifier dependencies automatically")
+    console.print("  [white]Install manually:[/white]")
+    if uv_cmd:
+        console.print(f"    uv pip install --python {sys.executable} tweek[local-models]")
+    else:
+        console.print("    pip install tweek[local-models]")
+    return False
 
 
 def _download_local_model(quick: bool) -> bool:
@@ -293,7 +323,12 @@ def _download_local_model(quick: bool) -> bool:
             console.print("\n[white]Local model module not available — skipping model download[/white]")
         return False
 
-    # Auto-install deps if missing (onnxruntime, tokenizers, numpy)
+    console.print("\n[bold cyan]Local Classifier Setup[/bold cyan]")
+    console.print("  [white]The on-device classifier detects prompt injection without any API key.[/white]")
+    console.print()
+
+    # Step A: Ensure deps are installed
+    console.print("  [bold]1/2 Dependencies[/bold]")
     deps_available = _ensure_local_model_deps()
     if not deps_available:
         return False
@@ -306,34 +341,37 @@ def _download_local_model(quick: bool) -> bool:
 
     if not LOCAL_MODEL_AVAILABLE:
         if not quick:
-            console.print("\n[yellow]\u26a0[/yellow] Local model dependencies not fully functional after install")
+            console.print("  [yellow]\u26a0[/yellow] Dependencies installed but not functional — restart may be needed")
         return False
+
+    # Step B: Download model
+    console.print()
+    console.print("  [bold]2/2 Model Download[/bold]")
 
     default_name = get_default_model_name()
 
     if is_model_installed(default_name):
-        console.print(f"\n[green]\u2713[/green] Local classifier model already installed ({default_name})")
+        console.print(f"  [green]\u2713[/green] Already installed ({default_name})")
         return True
 
     definition = get_model_definition(default_name)
     if definition is None:
         return False
 
-    if not quick:
-        console.print(f"\n[bold]Downloading local classifier model[/bold]")
-        console.print(f"  Model:   {definition.display_name}")
-        console.print(f"  Size:    ~{definition.size_mb:.0f} MB")
-        console.print(f"  License: {definition.license}")
-        console.print(f"  [white]This enables on-device prompt injection detection (no API key needed)[/white]")
-        console.print()
+    console.print(f"  Model:   {definition.display_name}")
+    console.print(f"  Size:    ~{definition.size_mb:.0f} MB")
+    console.print(f"  License: {definition.license}")
+    console.print()
 
-    from rich.progress import Progress, BarColumn, DownloadColumn, TransferSpeedColumn
+    from rich.progress import Progress, BarColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
     progress = Progress(
         "[progress.description]{task.description}",
         BarColumn(),
+        "[progress.percentage]{task.percentage:>3.0f}%",
         DownloadColumn(),
         TransferSpeedColumn(),
+        TimeRemainingColumn(),
         console=console,
     )
 
@@ -350,16 +388,16 @@ def _download_local_model(quick: bool) -> bool:
         with progress:
             download_model(default_name, progress_callback=progress_callback)
 
-        console.print(f"[green]\u2713[/green] Local classifier model downloaded ({default_name})")
+        console.print(f"  [green]\u2713[/green] Classifier model ready ({default_name})")
         return True
 
     except ModelDownloadError as e:
-        console.print(f"\n[yellow]\u26a0[/yellow] Could not download local model: {e}")
-        console.print("  [white]You can download it later with: tweek model download[/white]")
+        console.print(f"\n  [yellow]\u26a0[/yellow] Could not download model: {e}")
+        console.print("    [white]Download later with: tweek model download[/white]")
         return False
     except Exception as e:
-        console.print(f"\n[yellow]\u26a0[/yellow] Model download failed: {e}")
-        console.print("  [white]You can download it later with: tweek model download[/white]")
+        console.print(f"\n  [yellow]\u26a0[/yellow] Model download failed: {e}")
+        console.print("    [white]Download later with: tweek model download[/white]")
         return False
 
 
@@ -403,6 +441,12 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
         "llm_model": None,
         "proxy": False,
     }
+
+    # ═══════════════════════════════════════════════════════════════
+    # PHASE 1: Environment Detection
+    # ═══════════════════════════════════════════════════════════════
+    console.print("[bold cyan]Phase 1/4: Environment Detection[/bold cyan]")
+    console.print()
 
     # ─────────────────────────────────────────────────────────────
     # Step 1: Detect Claude Code CLI
@@ -567,6 +611,13 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
         except Exception as e:
             console.print(f"[white]Warning: Could not check for proxy conflicts: {e}[/white]")
 
+    # ═══════════════════════════════════════════════════════════════
+    # PHASE 2: Hook & Skill Installation
+    # ═══════════════════════════════════════════════════════════════
+    console.print()
+    console.print("[bold cyan]Phase 2/4: Hook & Skill Installation[/bold cyan]")
+    console.print()
+
     # ─────────────────────────────────────────────────────────────
     # Step 5: Install hooks into settings.json
     # ─────────────────────────────────────────────────────────────
@@ -729,6 +780,12 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
     else:
         console.print(f"[white]Tweek skill source not found \u2014 skill not installed[/white]")
         console.print(f"  [white]Skill can be installed manually from the tweek repository[/white]")
+
+    # ═══════════════════════════════════════════════════════════════
+    # PHASE 3: Classifier & Security
+    # ═══════════════════════════════════════════════════════════════
+    console.print()
+    console.print("[bold cyan]Phase 3/4: Classifier & Security Configuration[/bold cyan]")
 
     # ─────────────────────────────────────────────────────────────
     # Step 7: Download local classifier model
@@ -1012,6 +1069,13 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
             install_summary["proxy"] = True
         except Exception as e:
             console.print(f"\n[yellow]Warning: Could not save proxy config: {e}[/yellow]")
+
+    # ═══════════════════════════════════════════════════════════════
+    # PHASE 4: Verification & Summary
+    # ═══════════════════════════════════════════════════════════════
+    console.print()
+    console.print("[bold cyan]Phase 4/4: Verification & Summary[/bold cyan]")
+    console.print()
 
     # ─────────────────────────────────────────────────────────────
     # Step 13: Post-install verification and summary

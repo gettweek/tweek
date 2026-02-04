@@ -10,7 +10,7 @@ Tweek provides:
 - Per-skill/per-tool security policies
 """
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 __author__ = "Tommy Mancino"
 
 # "TOO MUCH PRESSURE!" - Tweek Tweak
