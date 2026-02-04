@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/logo.png" alt="Tweek Logo" width="200">
-</p>
+
 
 <h1 align="center">Tweek — GAH!</h1>
 
