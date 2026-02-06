@@ -1831,7 +1831,7 @@ def _print_install_summary(
     console.print()
     console.print("[white]Next steps:[/white]")
     console.print("[white]  tweek doctor        \u2014 Verify installation[/white]")
-    console.print("[white]  tweek upgrade       \u2014 Get latest version and patterns[/white]")
+    console.print("[white]  tweek update        \u2014 Get latest version and patterns[/white]")
     console.print("[white]  tweek configure     \u2014 Tune LLM, vault, proxy, sandbox[/white]")
     console.print("[white]  tweek config list   \u2014 See security settings[/white]")
     if proxy_override_enabled:

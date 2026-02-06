@@ -292,7 +292,7 @@ def _check_patterns_loaded(verbose: bool = False) -> HealthCheck:
             label="Attack Patterns",
             status=CheckStatus.ERROR,
             message="No patterns file found",
-            fix_hint="Run: tweek upgrade  (patterns are bundled with the package)",
+            fix_hint="Run: tweek update  (patterns are bundled with the package)",
         )
 
     try:
@@ -307,7 +307,7 @@ def _check_patterns_loaded(verbose: bool = False) -> HealthCheck:
                 label="Attack Patterns",
                 status=CheckStatus.WARNING,
                 message=f"Patterns file found ({source}) but contains 0 patterns",
-                fix_hint="Run: tweek upgrade  (patterns are bundled with the package)",
+                fix_hint="Run: tweek update  (patterns are bundled with the package)",
             )
 
         return HealthCheck(
@@ -322,7 +322,7 @@ def _check_patterns_loaded(verbose: bool = False) -> HealthCheck:
             label="Attack Patterns",
             status=CheckStatus.ERROR,
             message=f"Failed to parse patterns: {e}",
-            fix_hint="Run: tweek upgrade  (patterns are bundled with the package)",
+            fix_hint="Run: tweek update  (patterns are bundled with the package)",
         )
 
 

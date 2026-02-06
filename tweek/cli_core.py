@@ -7,7 +7,7 @@ Standalone commands for system management:
     tweek trust      Trust a project directory
     tweek untrust    Remove trust from a directory
     tweek doctor     Run health checks
-    tweek upgrade    Upgrade Tweek to latest version
+    tweek update     Update Tweek to latest version
     tweek audit      Audit skills for security risks
 """
 from __future__ import annotations
@@ -292,15 +292,16 @@ def doctor(verbose: bool, fix: bool, json_out: bool):
 
 
 # =============================================================================
-# UPGRADE
+# UPDATE (primary) / UPGRADE (alias)
 # =============================================================================
 
-@click.command("upgrade")
-def upgrade():
-    """Upgrade Tweek to the latest version from PyPI.
+@click.command("update")
+def update():
+    """Update Tweek to the latest version from PyPI.
 
     Detects how Tweek was installed (uv, pipx, or pip) and runs
-    the appropriate upgrade command.
+    the appropriate upgrade command. Patterns are bundled with the
+    package, so this updates everything.
     """
     import subprocess
 
@@ -401,6 +402,13 @@ def upgrade():
             console.print("[green]✓[/green] Update complete")
     except (FileNotFoundError, subprocess.TimeoutExpired):
         console.print("[green]✓[/green] Update complete")
+
+
+# Alias: `tweek upgrade` → same as `tweek update`
+@click.command("upgrade", hidden=True)
+def upgrade():
+    """Alias for 'tweek update'."""
+    update.invoke(click.Context(update))
 
 
 # =============================================================================
