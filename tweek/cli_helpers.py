@@ -274,42 +274,34 @@ def _detect_all_tools():
 
     tools = []
 
-    # Claude Code
+    # Claude Code — two rows: global (~/.claude) and project (./.claude)
     claude_installed = shutil.which("claude") is not None
-    claude_protected = False
-    claude_detail = ""
 
-    if claude_installed:
-        global_info = _tweek_install_info(Path("~/.claude").expanduser())
-        project_info = _tweek_install_info(Path.cwd() / ".claude")
+    global_info = _tweek_install_info(Path("~/.claude").expanduser()) if claude_installed else {}
+    project_info = _tweek_install_info(Path.cwd() / ".claude") if claude_installed else {}
 
-        claude_protected = global_info["is_protected"] or project_info["is_protected"]
-
-        detail_parts = []
-        if global_info["is_protected"] and project_info["is_protected"]:
-            detail_parts.append("Hooks: ~/.claude (global) + ./.claude (project)")
-        elif global_info["is_protected"]:
-            detail_parts.append("Hooks: ~/.claude (global)")
-        elif project_info["is_protected"]:
-            detail_parts.append("Hooks: ./.claude (project only)")
-
-        # Flag orphaned artifacts (explains status vs doctor discrepancy)
-        if not claude_protected:
-            orphan_locs = []
-            if global_info["has_artifacts"]:
-                orphan_locs.append("~/.claude")
-            if project_info["has_artifacts"]:
-                orphan_locs.append("./.claude")
-            if orphan_locs:
-                detail_parts.append(
-                    f"Tweek files in {', '.join(orphan_locs)} but hooks missing"
-                )
-
-        claude_detail = "; ".join(detail_parts)
-
+    # Global row
+    g_protected = global_info.get("is_protected", False)
+    g_detail = ""
+    if g_protected:
+        g_detail = "Hooks in ~/.claude/settings.json"
+    elif global_info.get("has_artifacts"):
+        g_detail = "Tweek files in ~/.claude but hooks missing"
     tools.append((
-        "claude-code", "Claude Code", claude_installed, claude_protected,
-        claude_detail,
+        "claude-code-global", "Claude Code (global)", claude_installed, g_protected,
+        g_detail,
+    ))
+
+    # Project row
+    p_protected = project_info.get("is_protected", False)
+    p_detail = ""
+    if p_protected:
+        p_detail = "Hooks in ./.claude/settings.json"
+    elif project_info.get("has_artifacts"):
+        p_detail = "Tweek files in ./.claude but hooks missing"
+    tools.append((
+        "claude-code-project", "Claude Code (project)", claude_installed, p_protected,
+        p_detail,
     ))
 
     # OpenClaw
