@@ -140,7 +140,7 @@ def print_doctor_results(checks: "List") -> None:
 
     console.print()
     console.print("[bold]Tweek Health Check[/bold]")
-    console.print("\u2500" * 50)
+    console.print("\u2500" * 70)
 
     status_styles = {
         CheckStatus.OK: ("[green]OK[/green]    ", "green"),
@@ -226,24 +226,42 @@ def _has_tweek_hooks(settings: dict) -> bool:
     return False
 
 
-def _has_tweek_at(target: Path) -> bool:
-    """Check if Tweek is installed at a .claude/ target path."""
+def _tweek_install_info(target: Path) -> dict:
+    """Get detailed Tweek installation info for a .claude/ directory.
+
+    Returns dict with:
+        has_hooks: bool  – Actual hooks in settings.json (functional protection).
+        has_skill: bool  – Tweek skill directory exists.
+        has_backup: bool – settings.json.tweek-backup exists.
+        is_protected: bool – has_hooks (actual protection active).
+        has_artifacts: bool – has_skill or has_backup (Tweek touched this dir).
+    """
     import json
 
-    if (target / "skills" / "tweek").exists():
-        return True
-    if (target / "settings.json.tweek-backup").exists():
-        return True
+    info = {
+        "has_hooks": False,
+        "has_skill": (target / "skills" / "tweek").exists(),
+        "has_backup": (target / "settings.json.tweek-backup").exists(),
+    }
+
     settings_file = target / "settings.json"
     if settings_file.exists():
         try:
             with open(settings_file) as f:
                 settings = json.load(f)
-            if _has_tweek_hooks(settings):
-                return True
+            info["has_hooks"] = _has_tweek_hooks(settings)
         except (json.JSONDecodeError, IOError):
             pass
-    return False
+
+    info["is_protected"] = info["has_hooks"]
+    info["has_artifacts"] = info["has_skill"] or info["has_backup"]
+    return info
+
+
+def _has_tweek_at(target: Path) -> bool:
+    """Check if Tweek is installed at a .claude/ target path."""
+    info = _tweek_install_info(target)
+    return info["is_protected"] or info["has_artifacts"]
 
 
 def _detect_all_tools():
@@ -258,10 +276,40 @@ def _detect_all_tools():
 
     # Claude Code
     claude_installed = shutil.which("claude") is not None
-    claude_protected = _has_tweek_at(Path("~/.claude").expanduser()) if claude_installed else False
+    claude_protected = False
+    claude_detail = ""
+
+    if claude_installed:
+        global_info = _tweek_install_info(Path("~/.claude").expanduser())
+        project_info = _tweek_install_info(Path.cwd() / ".claude")
+
+        claude_protected = global_info["is_protected"] or project_info["is_protected"]
+
+        detail_parts = []
+        if global_info["is_protected"] and project_info["is_protected"]:
+            detail_parts.append("Hooks: ~/.claude (global) + ./.claude (project)")
+        elif global_info["is_protected"]:
+            detail_parts.append("Hooks: ~/.claude (global)")
+        elif project_info["is_protected"]:
+            detail_parts.append("Hooks: ./.claude (project only)")
+
+        # Flag orphaned artifacts (explains status vs doctor discrepancy)
+        if not claude_protected:
+            orphan_locs = []
+            if global_info["has_artifacts"]:
+                orphan_locs.append("~/.claude")
+            if project_info["has_artifacts"]:
+                orphan_locs.append("./.claude")
+            if orphan_locs:
+                detail_parts.append(
+                    f"Tweek files in {', '.join(orphan_locs)} but hooks missing"
+                )
+
+        claude_detail = "; ".join(detail_parts)
+
     tools.append((
         "claude-code", "Claude Code", claude_installed, claude_protected,
-        "Hooks in ~/.claude/settings.json" if claude_protected else "",
+        claude_detail,
     ))
 
     # OpenClaw

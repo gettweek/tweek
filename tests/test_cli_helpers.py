@@ -10,6 +10,7 @@ Tests shared CLI formatting utilities:
 - Doctor output formatting
 """
 
+import json
 from io import StringIO
 from unittest.mock import patch
 
@@ -29,6 +30,8 @@ from tweek.cli_helpers import (
     format_tier_color,
     print_doctor_results,
     print_doctor_json,
+    _tweek_install_info,
+    _has_tweek_hooks,
 )
 from tweek.diagnostics import CheckStatus, HealthCheck
 
@@ -188,6 +191,119 @@ class TestPrintDoctorJson:
         assert "checks" in text
         assert "test1" in text
         assert "test2" in text
+
+
+class TestTweekInstallInfo:
+    """Tests for _tweek_install_info() — granular installation detection."""
+
+    def test_empty_dir(self, tmp_path):
+        target = tmp_path / ".claude"
+        target.mkdir()
+        info = _tweek_install_info(target)
+        assert info["has_hooks"] is False
+        assert info["has_skill"] is False
+        assert info["has_backup"] is False
+        assert info["is_protected"] is False
+        assert info["has_artifacts"] is False
+
+    def test_nonexistent_dir(self, tmp_path):
+        target = tmp_path / ".claude"
+        info = _tweek_install_info(target)
+        assert info["has_hooks"] is False
+        assert info["has_artifacts"] is False
+        assert info["is_protected"] is False
+
+    def test_hooks_in_settings(self, tmp_path):
+        target = tmp_path / ".claude"
+        target.mkdir()
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "tweek hook pre-tool-use"}]}
+                ]
+            }
+        }
+        (target / "settings.json").write_text(json.dumps(settings))
+        info = _tweek_install_info(target)
+        assert info["has_hooks"] is True
+        assert info["is_protected"] is True
+
+    def test_skill_dir_only(self, tmp_path):
+        target = tmp_path / ".claude"
+        (target / "skills" / "tweek").mkdir(parents=True)
+        info = _tweek_install_info(target)
+        assert info["has_hooks"] is False
+        assert info["has_skill"] is True
+        assert info["has_artifacts"] is True
+        assert info["is_protected"] is False
+
+    def test_backup_only(self, tmp_path):
+        target = tmp_path / ".claude"
+        target.mkdir()
+        (target / "settings.json.tweek-backup").write_text("{}")
+        info = _tweek_install_info(target)
+        assert info["has_hooks"] is False
+        assert info["has_backup"] is True
+        assert info["has_artifacts"] is True
+        assert info["is_protected"] is False
+
+    def test_artifacts_plus_hooks(self, tmp_path):
+        """Full installation: hooks + skill + backup."""
+        target = tmp_path / ".claude"
+        (target / "skills" / "tweek").mkdir(parents=True)
+        (target / "settings.json.tweek-backup").write_text("{}")
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "tweek hook pre-tool-use"}]}
+                ]
+            }
+        }
+        (target / "settings.json").write_text(json.dumps(settings))
+        info = _tweek_install_info(target)
+        assert info["has_hooks"] is True
+        assert info["has_skill"] is True
+        assert info["has_backup"] is True
+        assert info["is_protected"] is True
+        assert info["has_artifacts"] is True
+
+    def test_corrupt_settings_json(self, tmp_path):
+        target = tmp_path / ".claude"
+        target.mkdir()
+        (target / "settings.json").write_text("NOT VALID JSON!!!")
+        (target / "settings.json.tweek-backup").write_text("{}")
+        info = _tweek_install_info(target)
+        assert info["has_hooks"] is False
+        assert info["has_backup"] is True
+        assert info["has_artifacts"] is True
+        assert info["is_protected"] is False
+
+
+class TestHasTweekHooks:
+    """Tests for _has_tweek_hooks() — dict-level hook detection."""
+
+    def test_empty_settings(self):
+        assert _has_tweek_hooks({}) is False
+
+    def test_hooks_present(self):
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "tweek hook pre-tool-use"}]}
+                ]
+            }
+        }
+        assert _has_tweek_hooks(settings) is True
+
+    def test_non_tweek_hooks(self):
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "other-tool check"}]}
+                ]
+            }
+        }
+        assert _has_tweek_hooks(settings) is False
 
 
 class TestPrintHealthBanner:

@@ -935,9 +935,10 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
             install_summary["preset"] = "existing"
 
     # ─────────────────────────────────────────────────────────────
-    # Step 9: LLM Review Provider Selection
+    # Step 9: LLM Review Provider Info (non-interactive)
+    # Full wizard available via: tweek configure llm
     # ─────────────────────────────────────────────────────────────
-    llm_config = _configure_llm_provider(tweek_dir, interactive, quick)
+    llm_config = _show_llm_info(tweek_dir)
     install_summary["llm_provider"] = llm_config.get("provider_display", "auto-detect")
     install_summary["llm_model"] = llm_config.get("model_display")
 
@@ -1211,8 +1212,63 @@ def _check_python_version(console: Console, quick: bool) -> None:
             console.print(f"[white]  Hooks will use {sys.executable} directly[/white]")
 
 
+def _show_llm_info(tweek_dir: Path) -> dict:
+    """Show LLM review provider status during install (non-interactive).
+
+    Displays an informational message about optional cloud LLM screening
+    and how to configure it.  Never prompts — the install flow is not
+    blocked.  The full interactive wizard is available separately via
+    ``tweek configure llm``.
+
+    Returns a dict with provider info for the install summary (same shape
+    as ``_configure_llm_provider``).
+    """
+    result = {
+        "provider": "auto",
+        "model": "auto",
+        "base_url": None,
+        "api_key_env": None,
+        "provider_display": None,
+        "model_display": None,
+    }
+
+    # Detect cloud LLM providers only (skip local classifier)
+    cloud = _detect_cloud_llm_provider()
+
+    console.print()
+    console.print("[bold]Cloud LLM Review[/bold] (Layer 3 \u2014 optional)")
+    console.print()
+    console.print("  The local classifier handles most prompt injection detection on-device.")
+    console.print("  For deeper semantic analysis, add a free Google Gemini API key:")
+    console.print()
+    console.print("    1. Go to https://aistudio.google.com/apikey")
+    console.print("    2. Click [bold]Create API key[/bold] → select a project when prompted")
+    console.print("       (AI Studio creates one automatically for new users — no credit card)")
+    console.print("    3. Run: [cyan]tweek config edit env[/cyan]")
+    console.print("    4. Paste your key in the GOOGLE_API_KEY line")
+
+    if cloud:
+        console.print()
+        console.print(f"  [green]\u2713[/green] Cloud LLM detected: {cloud['name']} ({cloud['model']})")
+        result["provider_display"] = cloud["name"]
+        result["model_display"] = cloud["model"]
+    else:
+        console.print()
+        console.print("  [white]\u25cb No cloud LLM API key found \u2014 local classifier active[/white]")
+        console.print("  [white]  Free tier: 250 requests/day \u2014 more than enough for Tweek[/white]")
+        result["provider_display"] = "not configured (local classifier active)"
+
+    console.print()
+    console.print("  [white]Other providers: see ~/.tweek/.env | Full wizard: [cyan]tweek configure llm[/cyan][/white]")
+
+    return result
+
+
 def _configure_llm_provider(tweek_dir: Path, interactive: bool, quick: bool) -> dict:
-    """Configure LLM review provider during installation.
+    """Configure LLM review provider interactively.
+
+    Used by ``tweek configure llm`` — the deliberate configuration command.
+    The install flow uses ``_show_llm_info()`` instead.
 
     Returns a dict with provider configuration details for the install summary.
     """
@@ -1405,15 +1461,16 @@ def _warn_no_llm_provider(quick: bool) -> None:
     console.print("[yellow]  LLM review is not available.[/yellow]")
     console.print("  Pattern matching is still active, but LLM semantic analysis requires an API key.")
     console.print()
-    console.print("  [bold]Recommended:[/bold] Google Gemini (free tier available)")
-    console.print("    1. Get a free key at: https://aistudio.google.com/apikey")
-    console.print("    2. Run: [cyan]tweek config edit env[/cyan]")
-    console.print("       Uncomment the GOOGLE_API_KEY line and paste your key.")
+    console.print("  Add a free Google Gemini API key (no credit card needed):")
+    console.print("    1. Go to https://aistudio.google.com/apikey")
+    console.print("    2. Click [bold]Create API key[/bold] \u2192 select a project when prompted")
+    console.print("       (AI Studio creates one automatically for new users)")
+    console.print("    3. Run: [cyan]tweek config edit env[/cyan]")
+    console.print("    4. Paste your key in the GOOGLE_API_KEY line")
     console.print()
-    console.print("  [yellow]Note:[/yellow] Anthropic API keys are billed separately from Claude Pro/Max plans.")
-    console.print("  Google Gemini's free tier is recommended for most users.")
+    console.print("  Free tier: 250 requests/day \u2014 more than enough for Tweek")
     console.print()
-    console.print("  All provider options are documented in ~/.tweek/.env")
+    console.print("  Other providers: see ~/.tweek/.env")
 
 
 def _detect_llm_provider():
@@ -1458,6 +1515,35 @@ def _detect_llm_provider():
                 return {"name": name, "model": model, "env_var": env_var}
             except ImportError:
                 # Key exists but SDK not installed — skip this provider
+                continue
+
+    return None
+
+
+def _detect_cloud_llm_provider():
+    """Detect cloud LLM providers only (skip local ONNX model).
+
+    Used during install info display to distinguish the local classifier
+    (Layer 2) from cloud LLM review (Layer 3).  Same priority as
+    ``_detect_llm_provider`` minus the local model check.
+    """
+    import os
+    from importlib import import_module
+
+    checks = [
+        ("GOOGLE_API_KEY", "Google", "gemini-2.0-flash", "google.generativeai"),
+        ("GEMINI_API_KEY", "Google", "gemini-2.0-flash", "google.generativeai"),
+        ("OPENAI_API_KEY", "OpenAI", "gpt-4o-mini", "openai"),
+        ("XAI_API_KEY", "xAI (Grok)", "grok-2", "openai"),
+        ("ANTHROPIC_API_KEY", "Anthropic", "claude-3-5-haiku-latest", "anthropic"),
+    ]
+
+    for env_var, name, model, sdk_module in checks:
+        if os.environ.get(env_var):
+            try:
+                import_module(sdk_module)
+                return {"name": name, "model": model, "env_var": env_var}
+            except ImportError:
                 continue
 
     return None

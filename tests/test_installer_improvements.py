@@ -26,7 +26,9 @@ from tweek.cli import main
 from tweek.cli_install import (
     _check_python_version,
     _configure_llm_provider,
+    _detect_cloud_llm_provider,
     _detect_llm_provider,
+    _show_llm_info,
     _validate_llm_provider,
     _print_install_summary,
 )
@@ -366,7 +368,145 @@ class TestDetectLLMProvider:
 
 
 # ═══════════════════════════════════════════════════════════════
-# LLM provider configuration
+# Cloud-only LLM provider detection
+# ═══════════════════════════════════════════════════════════════
+
+class TestDetectCloudLLMProvider:
+    """Tests for _detect_cloud_llm_provider."""
+
+    @pytest.fixture(autouse=True)
+    def no_local_model(self, monkeypatch):
+        """Disable local model for deterministic tests."""
+        monkeypatch.setattr(
+            "tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False
+        )
+
+    def test_returns_none_no_keys(self, monkeypatch):
+        """Returns None when no cloud API keys are set."""
+        for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
+                     "XAI_API_KEY", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        assert _detect_cloud_llm_provider() is None
+
+    def test_detects_google(self, monkeypatch):
+        """Returns Google when GOOGLE_API_KEY is set."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        result = _detect_cloud_llm_provider()
+        assert result is not None
+        assert result["name"] == "Google"
+        assert result["model"] == "gemini-2.0-flash"
+
+    def test_detects_anthropic(self, monkeypatch):
+        """Returns Anthropic when ANTHROPIC_API_KEY is set."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        result = _detect_cloud_llm_provider()
+        assert result is not None
+        assert result["name"] == "Anthropic"
+
+    def test_skips_local_model(self, monkeypatch):
+        """Never returns local model — only cloud providers."""
+        monkeypatch.setattr("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", True)
+        monkeypatch.setattr(
+            "tweek.security.model_registry.is_model_installed", lambda name: True
+        )
+        monkeypatch.setattr(
+            "tweek.security.model_registry.get_default_model_name",
+            lambda: "deberta-v3-injection",
+        )
+        # No cloud keys set
+        for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
+                     "XAI_API_KEY", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        result = _detect_cloud_llm_provider()
+        assert result is None
+
+
+# ═══════════════════════════════════════════════════════════════
+# Install-time LLM info display (non-interactive)
+# ═══════════════════════════════════════════════════════════════
+
+class TestShowLLMInfo:
+    """Tests for _show_llm_info — non-interactive install display."""
+
+    @pytest.fixture(autouse=True)
+    def no_local_model(self, monkeypatch):
+        """Disable local model for deterministic tests."""
+        monkeypatch.setattr(
+            "tweek.security.local_model.LOCAL_MODEL_AVAILABLE", False
+        )
+
+    def test_no_keys_shows_info_no_prompts(self, tmp_path, monkeypatch, capsys):
+        """No prompts, returns correct dict when no API keys set."""
+        for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
+                     "XAI_API_KEY", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir()
+
+        # Verify no click.prompt is called
+        with patch('tweek.cli_install.click.prompt') as mock_prompt:
+            result = _show_llm_info(tweek_dir)
+            mock_prompt.assert_not_called()
+
+        assert result["provider"] == "auto"
+        assert "not configured" in result["provider_display"]
+        assert result["model_display"] is None
+
+    def test_with_google_key_shows_detected(self, tmp_path, monkeypatch):
+        """Detects and displays Google provider when key is set."""
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir()
+
+        result = _show_llm_info(tweek_dir)
+
+        assert result["provider_display"] == "Google"
+        assert result["model_display"] == "gemini-2.0-flash"
+
+    def test_local_model_only_not_shown_as_llm(self, tmp_path, monkeypatch):
+        """Local classifier is not displayed as the LLM reviewer."""
+        monkeypatch.setattr("tweek.security.local_model.LOCAL_MODEL_AVAILABLE", True)
+        monkeypatch.setattr(
+            "tweek.security.model_registry.is_model_installed", lambda name: True
+        )
+        monkeypatch.setattr(
+            "tweek.security.model_registry.get_default_model_name",
+            lambda: "deberta-v3-injection",
+        )
+        # No cloud keys
+        for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
+                     "XAI_API_KEY", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir()
+
+        result = _show_llm_info(tweek_dir)
+
+        # Should NOT show "Local model" or "deberta" as the LLM provider
+        assert result["provider_display"] is not None
+        assert "Local model" not in (result["provider_display"] or "")
+        assert "deberta" not in (result["provider_display"] or "")
+        assert "not configured" in result["provider_display"]
+
+    def test_returns_correct_summary_dict(self, tmp_path, monkeypatch):
+        """Return dict has all expected keys for install summary."""
+        for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
+                     "XAI_API_KEY", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(var, raising=False)
+        tweek_dir = tmp_path / ".tweek"
+        tweek_dir.mkdir()
+
+        result = _show_llm_info(tweek_dir)
+
+        expected_keys = {
+            "provider", "model", "base_url", "api_key_env",
+            "provider_display", "model_display",
+        }
+        assert set(result.keys()) == expected_keys
+
+
+# ═══════════════════════════════════════════════════════════════
+# LLM provider configuration (interactive wizard for `tweek configure llm`)
 # ═══════════════════════════════════════════════════════════════
 
 class TestConfigureLLMProvider:

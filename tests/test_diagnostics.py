@@ -154,6 +154,9 @@ class TestCheckHooksInstalled:
         result = _check_hooks_installed()
         assert result.status == CheckStatus.ERROR
         assert "No hooks installed" in result.message
+        # Should show which paths were checked
+        assert "~/.claude" in result.message
+        assert "./.claude" in result.message
         assert result.fix_hint
 
     def test_global_hooks_installed(self, tmp_path, monkeypatch):
@@ -177,7 +180,8 @@ class TestCheckHooksInstalled:
 
         result = _check_hooks_installed()
         assert result.status == CheckStatus.OK
-        assert "globally" in result.message.lower() or "~/.claude" in result.message
+        assert "~/.claude" in result.message
+        assert "global" in result.message.lower()
 
     def test_project_only_hooks(self, tmp_path, monkeypatch):
         home_dir = tmp_path / "home"
@@ -203,6 +207,82 @@ class TestCheckHooksInstalled:
         result = _check_hooks_installed()
         assert result.status == CheckStatus.WARNING
         assert "project only" in result.message.lower()
+        assert "./.claude" in result.message
+
+    def test_both_global_and_project_hooks(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        project_dir = tmp_path / "myproject"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "tweek hook pre-tool-use"}]}
+                ]
+            }
+        }
+
+        # Global hooks
+        global_claude = tmp_path / ".claude"
+        global_claude.mkdir()
+        (global_claude / "settings.json").write_text(json.dumps(settings))
+
+        # Project hooks
+        project_claude = project_dir / ".claude"
+        project_claude.mkdir()
+        (project_claude / "settings.json").write_text(json.dumps(settings))
+
+        result = _check_hooks_installed()
+        assert result.status == CheckStatus.OK
+        assert "global" in result.message.lower()
+        assert "project" in result.message.lower()
+
+    def test_artifacts_without_hooks_shows_error(self, tmp_path, monkeypatch):
+        """Artifacts (skill dir, backup) without hooks in settings.json."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+
+        # Create artifact (backup file) but NO hooks in settings.json
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        (claude_dir / "settings.json.tweek-backup").write_text("{}")
+        (claude_dir / "settings.json").write_text("{}")
+
+        result = _check_hooks_installed()
+        assert result.status == CheckStatus.ERROR
+        assert "Tweek files found" in result.message
+        assert "hooks missing" in result.message
+        assert "re-install" in result.fix_hint.lower()
+
+    def test_global_hooks_with_project_artifacts_only(self, tmp_path, monkeypatch):
+        """Global hooks OK, project has artifacts but no hooks."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+        project_dir = tmp_path / "myproject"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        # Global: real hooks
+        global_claude = tmp_path / ".claude"
+        global_claude.mkdir()
+        settings = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "tweek hook pre-tool-use"}]}
+                ]
+            }
+        }
+        (global_claude / "settings.json").write_text(json.dumps(settings))
+
+        # Project: only backup artifact, no hooks
+        project_claude = project_dir / ".claude"
+        project_claude.mkdir()
+        (project_claude / "settings.json.tweek-backup").write_text("{}")
+
+        result = _check_hooks_installed()
+        assert result.status == CheckStatus.OK
+        assert "~/.claude" in result.message
+        assert "hooks missing" in result.message or "global" in result.message.lower()
 
 
 class TestCheckConfigValid:

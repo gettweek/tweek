@@ -6,7 +6,6 @@ Health check system for verifying Tweek installation, configuration,
 and runtime dependencies. Used by `tweek doctor` and the health banner.
 """
 
-import json
 import os
 import sqlite3
 from dataclasses import dataclass, field
@@ -144,64 +143,83 @@ def get_health_verdict(checks: List[HealthCheck]) -> Tuple[str, str]:
 
 
 def _check_hooks_installed(verbose: bool = False) -> HealthCheck:
-    """Check if Tweek hooks are installed in Claude Code settings."""
+    """Check if Tweek hooks are installed in Claude Code settings.
+
+    Reports per-location status so users can see exactly which
+    paths have hooks (functional protection) vs. only leftover
+    artifacts (skill dir / backup file without hooks).
+    """
+    from tweek.cli_helpers import _tweek_install_info
+
     global_claude = Path("~/.claude").expanduser()
     project_claude = Path.cwd() / ".claude"
 
-    global_installed = _has_tweek_hooks(global_claude / "settings.json")
-    project_installed = _has_tweek_hooks(project_claude / "settings.json")
+    g = _tweek_install_info(global_claude)
+    p = _tweek_install_info(project_claude)
 
-    if global_installed and project_installed:
+    # --- Both locations have hooks ---
+    if g["is_protected"] and p["is_protected"]:
         return HealthCheck(
             name="hooks_installed",
             label="Hook Installation",
             status=CheckStatus.OK,
-            message="Installed globally (~/.claude) and in project (./.claude)",
+            message="Hooks active: ~/.claude (global) + ./.claude (project)",
         )
-    elif global_installed:
-        msg = "Installed globally (~/.claude)"
-        if verbose:
-            msg += " — project-level hooks not configured"
+
+    # --- Global hooks only ---
+    if g["is_protected"] and not p["is_protected"]:
+        msg = "Hooks active: ~/.claude (global)"
+        if p["has_artifacts"]:
+            msg += " | ./.claude has Tweek files but hooks missing"
+        elif verbose:
+            msg += " | no project hooks in ./.claude"
         return HealthCheck(
             name="hooks_installed",
             label="Hook Installation",
             status=CheckStatus.OK,
             message=msg,
         )
-    elif project_installed:
+
+    # --- Project hooks only ---
+    if p["is_protected"] and not g["is_protected"]:
+        msg = "Hooks active: ./.claude (project only)"
+        if g["has_artifacts"]:
+            msg += " | ~/.claude has Tweek files but hooks missing"
         return HealthCheck(
             name="hooks_installed",
             label="Hook Installation",
             status=CheckStatus.WARNING,
-            message="Installed in project only (./.claude)",
+            message=msg,
             fix_hint="Run: tweek protect claude-code --global  (to protect all projects)",
         )
-    else:
+
+    # --- No hooks anywhere ---
+    # Check for orphaned artifacts (explains status vs doctor discrepancy)
+    orphan_locs = []
+    if g["has_artifacts"]:
+        orphan_locs.append("~/.claude")
+    if p["has_artifacts"]:
+        orphan_locs.append("./.claude")
+
+    if orphan_locs:
         return HealthCheck(
             name="hooks_installed",
             label="Hook Installation",
             status=CheckStatus.ERROR,
-            message="No hooks installed",
-            fix_hint="Run: tweek protect claude-code",
+            message=(
+                f"Tweek files found in {', '.join(orphan_locs)} "
+                f"but hooks missing from settings.json"
+            ),
+            fix_hint="Run: tweek protect claude-code  (to re-install hooks)",
         )
 
-
-def _has_tweek_hooks(settings_path: Path) -> bool:
-    """Check if a settings.json file contains Tweek hooks."""
-    if not settings_path.exists():
-        return False
-    try:
-        with open(settings_path) as f:
-            settings = json.load(f)
-        hooks = settings.get("hooks", {})
-        for hook_type in ["PreToolUse", "PostToolUse"]:
-            for hook_config in hooks.get(hook_type, []):
-                for hook in hook_config.get("hooks", []):
-                    if "tweek" in hook.get("command", "").lower():
-                        return True
-    except (json.JSONDecodeError, IOError, KeyError):
-        pass
-    return False
+    return HealthCheck(
+        name="hooks_installed",
+        label="Hook Installation",
+        status=CheckStatus.ERROR,
+        message="No hooks installed (checked ~/.claude and ./.claude)",
+        fix_hint="Run: tweek protect claude-code",
+    )
 
 
 def _check_config_valid(verbose: bool = False) -> HealthCheck:
@@ -884,16 +902,20 @@ def _fix_redownload_model() -> bool:
 
 
 def _fix_configure_llm() -> bool:
-    """Run the LLM provider configuration wizard."""
-    try:
-        from tweek.cli_install import _configure_llm_provider
-        tweek_dir = Path("~/.tweek").expanduser()
-        _configure_llm_provider(tweek_dir, interactive=True, quick=False)
-        return True
-    except Exception as e:
-        from rich.console import Console
-        Console().print(f"  [red]\u2717[/red] Failed: {e}")
-        return False
+    """Guide user to configure LLM provider via env file."""
+    from rich.console import Console
+    c = Console()
+    c.print()
+    c.print("  Add a free Google Gemini API key (no credit card needed):")
+    c.print("    1. Go to https://aistudio.google.com/apikey")
+    c.print("    2. Click [bold]Create API key[/bold] \u2192 select a project when prompted")
+    c.print("       (AI Studio creates one automatically for new users)")
+    c.print("    3. Run: [cyan]tweek config edit env[/cyan]")
+    c.print("    4. Paste your key in the GOOGLE_API_KEY line")
+    c.print()
+    c.print("  Other providers: see ~/.tweek/.env | Full wizard: [cyan]tweek configure llm[/cyan]")
+    c.print()
+    return True
 
 
 def _fix_install_hooks() -> bool:
