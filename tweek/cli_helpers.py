@@ -292,7 +292,9 @@ def _detect_all_tools():
         g_detail,
     ))
 
-    # Project row
+    # Project row — show the actual directory path
+    cwd = Path.cwd()
+    project_label = f"Claude Code ({cwd})"
     p_protected = project_info.get("is_protected", False)
     p_detail = ""
     if p_protected:
@@ -300,7 +302,7 @@ def _detect_all_tools():
     elif project_info.get("has_artifacts"):
         p_detail = "Tweek files in ./.claude but hooks missing"
     tools.append((
-        "claude-code-project", "Claude Code (project)", claude_installed, p_protected,
+        "claude-code-project", project_label, claude_installed, p_protected,
         p_detail,
     ))
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tweek"
-version = "0.4.7"
+version = "0.4.8"
 description = "Defense-in-depth security for AI coding assistants - protect credentials, code, and system from prompt injection attacks"
 readme = "README.md"
 requires-python = ">=3.9"
