@@ -189,16 +189,6 @@ tweek config interactive
 
 ---
 
-## Pattern Updates
-
-### `tweek update`
-
-Fetch the latest detection patterns.
-
-```
-tweek update
-```
-
 ---
 
 ## Audit

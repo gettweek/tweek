@@ -182,7 +182,7 @@ For the full configuration format and examples, see `overrides-reference.md` in 
 | "Why was my command blocked?" | Read the `permissionDecisionReason` — it names the pattern. Explain what the pattern detects and whether this is likely a false positive given context. |
 | "Too many warnings" | Check if they're in interactive mode (suppresses medium/low). If still too many, help them add whitelist entries for trusted paths. See `overrides-reference.md`. |
 | "Tweek isn't working" | Run `tweek doctor --verbose` and review the output. Common issues: hooks not registered, outdated patterns, missing dependencies. |
-| "How do I update patterns?" | Run `tweek update` to fetch the latest pattern definitions. |
+| "How do I update patterns?" | Run `tweek upgrade` to get the latest version — patterns are bundled with the package. |
 | "I want to pause tweek for this project" | Tell the user to run `tweek trust` in their terminal. This exempts the current project from screening. They can resume with `tweek untrust`. |
 | "I want to disable tweek entirely" | Tell the user to run `tweek unprotect claude-code` to remove hooks. Run `tweek protect claude-code` to re-enable later. |
 | "What has tweek blocked recently?" | Run `tweek logs show` to see recent security events with details. |

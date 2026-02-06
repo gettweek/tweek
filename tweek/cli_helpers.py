@@ -356,7 +356,6 @@ COMMAND_TIERS = {
         "protect",
         "status",
         "doctor",
-        "update",
         "upgrade",
         "configure",
     ],

@@ -52,8 +52,8 @@ from tweek.cli_uninstall import uninstall
 # Protect / Unprotect (per-tool protection lifecycle)
 from tweek.cli_protect import protect, unprotect
 
-# Core commands (status, trust, untrust, update, doctor, upgrade, audit)
-from tweek.cli_core import status, trust, untrust, update, doctor, upgrade, audit
+# Core commands (status, trust, untrust, doctor, upgrade, audit)
+from tweek.cli_core import status, trust, untrust, doctor, upgrade, audit
 
 # Configuration
 from tweek.cli_config import config
@@ -96,7 +96,6 @@ for cmd in [
     status,
     trust,
     untrust,
-    update,
     doctor,
     upgrade,
     audit,
