@@ -80,6 +80,9 @@ from tweek.cli_skills import skills
 # Dry-run (renamed from sandbox)
 from tweek.cli_dry_run import dry_run
 
+# Scan (static file/URL security scanner)
+from tweek.cli_scan import scan
+
 # Security (override, feedback)
 from tweek.cli_security import override_group, feedback_group
 
@@ -109,6 +112,7 @@ for cmd in [
     plugins,
     mcp,
     skills,
+    scan,
     dry_run,
     override_group,
     feedback_group,
