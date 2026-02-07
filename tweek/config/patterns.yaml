@@ -1,5 +1,5 @@
-# Tweek Attack Pattern Definitions v3
-# All 262 patterns included FREE
+# Tweek Attack Pattern Definitions v4
+# All 291 patterns included FREE
 #
 # Update via: tweek update (patterns are bundled with the package)
 #
@@ -2399,3 +2399,143 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+
+  # --- Obfuscation Detection (276-281) ---
+  # Detect encoded/obfuscated payloads piped to execution.
+  # Source: Hard Shell threat analysis — real-world malicious skill attack chains.
+
+  - id: 276
+    name: base64_decode_exec
+    description: "Base64-decoded content piped to execution"
+    regex: '(base64\s+-[dD]|base64\s+--decode)\s*.*\|\s*(bash|sh|zsh|eval|python[23]?|perl|ruby|node)'
+    severity: critical
+    confidence: deterministic
+    family: evasion_techniques
+
+  - id: 277
+    name: echo_base64_pipe
+    description: "Echo of encoded data piped to base64 decode and execution"
+    regex: 'echo\s+["\x27]?[A-Za-z0-9+/=]{20,}["\x27]?\s*\|\s*base64'
+    severity: high
+    confidence: deterministic
+    family: evasion_techniques
+
+  - id: 278
+    name: hex_decode_exec
+    description: "Hex-decoded content piped to execution"
+    regex: '(xxd\s+-r|printf\s+.*\\x[0-9a-fA-F])\s*.*\|\s*(bash|sh|eval)'
+    severity: critical
+    confidence: deterministic
+    family: evasion_techniques
+
+  - id: 279
+    name: eval_encoded_payload
+    description: "Eval of decoded/decompressed content via interpreter"
+    regex: '(python[23]?|ruby|node)\s+-[ec]\s+.*\b(decode|decode64|decompress|fromhex|b64decode|atob)\b'
+    severity: high
+    confidence: heuristic
+    family: evasion_techniques
+
+  - id: 280
+    name: openssl_decode_exec
+    description: "OpenSSL used to decode a payload for execution"
+    regex: 'openssl\s+(enc|base64)\s+-d.*\|\s*(bash|sh|eval)'
+    severity: critical
+    confidence: deterministic
+    family: evasion_techniques
+
+  - id: 281
+    name: suspicious_long_base64
+    description: "Unusually long base64-encoded string in a command context"
+    regex: '(echo|printf|curl|wget|base64)\s+.*[A-Za-z0-9+/]{100,}={0,2}'
+    severity: medium
+    confidence: heuristic
+    family: evasion_techniques
+
+  # --- Persistence Detection (282-287) ---
+  # Detect attempts to establish persistent access via OS-level mechanisms.
+  # Source: Hard Shell threat analysis — lateral movement via LaunchAgents and SSH keys.
+
+  - id: 282
+    name: launchagent_dir_write
+    description: "Writing files to macOS LaunchAgents directory for persistence"
+    regex: '(cp|mv|ln|cat|tee|install|>>?)\s+.*~/Library/LaunchAgents/'
+    severity: critical
+    confidence: deterministic
+    family: persistence
+
+  - id: 283
+    name: launchdaemon_dir_write
+    description: "Writing files to macOS LaunchDaemons directory for persistence"
+    regex: '(cp|mv|ln|cat|tee|install|>>?)\s+.*/Library/LaunchDaemons/'
+    severity: critical
+    confidence: deterministic
+    family: persistence
+
+  - id: 284
+    name: systemd_service_creation
+    description: "Creating a systemd service unit for persistence"
+    regex: '(cp|mv|cat|tee|install|>>?)\s+.*/etc/systemd/system/.*\.service'
+    severity: critical
+    confidence: deterministic
+    family: persistence
+
+  - id: 285
+    name: cron_modification
+    description: "Modifying cron jobs for scheduled persistent execution"
+    regex: 'crontab\s+-[elr]|>>?\s+.*/etc/cron'
+    severity: high
+    confidence: deterministic
+    family: persistence
+
+  - id: 286
+    name: shell_profile_append
+    description: "Appending to shell startup files for persistent command execution"
+    regex: '(>>|tee\s+-?a)\s+.*\.(bashrc|zshrc|bash_profile|profile|zprofile|zshenv)'
+    severity: high
+    confidence: deterministic
+    family: persistence
+
+  - id: 287
+    name: authorized_keys_modification
+    description: "Adding SSH authorized keys for persistent remote access"
+    regex: '(>>|tee\s+-?a)\s+.*\.ssh/authorized_keys'
+    severity: critical
+    confidence: deterministic
+    family: persistence
+
+  # --- macOS Quarantine & Gatekeeper Bypass (288-290) ---
+  # Detect removal of macOS security attributes that prevent execution of downloaded files.
+  # Source: Hard Shell threat analysis — malicious skill removed quarantine before executing payload.
+
+  - id: 288
+    name: quarantine_removal
+    description: "Removing macOS quarantine attribute to bypass Gatekeeper"
+    regex: 'xattr\s+(-d|-w|-c)\s+.*com\.apple\.quarantine'
+    severity: critical
+    confidence: deterministic
+    family: code_injection
+
+  - id: 289
+    name: xattr_security_removal
+    description: "Removing macOS security extended attributes"
+    regex: 'xattr\s+-[dcr]+\s+.*com\.apple\.(provenance|macl)'
+    severity: high
+    confidence: heuristic
+    family: code_injection
+
+  - id: 290
+    name: gatekeeper_disable
+    description: "Disabling macOS Gatekeeper entirely"
+    regex: 'spctl\s+--master-disable'
+    severity: critical
+    confidence: deterministic
+    family: privilege_escalation
+
+  - id: 291
+    name: chmod_exec_downloaded
+    description: "Making a downloaded file executable — common in skill malware chains"
+    regex: 'chmod\s+(\+x|[0-7]{3,4})\s+.*(curl|wget|/tmp/|/var/tmp/|downloaded|payload)'
+    severity: high
+    confidence: heuristic
+    family: code_injection

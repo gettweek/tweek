@@ -319,6 +319,12 @@ families:
       - 269  # lookalike_tld
       - 270  # fullwidth_dot_in_url
       - 274  # double_encoding_in_url
+      - 276  # base64_decode_exec
+      - 277  # echo_base64_pipe
+      - 278  # hex_decode_exec
+      - 279  # eval_encoded_payload
+      - 280  # openssl_decode_exec
+      - 281  # suspicious_long_base64
     heuristic_signals:
       evasion_indicators:
         - "eval("
@@ -330,6 +336,11 @@ families:
         - "base64"
         - "xxd"
         - "rot13"
+        - "openssl enc"
+        - "b64decode"
+        - "fromhex"
+        - "atob"
+        - "decompress"
 
   mcp_attacks:
     display_name: "MCP Attacks"
@@ -403,6 +414,12 @@ families:
       - 118  # curl_write_sensitive
       - 227  # privesc_cron_inject
       - 273  # dotfile_overwrite_via_redirect
+      - 282  # launchagent_dir_write
+      - 283  # launchdaemon_dir_write
+      - 284  # systemd_service_creation
+      - 285  # cron_modification
+      - 286  # shell_profile_append
+      - 287  # authorized_keys_modification
     heuristic_signals:
       persistence_paths:
         - "LaunchAgents"
@@ -413,15 +430,20 @@ families:
         - ".zshrc"
         - ".profile"
         - ".bash_profile"
+        - ".zprofile"
+        - ".zshenv"
         - "systemd"
         - "autorun"
         - ".git/hooks"
         - ".cursorrules"
         - ".plist"
+        - "authorized_keys"
+        - "/etc/systemd/system"
       persistence_verbs:
         - "launchctl"
         - "crontab"
         - "systemctl"
+        - "systemd-run"
 
   privilege_escalation:
     display_name: "Privilege Escalation"
@@ -436,6 +458,7 @@ families:
       - 226  # privesc_suid_hunt
       - 228  # privesc_path_hijack
       - 229  # privesc_capability_abuse
+      - 290  # gatekeeper_disable
     heuristic_signals:
       priv_commands:
         - "sudo"
@@ -450,6 +473,10 @@ families:
         - "/etc/sudoers"
         - "/etc/shadow"
         - "/etc/passwd"
+      priv_macos:
+        - "spctl"
+        - "xattr"
+        - "com.apple.quarantine"
 
   sandbox_escape:
     display_name: "Sandbox Escape"
@@ -520,6 +547,9 @@ families:
       - 243  # jsonpickle_deserialize
       - 244  # ssrf_cloud_metadata_gcp_azure
       - 245  # ssrf_link_local_bypass
+      - 288  # quarantine_removal
+      - 289  # xattr_security_removal
+      - 291  # chmod_exec_downloaded
     heuristic_signals:
       injection_functions:
         - "eval("
