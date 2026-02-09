@@ -366,6 +366,7 @@ COMMAND_TIERS = {
         "untrust",
         "config",
         "audit",
+        "watch",
     ],
 }
 
