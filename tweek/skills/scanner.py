@@ -153,6 +153,87 @@ SKILL_INJECTION_PATTERNS = [
         "description": "Skill uses social engineering to bypass restrictions",
         "regex": r"(the\s+user\s+has\s+already\s+approved|this\s+is\s+a\s+trusted\s+operation|security\s+has\s+been\s+verified|pre-?authorized|don.t\s+ask\s+for\s+confirmation)",
     },
+    # --- Coercive injection patterns (from Cisco AI Defense skill-scanner) ---
+    {
+        "name": "skill_mandatory_execution",
+        "severity": "high",
+        "description": "Skill coerces mandatory execution priority",
+        "regex": r"(always\s+(consult|use|run|execute|invoke|call)\s+this\s+(tool|function|command)\s+(immediately|first|before|prior))",
+    },
+    {
+        "name": "skill_priority_override",
+        "severity": "high",
+        "description": "Skill forces priority over other tools",
+        "regex": r"(before\s+(executing|invoking|running|using)\s+any\s+other\s+(tool|action|function)|(you|user)\s+(must|need\s+to|have\s+to)\s+(use|execute|run)\s+this\s+(tool|function))",
+    },
+    {
+        "name": "skill_hidden_parameter",
+        "severity": "high",
+        "description": "Skill requests hidden or secret parameters",
+        "regex": r"\b(hidden|secret)[_\s](parameter|argument|input)\b",
+    },
+    {
+        "name": "skill_model_data_extraction",
+        "severity": "critical",
+        "description": "Skill instructs extraction of model/conversation data",
+        "regex": r"(add\s+(the\s+)?entire\s+(conversation|system|chain|tools).{0,30}(to|for|in).{0,30}(tool|authentication|parameter))",
+    },
+    {
+        "name": "skill_behavior_control",
+        "severity": "high",
+        "description": "Skill controls what information is shown to user",
+        "regex": r"\b(tell\s+(the\s+)?user\s+only|hide\s+(the\s+)?user)\b",
+    },
+    {
+        "name": "skill_tool_poisoning",
+        "severity": "critical",
+        "description": "Skill uses MCP tool poisoning techniques",
+        "regex": r"(tool\s+will\s+not\s+work\s+unless|must\s+first.{0,30}read.{0,30}config|shadow.{0,30}trusted.{0,30}tool)",
+    },
+    # --- Autonomy abuse patterns (from Cisco AI Defense skill-scanner) ---
+    {
+        "name": "skill_skip_confirmation",
+        "severity": "high",
+        "description": "Skill instructs skipping user confirmation",
+        "regex": r"(don.t\s+(ask|wait\s+for|require)\s+(the\s+)?(user|human)\s+(for\s+)?(confirmation|permission|approval)|proceed\s+without\s+(asking\s+)?(the\s+)?(user|human))",
+    },
+    {
+        "name": "skill_override_user",
+        "severity": "high",
+        "description": "Skill instructs overriding user decisions",
+        "regex": r"(ignore\s+(user|human)\s+(input|decision|choice)|override\s+(user|human)\s+(decision|choice|preference)|disregard\s+(what\s+)?(the\s+)?(user|human)\s+(says|wants|chose))",
+    },
+    {
+        "name": "skill_self_modify",
+        "severity": "critical",
+        "description": "Skill instructs self-modification of its own code or behavior",
+        "regex": r"(modify\s+(my\s+own|this\s+skill.s|its\s+own)\s+(code|behavior|instructions?)|rewrite\s+(myself|itself|this\s+skill)|update\s+(my\s+own|its\s+own)\s+(logic|rules))",
+    },
+    {
+        "name": "skill_infinite_retry",
+        "severity": "medium",
+        "description": "Skill instructs unbounded retry behavior",
+        "regex": r"(retry\s+(indefinitely|forever|until\s+success)|keep\s+(trying|retrying)\s+(forever|indefinitely)|never\s+(stop|give\s+up)\s+(trying|retrying))",
+    },
+    # --- Capability inflation patterns (from Cisco AI Defense skill-scanner) ---
+    {
+        "name": "skill_overbroad_claims",
+        "severity": "medium",
+        "description": "Skill claims overbroad capabilities (trigger hijacking risk)",
+        "regex": r"\b(can\s+do\s+(anything|everything)|general\s+(purpose\s+)?assistant|all-purpose|universal\s+(tool|skill|helper)|always\s+use\s+(this|me)|default\s+(tool|skill|assistant))\b",
+    },
+    {
+        "name": "skill_trusted_impersonation",
+        "severity": "high",
+        "description": "Skill impersonates trusted/official status",
+        "regex": r"\b(official|verified|trusted|certified|approved|endorsed)\s+(skill|tool|extension|plugin|assistant)\b",
+    },
+    {
+        "name": "skill_keyword_stuffing",
+        "severity": "medium",
+        "description": "Skill uses keyword stuffing to inflate discovery",
+        "regex": r"\b(file|data|code|tool)\s*,\s*\1\s*,\s*\1\s*,\s*\1\b",
+    },
 ]
 
 # Exfiltration patterns for Layer 6
@@ -170,6 +251,9 @@ SUSPICIOUS_HOSTS = [
     "pastebin.com", "hastebin.com", "ghostbin.", "0x0.st",
     "transfer.sh", "file.io", "webhook.site", "requestbin.",
     "ngrok.io", "pipedream.", "hookbin.com", "beeceptor.com",
+    # Extended hosts (from Cisco AI Defense skill-scanner)
+    "pipedream.net", "requestbin.com", "beeceptor.com",
+    "discord.com/api/webhooks", "api.telegram.org/bot",
 ]
 
 
@@ -226,6 +310,11 @@ class SkillScanner:
         layer2 = self._scan_patterns(skill_dir, text_files)
         report.layers["patterns"] = self._layer_to_dict(layer2)
         self._accumulate_findings(report, layer2)
+
+        # Layer 2.5: YARA Rules (if yara-python installed)
+        layer2_5 = self._scan_yara(skill_dir, text_files)
+        report.layers["yara"] = self._layer_to_dict(layer2_5)
+        self._accumulate_findings(report, layer2_5)
 
         # Layer 3: Secret Scanning
         layer3 = self._scan_secrets(skill_dir)
@@ -388,6 +477,55 @@ class SkillScanner:
         return result
 
     # =========================================================================
+    # Layer 2.5: YARA Rules (optional)
+    # =========================================================================
+
+    def _scan_yara(
+        self, skill_dir: Path, text_files: List[Path]
+    ) -> ScanLayerResult:
+        """Scan content with YARA rules (if yara-python installed)."""
+        result = ScanLayerResult(layer_name="yara", passed=True)
+
+        try:
+            from tweek.security.yara_scanner import YaraScanner
+
+            scanner = YaraScanner()
+            if not scanner.available:
+                result.error = (
+                    "yara-python not installed — install with: pip install tweek[yara]"
+                )
+                return result
+
+            for file_path in text_files:
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                except (IOError, UnicodeDecodeError):
+                    continue
+
+                rel_path = str(file_path.relative_to(skill_dir))
+                findings = scanner.scan_content(content, filename=rel_path)
+                for finding in findings:
+                    result.findings.append({
+                        "file": rel_path,
+                        "name": finding["rule"],
+                        "severity": finding["severity"],
+                        "description": finding["description"],
+                        "category": finding["category"],
+                        "matched_text": (
+                            finding["matched_strings"][0][1][:100]
+                            if finding["matched_strings"]
+                            else ""
+                        ),
+                    })
+
+        except ImportError:
+            result.error = (
+                "yara-python not installed — install with: pip install tweek[yara]"
+            )
+
+        return result
+
+    # =========================================================================
     # Layer 3: Secret Scanning (reuses secret_scanner.py)
     # =========================================================================
 
@@ -462,6 +600,9 @@ class SkillScanner:
             except (IOError, UnicodeDecodeError):
                 continue
 
+            rel_path = str(file_path.relative_to(skill_dir))
+
+            # Regex-based skill injection patterns
             for pattern_def in SKILL_INJECTION_PATTERNS:
                 try:
                     match = re.search(
@@ -469,7 +610,7 @@ class SkillScanner:
                     )
                     if match:
                         result.findings.append({
-                            "file": str(file_path.relative_to(skill_dir)),
+                            "file": rel_path,
                             "name": pattern_def["name"],
                             "severity": pattern_def["severity"],
                             "description": pattern_def["description"],
@@ -477,6 +618,15 @@ class SkillScanner:
                         })
                 except re.error:
                     continue
+
+            # Unicode steganography detection
+            try:
+                from tweek.scan import _detect_unicode_steganography
+
+                steg_findings = _detect_unicode_steganography(content, rel_path)
+                result.findings.extend(steg_findings)
+            except ImportError:
+                pass
 
         return result
 

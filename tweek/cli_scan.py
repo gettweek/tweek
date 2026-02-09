@@ -79,8 +79,10 @@ def _print_scan_report(report, target, verbose: bool = False) -> None:
     layer_display = [
         ("structure", "Structure"),
         ("patterns", "Patterns"),
+        ("yara", "YARA Rules"),
         ("secrets", "Secrets"),
         ("ast", "AST"),
+        ("consistency", "Consistency"),
         ("prompt_injection", "Prompt Injection"),
         ("exfiltration", "Exfiltration"),
         ("llm_review", "LLM Review"),
