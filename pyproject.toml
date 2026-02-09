@@ -53,6 +53,9 @@ mcp = [
 proxy = [
     "mitmproxy>=10.0",  # HTTPS interception proxy for universal LLM protection
 ]
+yara = [
+    "yara-python>=4.3.0",  # YARA pattern matching engine for skill scanning
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -65,7 +68,7 @@ dev = [
     "build>=1.0",
 ]
 all = [
-    "tweek[llm,local-models,mcp,proxy]",  # Full installation with all features
+    "tweek[llm,local-models,mcp,proxy,yara]",  # Full installation with all features
 ]
 
 [project.scripts]
@@ -117,6 +120,7 @@ tweek = [
     "config/*.yaml",
     "config/_integrity.json",
     "config/templates/*",
+    "rules/yara/*.yara",
     "skill_template/*.md",
     "skill_template/scripts/*.py",
 ]

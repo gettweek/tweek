@@ -3,7 +3,7 @@
 Tweek CLI — scan command
 
 Pre-scan skill files or URLs for security risks before installation.
-Runs the full 7-layer security pipeline in read-only mode.
+Runs the multi-layer security pipeline in read-only mode.
 """
 from __future__ import annotations
 
@@ -79,11 +79,15 @@ def _print_scan_report(report, target, verbose: bool = False) -> None:
     layer_display = [
         ("structure", "Structure"),
         ("patterns", "Patterns"),
+        ("yara", "YARA Rules"),
         ("secrets", "Secrets"),
         ("ast", "AST"),
+        ("taint", "Taint Analysis"),
+        ("consistency", "Consistency"),
         ("prompt_injection", "Prompt Injection"),
         ("exfiltration", "Exfiltration"),
         ("llm_review", "LLM Review"),
+        ("meta_analysis", "Meta-Analysis"),
     ]
 
     for layer_key, label in layer_display:

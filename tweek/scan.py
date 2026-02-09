@@ -4,14 +4,17 @@ Tweek Scan — Static Security Scanner for Skill Files
 Pre-scans skill files (.md) or skill directories for security risks before
 installation. Supports local files, local directories, and remote URLs.
 
-Runs the full 7-layer security pipeline in read-only mode:
-1. Structure Validation    — file types, size, depth, blocked extensions
-2. Pattern Matching        — 275 regex patterns (reuses audit.py)
-3. Secret Scanning         — credential detection (reuses secret_scanner.py)
-4. AST Analysis            — forbidden imports/calls in Python files
-5. Prompt Injection Scan   — skill-specific instruction injection patterns
-6. Exfiltration Detection  — network URLs, exfil sites, data sending
-7. LLM Semantic Review     — intent analysis (reuses llm_reviewer.py)
+Runs a multi-layer security pipeline in read-only mode:
+1.   Structure Validation    — file types, size, depth, blocked extensions
+2.   Pattern Matching        — 275+ regex patterns (reuses audit.py)
+2.5  YARA Rules              — 13 rules via yara-python (optional)
+3.   Secret Scanning         — credential detection (reuses secret_scanner.py)
+4.   AST Analysis            — forbidden imports/calls in Python files
+4B.  Taint/Dataflow Analysis — source→sink tracking (env vars, creds → network)
+4.5  Manifest-Code Consistency — cross-validates declared tools vs actual code
+5.   Prompt Injection Scan   — skill-specific injection + unicode steganography
+6.   Exfiltration Detection  — network URLs, exfil sites, data sending
+7.   LLM Semantic Review     — intent analysis (reuses llm_reviewer.py)
 
 Safety guarantees:
 - Purely read-only: no files are created, moved, or modified
@@ -349,6 +352,110 @@ FORBIDDEN_NETWORK_IMPORTS = frozenset({
 })
 
 
+# =============================================================================
+# Unicode Steganography Detection
+# (from Cisco AI Defense skill-scanner — see THIRD-PARTY-NOTICES.md)
+# =============================================================================
+
+# Zero-width characters used for invisible text encoding
+_ZERO_WIDTH_CHARS = re.compile(r"[\u200B\u200C\u200D\uFEFF]")
+
+# Directional override characters (can reverse displayed text)
+_BIDI_OVERRIDES = re.compile(r"[\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069]")
+
+# Unicode tag characters (U+E0000-U+E007F) — invisible metadata encoding
+_TAG_CHARS = re.compile(r"[\U000E0001-\U000E007F]")
+
+# Invisible separator characters
+_INVISIBLE_SEPARATORS = re.compile(r"[\u2028\u2029\u00AD\u034F\u061C\u180E]")
+
+# Variation selectors (U+FE00-U+FE0F, U+E0100-U+E01EF)
+_VARIATION_SELECTORS = re.compile(r"[\uFE00-\uFE0F\U000E0100-\U000E01EF]")
+
+# Threshold for zero-width chars before flagging (legitimate use is rare)
+_ZERO_WIDTH_THRESHOLD = 5
+
+
+def _detect_unicode_steganography(
+    content: str, filename: str = ""
+) -> List[Dict[str, Any]]:
+    """Detect hidden Unicode steganography in text content.
+
+    Flags:
+    - Excessive zero-width characters (>threshold, possible hidden data)
+    - Bidirectional override characters (can reverse displayed text)
+    - Unicode tag characters (invisible metadata encoding)
+    - Invisible separator characters
+    - Variation selectors used for encoding
+
+    Args:
+        content: Text content to scan.
+        filename: Source filename for reporting.
+
+    Returns:
+        List of finding dicts.
+    """
+    findings: List[Dict[str, Any]] = []
+
+    # Zero-width characters (threshold-based)
+    zw_matches = _ZERO_WIDTH_CHARS.findall(content)
+    if len(zw_matches) > _ZERO_WIDTH_THRESHOLD:
+        findings.append({
+            "file": filename,
+            "name": "unicode_zero_width_chars",
+            "severity": "high",
+            "description": (
+                f"Found {len(zw_matches)} zero-width characters "
+                f"(threshold: {_ZERO_WIDTH_THRESHOLD}) — possible hidden data encoding"
+            ),
+            "matched_text": f"{len(zw_matches)} zero-width chars detected",
+        })
+
+    # Bidirectional overrides (always flag — can change displayed text direction)
+    bidi_matches = _BIDI_OVERRIDES.findall(content)
+    if bidi_matches:
+        findings.append({
+            "file": filename,
+            "name": "unicode_bidi_override",
+            "severity": "critical",
+            "description": (
+                f"Found {len(bidi_matches)} bidirectional override character(s) — "
+                "can reverse displayed text to hide malicious content"
+            ),
+            "matched_text": f"{len(bidi_matches)} bidi override(s)",
+        })
+
+    # Unicode tag characters (always flag — invisible metadata)
+    tag_matches = _TAG_CHARS.findall(content)
+    if tag_matches:
+        findings.append({
+            "file": filename,
+            "name": "unicode_tag_chars",
+            "severity": "critical",
+            "description": (
+                f"Found {len(tag_matches)} Unicode tag character(s) — "
+                "invisible characters used for steganographic encoding"
+            ),
+            "matched_text": f"{len(tag_matches)} tag char(s)",
+        })
+
+    # Invisible separators (always flag)
+    sep_matches = _INVISIBLE_SEPARATORS.findall(content)
+    if sep_matches:
+        findings.append({
+            "file": filename,
+            "name": "unicode_invisible_separator",
+            "severity": "medium",
+            "description": (
+                f"Found {len(sep_matches)} invisible separator character(s) — "
+                "unusual in skill content"
+            ),
+            "matched_text": f"{len(sep_matches)} invisible separator(s)",
+        })
+
+    return findings
+
+
 class ContentScanner:
     """7-layer security scanner operating on in-memory ScanTarget content.
 
@@ -397,6 +504,11 @@ class ContentScanner:
         report.layers["patterns"] = self._layer_to_dict(layer2)
         self._accumulate_findings(report, layer2)
 
+        # Layer 2.5: YARA Rules (if yara-python installed)
+        layer2_5 = self._scan_yara(target)
+        report.layers["yara"] = self._layer_to_dict(layer2_5)
+        self._accumulate_findings(report, layer2_5)
+
         # Layer 3: Secret Scanning
         layer3 = self._scan_secrets(target)
         report.layers["secrets"] = self._layer_to_dict(layer3)
@@ -404,6 +516,18 @@ class ContentScanner:
         # Layer 4: AST Analysis
         layer4 = self._scan_ast(target)
         report.layers["ast"] = self._layer_to_dict(layer4)
+
+        # Layer 4B: Taint/Dataflow Analysis
+        layer4b = self._scan_taint(target)
+        if layer4b.findings or layer4b.issues:
+            report.layers["taint"] = self._layer_to_dict(layer4b)
+            self._accumulate_findings(report, layer4b)
+
+        # Layer 4.5: Manifest-Code Consistency
+        layer4_5 = self._scan_consistency(target)
+        if layer4_5.findings or layer4_5.issues:
+            report.layers["consistency"] = self._layer_to_dict(layer4_5)
+            self._accumulate_findings(report, layer4_5)
 
         # Layer 5: Prompt Injection Detection
         layer5 = self._scan_prompt_injection(target)
@@ -423,6 +547,12 @@ class ContentScanner:
             report.layers["llm_review"] = {
                 "passed": True, "skipped": True, "reason": "LLM review disabled"
             }
+
+        # Layer 7B: LLM Meta-Analysis (validates static findings with LLM context)
+        if self.config.llm_review_enabled:
+            meta_result = self._scan_meta_analysis(target, report)
+            if meta_result:
+                report.layers["meta_analysis"] = meta_result
 
         # Compute final verdict and risk
         report.verdict = self._compute_verdict(report, layer3, layer4)
@@ -657,6 +787,225 @@ class ContentScanner:
         return ""
 
     # =========================================================================
+    # Layer 4B: Taint/Dataflow Analysis
+    # (architecture inspired by Cisco AI Defense — see THIRD-PARTY-NOTICES.md)
+    # =========================================================================
+
+    def _scan_taint(self, target: ScanTarget) -> ScanLayerResult:
+        """Trace sensitive data from sources to sinks via dataflow analysis.
+
+        Uses forward taint propagation over a control flow graph to detect
+        credential exfiltration, env var leaks, and other data flow attacks
+        that simple forbidden-import checks cannot catch.
+        """
+        result = ScanLayerResult(layer_name="taint", passed=True)
+
+        py_files = {
+            path: content
+            for path, content in target.files.items()
+            if path.endswith(".py")
+        }
+
+        if not py_files:
+            return result  # No Python files to analyze
+
+        try:
+            from tweek.security.taint_analyzer import CrossFileAnalyzer
+
+            analyzer = CrossFileAnalyzer(py_files)
+            findings = analyzer.analyze_all()
+
+            for finding in findings:
+                result.findings.append({
+                    "file": finding.file,
+                    "name": f"taint_{finding.source_type}_to_{finding.sink_type}",
+                    "severity": finding.severity,
+                    "description": finding.path_description,
+                    "source_file": finding.source_file,
+                    "source_line": finding.source_line,
+                    "source_detail": finding.source_detail,
+                    "sink_line": finding.sink_line,
+                    "sink_detail": finding.sink_detail,
+                })
+
+            if findings:
+                result.passed = False
+
+        except Exception as e:
+            result.issues.append(f"Taint analysis error: {e}")
+
+        return result
+
+    # =========================================================================
+    # Layer 4.5: Manifest-Code Consistency Checking
+    # (from Cisco AI Defense skill-scanner — see THIRD-PARTY-NOTICES.md)
+    # =========================================================================
+
+    def _scan_consistency(self, target: ScanTarget) -> ScanLayerResult:
+        """Cross-validate SKILL.md frontmatter against actual code behavior.
+
+        Checks that declared capabilities (allowed-tools) match what the
+        code actually imports/uses. Catches skills claiming "read-only"
+        while secretly importing network libraries.
+        """
+        result = ScanLayerResult(layer_name="consistency", passed=True)
+
+        # Find SKILL.md content
+        skill_md = None
+        for path, content in target.files.items():
+            if path == "SKILL.md" or path.endswith("/SKILL.md"):
+                skill_md = content
+                break
+
+        if not skill_md:
+            return result  # No manifest to validate
+
+        # Extract YAML frontmatter (between --- delimiters)
+        declared_tools: set = set()
+        try:
+            import yaml
+
+            if skill_md.startswith("---"):
+                parts = skill_md.split("---", 2)
+                if len(parts) >= 3:
+                    frontmatter = yaml.safe_load(parts[1])
+                    if isinstance(frontmatter, dict):
+                        tools = frontmatter.get("allowed-tools", [])
+                        if isinstance(tools, list):
+                            declared_tools = {str(t).lower() for t in tools}
+        except Exception:
+            return result  # Can't parse frontmatter, skip
+
+        if not declared_tools:
+            return result  # No tools declared, nothing to validate
+
+        # Analyze Python files for actual behavior
+        network_imports = {"requests", "urllib", "httpx", "aiohttp", "socket", "http"}
+        file_imports = {"open", "pathlib"}
+        exec_imports = {"subprocess", "os.system", "os.popen"}
+
+        code_uses_network = False
+        code_uses_files = False
+        code_uses_exec = False
+
+        for path, content in target.files.items():
+            if not path.endswith(".py"):
+                continue
+            try:
+                tree = ast.parse(content, filename=path)
+            except SyntaxError:
+                continue
+
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    module = ""
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            module = alias.name.split(".")[0]
+                            if module in network_imports:
+                                code_uses_network = True
+                            if module in exec_imports:
+                                code_uses_exec = True
+                    elif isinstance(node, ast.ImportFrom):
+                        module = (node.module or "").split(".")[0]
+                        if module in network_imports:
+                            code_uses_network = True
+                        if module in exec_imports:
+                            code_uses_exec = True
+
+                elif isinstance(node, ast.Call):
+                    call_name = self._get_call_name(node)
+                    if call_name in ("open", "pathlib.Path.read_text", "pathlib.Path.write_text"):
+                        code_uses_files = True
+
+        # Cross-validate
+        has_network_tool = any(
+            t in declared_tools
+            for t in ("webfetch", "websearch", "bash", "network", "http")
+        )
+        has_read_tool = any(
+            t in declared_tools for t in ("read", "bash", "file", "glob")
+        )
+        has_exec_tool = any(
+            t in declared_tools for t in ("bash", "exec", "shell")
+        )
+
+        if code_uses_network and not has_network_tool:
+            result.findings.append({
+                "file": "SKILL.md",
+                "name": "consistency_undeclared_network",
+                "severity": "high",
+                "description": (
+                    "Code imports network libraries but manifest does not "
+                    "declare network-capable tools"
+                ),
+                "matched_text": "Network imports without declaration",
+            })
+
+        if code_uses_exec and not has_exec_tool:
+            result.findings.append({
+                "file": "SKILL.md",
+                "name": "consistency_undeclared_exec",
+                "severity": "high",
+                "description": (
+                    "Code imports execution libraries but manifest does not "
+                    "declare execution-capable tools"
+                ),
+                "matched_text": "Exec imports without declaration",
+            })
+
+        if code_uses_files and not has_read_tool:
+            result.findings.append({
+                "file": "SKILL.md",
+                "name": "consistency_undeclared_file_access",
+                "severity": "medium",
+                "description": (
+                    "Code performs file operations but manifest does not "
+                    "declare file-access tools"
+                ),
+                "matched_text": "File access without declaration",
+            })
+
+        return result
+
+    # =========================================================================
+    # Layer 2.5: YARA Rules
+    # =========================================================================
+
+    def _scan_yara(self, target: ScanTarget) -> ScanLayerResult:
+        """Scan content with YARA rules (if yara-python installed)."""
+        result = ScanLayerResult(layer_name="yara", passed=True)
+
+        try:
+            from tweek.security.yara_scanner import YaraScanner
+
+            scanner = YaraScanner()
+            if not scanner.available:
+                result.error = "yara-python not installed — install with: pip install tweek[yara]"
+                return result
+
+            for rel_path, content in target.files.items():
+                findings = scanner.scan_content(content, filename=rel_path)
+                for finding in findings:
+                    result.findings.append({
+                        "file": rel_path,
+                        "name": finding["rule"],
+                        "severity": finding["severity"],
+                        "description": finding["description"],
+                        "category": finding["category"],
+                        "matched_text": (
+                            finding["matched_strings"][0][1][:100]
+                            if finding["matched_strings"]
+                            else ""
+                        ),
+                    })
+
+        except ImportError:
+            result.error = "yara-python not installed — install with: pip install tweek[yara]"
+
+        return result
+
+    # =========================================================================
     # Layer 5: Prompt Injection Detection (skill-specific)
     # =========================================================================
 
@@ -665,6 +1014,7 @@ class ContentScanner:
         result = ScanLayerResult(layer_name="prompt_injection", passed=True)
 
         for rel_path, content in target.files.items():
+            # Regex-based skill injection patterns
             for pattern_def in SKILL_INJECTION_PATTERNS:
                 try:
                     match = re.search(
@@ -681,6 +1031,10 @@ class ContentScanner:
                         })
                 except re.error:
                     continue
+
+            # Unicode steganography detection
+            steg_findings = _detect_unicode_steganography(content, rel_path)
+            result.findings.extend(steg_findings)
 
         return result
 
@@ -784,6 +1138,64 @@ class ContentScanner:
             })
 
         return result
+
+    # =========================================================================
+    # Layer 7B: LLM Meta-Analysis
+    # (inspired by Cisco AI Defense two-pass review — see THIRD-PARTY-NOTICES.md)
+    # =========================================================================
+
+    def _scan_meta_analysis(
+        self, target: ScanTarget, report: SkillScanReport
+    ) -> Optional[Dict[str, Any]]:
+        """Run meta-analysis to validate static findings with LLM context.
+
+        Takes all findings from static layers + initial LLM review, and asks
+        the LLM to validate/filter/enhance them. Reduces false positives and
+        catches semantic threats missed by static analysis alone.
+        """
+        # Collect all static findings
+        all_findings = []
+        for layer_data in report.layers.values():
+            if isinstance(layer_data, dict):
+                for f in layer_data.get("findings", []):
+                    if isinstance(f, dict) and f.get("severity") in ("critical", "high", "medium"):
+                        all_findings.append(f)
+
+        if not all_findings:
+            return None  # Nothing to validate
+
+        try:
+            from tweek.security.llm_reviewer import MetaAnalysisReviewer, get_llm_reviewer
+
+            reviewer = get_llm_reviewer()
+            if not reviewer.enabled or not reviewer._provider_instance:
+                return None
+
+            meta = MetaAnalysisReviewer(provider=reviewer._provider_instance)
+
+            # Build combined content
+            content_parts = []
+            for rel_path in sorted(target.files.keys()):
+                text = target.files[rel_path]
+                content_parts.append(f"=== {rel_path} ===\n{text[:2000]}")
+            combined = "\n\n".join(content_parts)[:6000]
+
+            result = meta.analyze(combined, all_findings)
+            if result:
+                return {
+                    "validated_count": len(result.validated_findings),
+                    "filtered_count": len(result.filtered_findings),
+                    "enhanced_count": len(result.enhanced_findings),
+                    "summary": result.summary,
+                    "confidence": result.confidence,
+                    "validated": result.validated_findings[:10],
+                    "filtered": result.filtered_findings[:10],
+                    "enhanced": result.enhanced_findings[:5],
+                }
+        except Exception:
+            pass  # Meta-analysis is best-effort enhancement
+
+        return None
 
     # =========================================================================
     # Verdict and Risk Computation (same logic as SkillScanner)

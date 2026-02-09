@@ -225,6 +225,41 @@ To report a security vulnerability, email security@gettweek.com.
 
 ---
 
+## See Also
+
+### Hard Shell — Tweek + OpenClaw in a Hardened Container
+
+Want the full stack pre-hardened and ready to go? **[Hard Shell](https://github.com/gettweek/hard-shell)** bundles OpenClaw (the open-source AI coding assistant) with Tweek inside a security-hardened Docker container. One command to install, zero configuration required.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gettweek/hard-shell/master/install.sh | bash
+```
+
+Hard Shell adds infrastructure-level protections on top of Tweek's screening layer — read-only filesystem, dropped capabilities, non-root execution, resource limits, network isolation, and immutable configs that a compromised agent cannot disable.
+
+| | Tweek | Hard Shell |
+|---|---|---|
+| **Install** | `pip install tweek` | One Docker command |
+| **Scope** | Security layer only | Full stack (AI assistant + security) |
+| **Infrastructure hardening** | Your responsibility | Built-in (read-only FS, no SSH, dropped caps) |
+| **Best for** | Adding security to an existing setup | Production deployments, untrusted environments |
+
+Learn more: **[github.com/gettweek/hard-shell](https://github.com/gettweek/hard-shell)** | **[gettweek.com/hardshell](https://gettweek.com/hardshell)**
+
+---
+
+## Acknowledgments
+
+Tweek incorporates detection patterns and scanning techniques from these open-source projects:
+
+- **[Cisco AI Defense skill-scanner](https://github.com/cisco-ai-defense/skill-scanner)** (Apache 2.0) — YARA rules for prompt injection, credential harvesting, coercive injection, autonomy abuse, capability inflation, and unicode steganography detection. Dataflow taint analysis architecture inspired by Cisco's behavioral analyzer.
+
+- **[Knostic OpenClaw Shield](https://github.com/knostic/openclaw-shield)** (Apache 2.0) — PII detection patterns (email, SSN, credit card, phone, IBAN).
+
+See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for full license texts and attribution.
+
+---
+
 ## License
 
 [Apache 2.0](LICENSE) | [Third-Party Notices](NOTICE)
