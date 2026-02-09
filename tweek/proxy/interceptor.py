@@ -138,6 +138,162 @@ class LLMAPIInterceptor:
         else:
             return []
 
+    # ------------------------------------------------------------------
+    # SSE (Server-Sent Events) streaming support
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def parse_sse_events(body: bytes) -> list[dict]:
+        """Parse a buffered SSE body into a list of JSON data payloads.
+
+        Each SSE event is separated by a blank line.  We extract the
+        ``data:`` field from each event and attempt to JSON-parse it.
+        Non-JSON ``data: [DONE]`` sentinels are silently skipped.
+        """
+        text = body.decode("utf-8", errors="replace")
+        events: list[dict] = []
+
+        for block in text.split("\n\n"):
+            for line in block.splitlines():
+                if line.startswith("data:"):
+                    payload = line[len("data:"):].strip()
+                    if not payload or payload == "[DONE]":
+                        continue
+                    try:
+                        events.append(json.loads(payload))
+                    except json.JSONDecodeError:
+                        continue
+        return events
+
+    def extract_tool_calls_anthropic_sse(self, events: list[dict]) -> list[ToolCall]:
+        """Reassemble tool calls from Anthropic streaming events.
+
+        Anthropic streams tool calls as:
+          content_block_start  → type=tool_use, name, id
+          content_block_delta  → input_json_delta with partial_json
+          content_block_stop
+        """
+        # Track in-flight tool blocks by index
+        pending: dict[int, dict] = {}  # index → {id, name, json_parts}
+
+        tool_calls: list[ToolCall] = []
+
+        for ev in events:
+            ev_type = ev.get("type", "")
+
+            if ev_type == "content_block_start":
+                block = ev.get("content_block", {})
+                if block.get("type") == "tool_use":
+                    idx = ev.get("index", 0)
+                    pending[idx] = {
+                        "id": block.get("id", ""),
+                        "name": block.get("name", ""),
+                        "json_parts": [],
+                    }
+
+            elif ev_type == "content_block_delta":
+                idx = ev.get("index", 0)
+                delta = ev.get("delta", {})
+                if delta.get("type") == "input_json_delta" and idx in pending:
+                    pending[idx]["json_parts"].append(delta.get("partial_json", ""))
+
+            elif ev_type == "content_block_stop":
+                idx = ev.get("index", 0)
+                if idx in pending:
+                    info = pending.pop(idx)
+                    raw_json = "".join(info["json_parts"])
+                    try:
+                        tool_input = json.loads(raw_json) if raw_json else {}
+                    except json.JSONDecodeError:
+                        tool_input = {"_raw": raw_json}
+                    tool_calls.append(ToolCall(
+                        id=info["id"],
+                        name=info["name"],
+                        input=tool_input,
+                        provider=LLMProvider.ANTHROPIC,
+                    ))
+
+        # Flush any pending blocks that never got a stop event
+        for info in pending.values():
+            raw_json = "".join(info["json_parts"])
+            try:
+                tool_input = json.loads(raw_json) if raw_json else {}
+            except json.JSONDecodeError:
+                tool_input = {"_raw": raw_json}
+            tool_calls.append(ToolCall(
+                id=info["id"],
+                name=info["name"],
+                input=tool_input,
+                provider=LLMProvider.ANTHROPIC,
+            ))
+
+        return tool_calls
+
+    def extract_tool_calls_openai_sse(self, events: list[dict]) -> list[ToolCall]:
+        """Reassemble tool calls from OpenAI Chat Completions streaming events.
+
+        OpenAI streams tool calls as delta chunks inside choices[].delta.tool_calls[].
+        The first chunk for each tool_call index carries the id and function.name.
+        Subsequent chunks carry function.arguments fragments.
+        """
+        # Track in-flight tool calls by (choice_index, tool_call_index)
+        pending: dict[tuple[int, int], dict] = {}
+
+        for ev in events:
+            for choice in ev.get("choices", []):
+                delta = choice.get("delta", {})
+                for tc in delta.get("tool_calls", []):
+                    tc_idx = tc.get("index", 0)
+                    key = (choice.get("index", 0), tc_idx)
+                    func = tc.get("function", {})
+
+                    if key not in pending:
+                        pending[key] = {
+                            "id": tc.get("id", ""),
+                            "name": func.get("name", ""),
+                            "arg_parts": [],
+                        }
+                    else:
+                        # Update name/id if present (first chunk)
+                        if tc.get("id"):
+                            pending[key]["id"] = tc["id"]
+                        if func.get("name"):
+                            pending[key]["name"] = func["name"]
+
+                    if func.get("arguments"):
+                        pending[key]["arg_parts"].append(func["arguments"])
+
+        tool_calls: list[ToolCall] = []
+        for info in pending.values():
+            raw_args = "".join(info["arg_parts"])
+            try:
+                tool_input = json.loads(raw_args) if raw_args else {}
+            except json.JSONDecodeError:
+                tool_input = {"_raw": raw_args}
+            tool_calls.append(ToolCall(
+                id=info["id"],
+                name=info["name"],
+                input=tool_input,
+                provider=LLMProvider.OPENAI,
+            ))
+
+        return tool_calls
+
+    def extract_tool_calls_sse(
+        self, body: bytes, provider: LLMProvider
+    ) -> list[ToolCall]:
+        """Extract tool calls from a buffered SSE response body."""
+        events = self.parse_sse_events(body)
+        if not events:
+            return []
+
+        if provider == LLMProvider.ANTHROPIC:
+            return self.extract_tool_calls_anthropic_sse(events)
+        elif provider == LLMProvider.OPENAI:
+            return self.extract_tool_calls_openai_sse(events)
+        else:
+            return []
+
     def screen_tool_call(self, tool_call: ToolCall) -> InterceptionResult:
         """Screen a single tool call for security threats."""
         if not self.pattern_matcher:
@@ -186,26 +342,35 @@ class LLMAPIInterceptor:
 
         return InterceptionResult(allowed=True, provider=tool_call.provider)
 
-    def screen_response(self, response_body: bytes, provider: LLMProvider) -> InterceptionResult:
+    def screen_response(
+        self,
+        response_body: bytes,
+        provider: LLMProvider,
+        is_sse: bool = False,
+    ) -> InterceptionResult:
         """
         Screen an LLM API response for dangerous tool calls.
 
         Args:
             response_body: Raw response body bytes
             provider: The LLM provider
+            is_sse: If True, parse body as SSE event stream instead of JSON.
 
         Returns:
             InterceptionResult with screening decision
         """
         correlation_id = self._new_correlation_id()
 
-        try:
-            response = json.loads(response_body)
-        except json.JSONDecodeError:
-            # Can't parse, allow through
-            return InterceptionResult(allowed=True, provider=provider)
-
-        tool_calls = self.extract_tool_calls(response, provider)
+        if is_sse:
+            tool_calls = self.extract_tool_calls_sse(response_body, provider)
+        else:
+            try:
+                response = json.loads(response_body)
+            except json.JSONDecodeError:
+                # Not valid JSON — try SSE as fallback
+                tool_calls = self.extract_tool_calls_sse(response_body, provider)
+            else:
+                tool_calls = self.extract_tool_calls(response, provider)
 
         if not tool_calls:
             return InterceptionResult(allowed=True, provider=provider)

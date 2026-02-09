@@ -113,12 +113,12 @@ class TestAddonResponse:
         addon.response(flow)
         assert addon.stats["responses_screened"] == 0
 
-    def test_streaming_response_flagged(self):
+    def test_streaming_response_screened(self):
         addon = TweekProxyAddon()
-        flow = self._make_flow("api.anthropic.com", b'data: {}', "text/event-stream")
+        flow = self._make_flow("api.anthropic.com", b'data: {}\n\n', "text/event-stream")
         addon.response(flow)
-        assert addon.stats.get("streaming_unscreened") == 1
-        assert addon.stats["responses_screened"] == 0
+        assert addon.stats["responses_screened"] == 1
+        assert addon.stats.get("streaming_unscreened", 0) == 0
 
     def test_no_content_skipped(self):
         addon = TweekProxyAddon()

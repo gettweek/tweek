@@ -126,25 +126,21 @@ class TweekProxyAddon:
         if not self.interceptor.should_intercept(host):
             return
 
-        # Log streaming responses - we can't fully buffer SSE without breaking UX
-        # but we flag them as unscreened for visibility
-        content_type = flow.response.headers.get("content-type", "")
-        if "text/event-stream" in content_type:
-            logger.warning(
-                f"Streaming response from {host} cannot be fully screened. "
-                "Tool calls in streaming responses bypass proxy screening."
-            )
-            self.stats["streaming_unscreened"] = self.stats.get("streaming_unscreened", 0) + 1
-            return
-
         self.stats["responses_screened"] += 1
         provider = self.interceptor.identify_provider(host)
 
         if not flow.response.content:
             return
 
+        # Detect SSE streaming responses — mitmproxy buffers the full body
+        # by default, so we can parse and screen tool calls from the stream.
+        content_type = flow.response.headers.get("content-type", "")
+        is_sse = "text/event-stream" in content_type
+
         # Screen the response for dangerous tool calls
-        result = self.interceptor.screen_response(flow.response.content, provider)
+        result = self.interceptor.screen_response(
+            flow.response.content, provider, is_sse=is_sse
+        )
 
         if result.blocked_tools:
             self.stats["tool_calls_detected"] += len(result.blocked_tools)
