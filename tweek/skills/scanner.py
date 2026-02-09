@@ -324,6 +324,12 @@ class SkillScanner:
         layer4 = self._scan_ast(skill_dir)
         report.layers["ast"] = self._layer_to_dict(layer4)
 
+        # Layer 4B: Taint/Dataflow Analysis
+        layer4b = self._scan_taint(skill_dir)
+        if layer4b.findings or layer4b.issues:
+            report.layers["taint"] = self._layer_to_dict(layer4b)
+            self._accumulate_findings(report, layer4b)
+
         # Layer 5: Prompt Injection Detection
         layer5 = self._scan_prompt_injection(skill_dir, text_files)
         report.layers["prompt_injection"] = self._layer_to_dict(layer5)
@@ -581,6 +587,63 @@ class SkillScanner:
 
         except ImportError as e:
             result.error = f"AST analyzer not available: {e}"
+
+        return result
+
+    # =========================================================================
+    # Layer 4B: Taint/Dataflow Analysis
+    # (architecture inspired by Cisco AI Defense — see THIRD-PARTY-NOTICES.md)
+    # =========================================================================
+
+    def _scan_taint(self, skill_dir: Path) -> ScanLayerResult:
+        """Trace sensitive data from sources to sinks via dataflow analysis.
+
+        Reads all .py files from the skill directory into memory and runs
+        forward taint propagation to detect credential exfiltration and
+        data flow attacks.
+        """
+        result = ScanLayerResult(layer_name="taint", passed=True)
+
+        py_files = list(skill_dir.glob("**/*.py"))
+        if not py_files:
+            return result
+
+        # Read files into memory for the CrossFileAnalyzer
+        files_map: Dict[str, str] = {}
+        for py_file in py_files:
+            try:
+                rel_path = str(py_file.relative_to(skill_dir))
+                files_map[rel_path] = py_file.read_text(encoding="utf-8")
+            except (IOError, UnicodeDecodeError):
+                continue
+
+        if not files_map:
+            return result
+
+        try:
+            from tweek.security.taint_analyzer import CrossFileAnalyzer
+
+            analyzer = CrossFileAnalyzer(files_map)
+            findings = analyzer.analyze_all()
+
+            for finding in findings:
+                result.findings.append({
+                    "file": finding.file,
+                    "name": f"taint_{finding.source_type}_to_{finding.sink_type}",
+                    "severity": finding.severity,
+                    "description": finding.path_description,
+                    "source_file": finding.source_file,
+                    "source_line": finding.source_line,
+                    "source_detail": finding.source_detail,
+                    "sink_line": finding.sink_line,
+                    "sink_detail": finding.sink_detail,
+                })
+
+            if findings:
+                result.passed = False
+
+        except Exception as e:
+            result.issues.append(f"Taint analysis error: {e}")
 
         return result
 

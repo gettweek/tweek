@@ -4,14 +4,17 @@ Tweek Scan — Static Security Scanner for Skill Files
 Pre-scans skill files (.md) or skill directories for security risks before
 installation. Supports local files, local directories, and remote URLs.
 
-Runs the full 7-layer security pipeline in read-only mode:
-1. Structure Validation    — file types, size, depth, blocked extensions
-2. Pattern Matching        — 275 regex patterns (reuses audit.py)
-3. Secret Scanning         — credential detection (reuses secret_scanner.py)
-4. AST Analysis            — forbidden imports/calls in Python files
-5. Prompt Injection Scan   — skill-specific instruction injection patterns
-6. Exfiltration Detection  — network URLs, exfil sites, data sending
-7. LLM Semantic Review     — intent analysis (reuses llm_reviewer.py)
+Runs a multi-layer security pipeline in read-only mode:
+1.   Structure Validation    — file types, size, depth, blocked extensions
+2.   Pattern Matching        — 275+ regex patterns (reuses audit.py)
+2.5  YARA Rules              — 13 rules via yara-python (optional)
+3.   Secret Scanning         — credential detection (reuses secret_scanner.py)
+4.   AST Analysis            — forbidden imports/calls in Python files
+4B.  Taint/Dataflow Analysis — source→sink tracking (env vars, creds → network)
+4.5  Manifest-Code Consistency — cross-validates declared tools vs actual code
+5.   Prompt Injection Scan   — skill-specific injection + unicode steganography
+6.   Exfiltration Detection  — network URLs, exfil sites, data sending
+7.   LLM Semantic Review     — intent analysis (reuses llm_reviewer.py)
 
 Safety guarantees:
 - Purely read-only: no files are created, moved, or modified
@@ -514,6 +517,12 @@ class ContentScanner:
         layer4 = self._scan_ast(target)
         report.layers["ast"] = self._layer_to_dict(layer4)
 
+        # Layer 4B: Taint/Dataflow Analysis
+        layer4b = self._scan_taint(target)
+        if layer4b.findings or layer4b.issues:
+            report.layers["taint"] = self._layer_to_dict(layer4b)
+            self._accumulate_findings(report, layer4b)
+
         # Layer 4.5: Manifest-Code Consistency
         layer4_5 = self._scan_consistency(target)
         if layer4_5.findings or layer4_5.issues:
@@ -538,6 +547,12 @@ class ContentScanner:
             report.layers["llm_review"] = {
                 "passed": True, "skipped": True, "reason": "LLM review disabled"
             }
+
+        # Layer 7B: LLM Meta-Analysis (validates static findings with LLM context)
+        if self.config.llm_review_enabled:
+            meta_result = self._scan_meta_analysis(target, report)
+            if meta_result:
+                report.layers["meta_analysis"] = meta_result
 
         # Compute final verdict and risk
         report.verdict = self._compute_verdict(report, layer3, layer4)
@@ -770,6 +785,56 @@ class ContentScanner:
                 parts.append(current.id)
             return ".".join(reversed(parts))
         return ""
+
+    # =========================================================================
+    # Layer 4B: Taint/Dataflow Analysis
+    # (architecture inspired by Cisco AI Defense — see THIRD-PARTY-NOTICES.md)
+    # =========================================================================
+
+    def _scan_taint(self, target: ScanTarget) -> ScanLayerResult:
+        """Trace sensitive data from sources to sinks via dataflow analysis.
+
+        Uses forward taint propagation over a control flow graph to detect
+        credential exfiltration, env var leaks, and other data flow attacks
+        that simple forbidden-import checks cannot catch.
+        """
+        result = ScanLayerResult(layer_name="taint", passed=True)
+
+        py_files = {
+            path: content
+            for path, content in target.files.items()
+            if path.endswith(".py")
+        }
+
+        if not py_files:
+            return result  # No Python files to analyze
+
+        try:
+            from tweek.security.taint_analyzer import CrossFileAnalyzer
+
+            analyzer = CrossFileAnalyzer(py_files)
+            findings = analyzer.analyze_all()
+
+            for finding in findings:
+                result.findings.append({
+                    "file": finding.file,
+                    "name": f"taint_{finding.source_type}_to_{finding.sink_type}",
+                    "severity": finding.severity,
+                    "description": finding.path_description,
+                    "source_file": finding.source_file,
+                    "source_line": finding.source_line,
+                    "source_detail": finding.source_detail,
+                    "sink_line": finding.sink_line,
+                    "sink_detail": finding.sink_detail,
+                })
+
+            if findings:
+                result.passed = False
+
+        except Exception as e:
+            result.issues.append(f"Taint analysis error: {e}")
+
+        return result
 
     # =========================================================================
     # Layer 4.5: Manifest-Code Consistency Checking
@@ -1073,6 +1138,64 @@ class ContentScanner:
             })
 
         return result
+
+    # =========================================================================
+    # Layer 7B: LLM Meta-Analysis
+    # (inspired by Cisco AI Defense two-pass review — see THIRD-PARTY-NOTICES.md)
+    # =========================================================================
+
+    def _scan_meta_analysis(
+        self, target: ScanTarget, report: SkillScanReport
+    ) -> Optional[Dict[str, Any]]:
+        """Run meta-analysis to validate static findings with LLM context.
+
+        Takes all findings from static layers + initial LLM review, and asks
+        the LLM to validate/filter/enhance them. Reduces false positives and
+        catches semantic threats missed by static analysis alone.
+        """
+        # Collect all static findings
+        all_findings = []
+        for layer_data in report.layers.values():
+            if isinstance(layer_data, dict):
+                for f in layer_data.get("findings", []):
+                    if isinstance(f, dict) and f.get("severity") in ("critical", "high", "medium"):
+                        all_findings.append(f)
+
+        if not all_findings:
+            return None  # Nothing to validate
+
+        try:
+            from tweek.security.llm_reviewer import MetaAnalysisReviewer, get_llm_reviewer
+
+            reviewer = get_llm_reviewer()
+            if not reviewer.enabled or not reviewer._provider_instance:
+                return None
+
+            meta = MetaAnalysisReviewer(provider=reviewer._provider_instance)
+
+            # Build combined content
+            content_parts = []
+            for rel_path in sorted(target.files.keys()):
+                text = target.files[rel_path]
+                content_parts.append(f"=== {rel_path} ===\n{text[:2000]}")
+            combined = "\n\n".join(content_parts)[:6000]
+
+            result = meta.analyze(combined, all_findings)
+            if result:
+                return {
+                    "validated_count": len(result.validated_findings),
+                    "filtered_count": len(result.filtered_findings),
+                    "enhanced_count": len(result.enhanced_findings),
+                    "summary": result.summary,
+                    "confidence": result.confidence,
+                    "validated": result.validated_findings[:10],
+                    "filtered": result.filtered_findings[:10],
+                    "enhanced": result.enhanced_findings[:5],
+                }
+        except Exception:
+            pass  # Meta-analysis is best-effort enhancement
+
+        return None
 
     # =========================================================================
     # Verdict and Risk Computation (same logic as SkillScanner)

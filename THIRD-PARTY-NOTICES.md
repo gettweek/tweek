@@ -6,9 +6,11 @@ Tweek incorporates code and detection patterns from the following open-source pr
 
 ## Cisco AI Defense — skill-scanner
 
-YARA rules in `tweek/rules/yara/` and detection patterns in `tweek/skills/scanner.py`
+YARA rules in `tweek/rules/yara/`, detection patterns in `tweek/skills/scanner.py`
 (coercive injection, autonomy abuse, capability inflation, unicode steganography,
-and extended exfiltration host lists) are derived from:
+and extended exfiltration host lists), and the dataflow taint analysis architecture
+in `tweek/security/taint_analyzer.py` (CFG construction, forward taint propagation,
+source/sink detection) are derived from or inspired by:
 
 - **Repository:** https://github.com/cisco-ai-defense/skill-scanner
 - **License:** Apache License 2.0
