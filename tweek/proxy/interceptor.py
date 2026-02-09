@@ -143,19 +143,20 @@ class LLMAPIInterceptor:
         if not self.pattern_matcher:
             return InterceptionResult(allowed=True, provider=tool_call.provider)
 
-        # Build command string for pattern matching
-        # Handle common tool patterns
-        command = ""
-        tool_name = tool_call.name.lower()
+        # Normalize tool name and dispatch by capability
+        from tweek.tools.registry import normalize as _normalize_tool, get_registry
+        canonical = _normalize_tool(tool_call.name)
+        capability = get_registry().get_capability(canonical)
 
-        if tool_name in ("bash", "shell", "execute", "run_command"):
+        command = ""
+        if capability == "shell_execution":
             command = tool_call.input.get("command", "")
-        elif tool_name in ("read", "read_file", "cat"):
+        elif capability == "file_read":
             command = f"cat {tool_call.input.get('path', tool_call.input.get('file_path', ''))}"
-        elif tool_name in ("write", "write_file"):
+        elif capability == "file_write":
             path = tool_call.input.get('path', tool_call.input.get('file_path', ''))
             command = f"write to {path}"
-        elif tool_name in ("fetch", "web_fetch", "curl", "http"):
+        elif capability == "web_fetch":
             url = tool_call.input.get('url', '')
             command = f"curl {url}"
         else:

@@ -35,11 +35,16 @@ TAINT_RANK = {level: i for i, level in enumerate(TAINT_LEVELS)}
 # How many tool calls between taint decay steps
 DECAY_INTERVAL = 5
 
-# Tools classified as external content sources
-EXTERNAL_SOURCE_TOOLS = frozenset({"Read", "WebFetch", "WebSearch", "Grep"})
+# Tools classified as external content sources (derived from tool registry)
+def _tools_for_capabilities(*caps):
+    from tweek.tools.registry import get_registry
+    r = get_registry()
+    return frozenset(r.canonical_for_capability(c) for c in caps if r.canonical_for_capability(c))
+
+EXTERNAL_SOURCE_TOOLS = _tools_for_capabilities("file_read", "web_fetch", "web_search", "content_search")
 
 # Tools classified as action tools (user-context)
-ACTION_TOOLS = frozenset({"Bash", "Write", "Edit", "NotebookEdit"})
+ACTION_TOOLS = _tools_for_capabilities("shell_execution", "file_write", "file_edit", "notebook_edit")
 
 
 # =========================================================================

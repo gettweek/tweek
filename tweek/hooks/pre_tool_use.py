@@ -905,6 +905,9 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         Dict with hookSpecificOutput for Claude Code hook protocol
     """
     tool_name = input_data.get("tool_name", "")
+    # Normalize tool names across clients (exec→Bash, read_file→Read, etc.)
+    from tweek.tools.registry import normalize as _normalize_tool
+    tool_name = _normalize_tool(tool_name)
     tool_input = input_data.get("tool_input", {})
     session_id = input_data.get("session_id")
     working_dir = input_data.get("cwd")
@@ -1482,8 +1485,19 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                             "heuristic_below_threshold": True,
                         }
                     )
-        except Exception:
-            pass  # Heuristic scorer is best-effort
+        except Exception as e:
+            # Fail-closed: scorer crash escalates to LLM review rather than
+            # silently allowing.  If the scorer can't run, we can't be sure
+            # the content is safe — let the LLM make the call.
+            heuristic_escalated = True
+            screening_methods = list(screening_methods) + ["llm"]
+            _log(
+                EventType.ESCALATION,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier=effective_tier,
+                decision_reason=f"Heuristic scorer crash — escalating to LLM: {e}",
+            )
 
     # =========================================================================
     # LAYER 3: LLM Review (for risky/dangerous tiers, or heuristic-escalated)

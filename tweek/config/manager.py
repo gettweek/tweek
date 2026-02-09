@@ -609,6 +609,13 @@ class ConfigManager:
         known_tool_names = set(self.KNOWN_TOOLS.keys())
         known_skill_names = set(self.KNOWN_SKILLS.keys())
 
+        # Build alias→canonical mapping for tool name suggestions
+        try:
+            from tweek.tools.registry import get_registry
+            _registry = get_registry()
+        except Exception:
+            _registry = None
+
         for source_name, config in configs_to_check:
             if not config:
                 continue
@@ -633,19 +640,33 @@ class ConfigManager:
                 for tool_name, tier_value in tools.items():
                     # Check if tool name is known
                     if tool_name not in known_tool_names:
-                        # Check merged config tools too (custom tools are fine)
-                        merged_tools = self._get_merged().get("tools", {})
-                        if tool_name not in merged_tools:
-                            matches = difflib.get_close_matches(
-                                tool_name, known_tool_names, n=1, cutoff=0.6
-                            )
-                            suggestion = f"Did you mean '{matches[0]}'?" if matches else ""
+                        # Check if it's a known alias (e.g. "exec", "run_shell_command")
+                        canonical = None
+                        if _registry and _registry.is_known(tool_name):
+                            canonical = _registry.normalize(tool_name)
+
+                        if canonical and canonical != tool_name:
+                            # It's a valid alias — suggest the canonical name
                             issues.append(ConfigIssue(
                                 level="warning",
                                 key=f"tools.{tool_name}",
-                                message=f"Unknown tool '{tool_name}'",
-                                suggestion=suggestion,
+                                message=f"'{tool_name}' is an alias for '{canonical}'",
+                                suggestion=f"Use canonical name '{canonical}' instead.",
                             ))
+                        else:
+                            # Check merged config tools too (custom tools are fine)
+                            merged_tools = self._get_merged().get("tools", {})
+                            if tool_name not in merged_tools:
+                                matches = difflib.get_close_matches(
+                                    tool_name, known_tool_names, n=1, cutoff=0.6
+                                )
+                                suggestion = f"Did you mean '{matches[0]}'?" if matches else ""
+                                issues.append(ConfigIssue(
+                                    level="warning",
+                                    key=f"tools.{tool_name}",
+                                    message=f"Unknown tool '{tool_name}'",
+                                    suggestion=suggestion,
+                                ))
 
                     # Check tier value
                     if isinstance(tier_value, str) and tier_value not in valid_tiers:

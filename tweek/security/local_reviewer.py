@@ -47,9 +47,20 @@ class LocalModelReviewProvider(ReviewProvider):
     # produces severe false positives (e.g. classifying "./run.sh 2>&1"
     # as injection at 100% confidence).  Those tools should be handled by
     # pattern matching + cloud LLM escalation instead.
-    _CONTENT_TOOLS: frozenset = frozenset({
-        "Read", "WebFetch", "Grep", "WebSearch",
-    })
+    # Content-bearing tools where local model is useful (derived from tool registry)
+    _CONTENT_TOOLS: frozenset = frozenset()  # populated in __init_subclass__ or first access
+
+    @classmethod
+    def _get_content_tools(cls) -> frozenset:
+        if not cls._CONTENT_TOOLS:
+            from tweek.tools.registry import get_registry
+            r = get_registry()
+            cls._CONTENT_TOOLS = frozenset(
+                r.canonical_for_capability(c)
+                for c in ("file_read", "web_fetch", "content_search", "web_search")
+                if r.canonical_for_capability(c)
+            )
+        return cls._CONTENT_TOOLS
 
     def call(self, system_prompt: str, user_prompt: str, max_tokens: int = 256) -> str:
         """Run local inference and return JSON result.
@@ -80,7 +91,7 @@ class LocalModelReviewProvider(ReviewProvider):
         # The DeBERTa prompt-injection model only works on natural-language
         # content.  For shell commands and code, defer to cloud LLM or
         # pattern matching.
-        if tool_name and tool_name not in self._CONTENT_TOOLS:
+        if tool_name and tool_name not in self._get_content_tools():
             if self._escalation_provider:
                 return self._escalation_provider.call(
                     system_prompt, user_prompt, max_tokens

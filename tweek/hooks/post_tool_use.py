@@ -376,6 +376,9 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     Receives the full hook input and returns a decision.
     """
     tool_name = input_data.get("tool_name", "")
+    # Normalize tool names across clients (exec→Bash, read_file→Read, etc.)
+    from tweek.tools.registry import normalize as _normalize_tool
+    tool_name = _normalize_tool(tool_name)
     tool_input = input_data.get("tool_input", {})
     tool_response = input_data.get("tool_response")
     session_id = input_data.get("session_id")
@@ -434,12 +437,19 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     # For large content, use multi-chunk screening to avoid unscreened gaps.
     # Previous head+tail approach left the middle completely unscreened.
     # Now we sample head + middle + tail to cover all positions.
+    # The middle offset is jittered to prevent attackers from placing
+    # payloads at predictable sample boundaries.
     max_screen_length = 60000
     if len(content) > max_screen_length:
+        import random
         chunk_size = 20000
         head = content[:chunk_size]
-        # Sample from the middle to close the truncation gap
-        mid_start = len(content) // 2 - chunk_size // 2
+        # Jitter the middle sample offset by ±2000 bytes so boundaries
+        # are not deterministic across invocations.
+        mid_center = len(content) // 2
+        jitter = random.randint(-2000, 2000)
+        mid_start = max(chunk_size, min(mid_center - chunk_size // 2 + jitter,
+                                        len(content) - 2 * chunk_size))
         middle = content[mid_start:mid_start + chunk_size]
         tail = content[-chunk_size:]
         content = (
