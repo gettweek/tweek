@@ -712,6 +712,16 @@ def _install_claude_code_hooks(install_global: bool, dev_test: bool, backup: boo
     # Track this installation scope so `tweek uninstall --all` can find it
     _record_installed_scope(target)
 
+    # Auto-initialize file integrity baselines
+    try:
+        from tweek.security.file_watch import FileIntegrityMonitor
+        monitor = FileIntegrityMonitor()
+        created, _ = monitor.init_baselines(include_project=not install_global)
+        if created > 0:
+            console.print(f"[green]\u2713[/green] File integrity baselines: {created} files monitored")
+    except Exception:
+        pass  # Best-effort — don't block install
+
     console.print(f"[green]\u2713[/green] Tweek data directory: {tweek_dir}")
 
     # Create .tweek.yaml in the install directory (per-directory hook control)

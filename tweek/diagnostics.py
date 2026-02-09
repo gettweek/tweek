@@ -54,6 +54,7 @@ def run_health_checks(verbose: bool = False, interactive: bool = False) -> List[
         _check_mcp_available,
         _check_proxy_config,
         _check_plugin_integrity,
+        _check_file_integrity,
         _check_local_model,
         _check_llm_review,
     ]
@@ -611,6 +612,61 @@ def _check_plugin_integrity(verbose: bool = False) -> HealthCheck:
             label="Plugin Integrity",
             status=CheckStatus.WARNING,
             message=f"Cannot check plugins: {e}",
+        )
+
+
+def _check_file_integrity(verbose: bool = False) -> HealthCheck:
+    """Check integrity of critical security files against baselines."""
+    try:
+        from tweek.security.file_watch import FileIntegrityMonitor, BASELINES_PATH
+
+        if not BASELINES_PATH.exists():
+            return HealthCheck(
+                name="file_integrity",
+                label="File Integrity",
+                status=CheckStatus.WARNING,
+                message="No baselines configured",
+                fix_hint="Run: tweek watch init  (to establish file integrity baselines)",
+            )
+
+        monitor = FileIntegrityMonitor()
+        report = monitor.check_integrity()
+
+        if report.is_clean:
+            count = report.ok_count
+            return HealthCheck(
+                name="file_integrity",
+                label="File Integrity",
+                status=CheckStatus.OK,
+                message=f"{count} watched file{'s' if count != 1 else ''} verified",
+            )
+
+        parts = []
+        if report.modified_count:
+            parts.append(f"{report.modified_count} modified")
+        if report.missing_count:
+            parts.append(f"{report.missing_count} missing")
+
+        detail = ", ".join(parts)
+        if verbose:
+            drifted = [r for r in report.results
+                       if r.status.value in ("modified", "missing")]
+            for r in drifted[:3]:
+                detail += f"\n    {r.label}: {r.status.value}"
+
+        return HealthCheck(
+            name="file_integrity",
+            label="File Integrity",
+            status=CheckStatus.ERROR,
+            message=f"Drift detected: {detail}",
+            fix_hint="Run: tweek watch check  (to see details) or tweek watch restore <file>",
+        )
+    except Exception as e:
+        return HealthCheck(
+            name="file_integrity",
+            label="File Integrity",
+            status=CheckStatus.WARNING,
+            message=f"Cannot check integrity: {e}",
         )
 
 

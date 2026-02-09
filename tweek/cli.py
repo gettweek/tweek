@@ -89,6 +89,9 @@ from tweek.cli_security import override_group, feedback_group
 # Memory
 from tweek.cli_memory import memory_group
 
+# Watch (file integrity monitoring)
+from tweek.cli_watch import watch
+
 
 # Register all commands
 for cmd in [
@@ -117,6 +120,7 @@ for cmd in [
     override_group,
     feedback_group,
     memory_group,
+    watch,
 ]:
     main.add_command(cmd)
 

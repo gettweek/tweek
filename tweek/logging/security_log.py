@@ -311,6 +311,11 @@ class EventType(Enum):
     BREAK_GLASS = "break_glass"                         # Emergency override of hard block
     FALSE_POSITIVE_REPORT = "false_positive_report"     # User reported false positive
 
+    # File integrity events
+    FILE_INTEGRITY_VIOLATION = "file_integrity_violation"  # Drift detected
+    FILE_INTEGRITY_RESTORE = "file_integrity_restore"      # File restored from backup
+    FILE_INTEGRITY_APPROVE = "file_integrity_approve"      # Drift approved by user
+
     # System events
     HEALTH_CHECK = "health_check"           # Diagnostic check results
     STARTUP = "startup"                     # System initialization
