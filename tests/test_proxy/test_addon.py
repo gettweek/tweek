@@ -161,6 +161,41 @@ class TestAddonResponse:
         assert addon.stats["responses_blocked"] == 1
         assert addon.stats["tool_calls_blocked"] >= 1
 
+    def test_dangerous_sse_response_blocked(self):
+        """Regression: SSE streaming responses with dangerous tool calls must be blocked.
+
+        This is the primary regression test for the SSE screening gap. If someone
+        re-introduces an SSE bail-out, this test will catch it because the dangerous
+        tool call would pass through unscreened.
+        """
+        class MockMatcher:
+            def match(self, text):
+                if "rm -rf" in text:
+                    return ["destructive"]
+                return []
+
+        addon = TweekProxyAddon(pattern_matcher=MockMatcher(), block_mode=True)
+
+        # Build a realistic Anthropic SSE stream with a dangerous tool call
+        sse_body = (
+            'event: content_block_start\n'
+            'data: {"type":"content_block_start","index":0,"content_block":'
+            '{"type":"tool_use","id":"toolu_sse","name":"Bash","input":{}}}\n\n'
+            'event: content_block_delta\n'
+            'data: {"type":"content_block_delta","index":0,"delta":'
+            '{"type":"input_json_delta","partial_json":"{\\"command\\": \\"rm -rf /\\"}"}}\n\n'
+            'event: content_block_stop\n'
+            'data: {"type":"content_block_stop","index":0}\n\n'
+        ).encode()
+
+        flow = self._make_flow("api.anthropic.com", sse_body, "text/event-stream")
+        mock_response = MagicMock()
+        with patch("tweek.proxy.addon.http") as mock_http:
+            mock_http.Response.make.return_value = mock_response
+            addon.response(flow)
+        assert addon.stats["responses_blocked"] == 1
+        assert addon.stats["tool_calls_blocked"] >= 1
+
     def test_log_only_mode_no_block(self):
         class MockMatcher:
             def match(self, text):
