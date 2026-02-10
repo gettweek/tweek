@@ -72,6 +72,10 @@ class PatternMatcherPlugin(ScreeningPlugin):
 
         if patterns_path and patterns_path.exists():
             try:
+                # Verify signature for bundled patterns
+                if patterns_path == bundled_patterns:
+                    self._verify_bundled_signature(patterns_path)
+
                 with open(patterns_path) as f:
                     data = yaml.safe_load(f) or {}
                     self._patterns = data.get("patterns", [])
@@ -79,6 +83,50 @@ class PatternMatcherPlugin(ScreeningPlugin):
                 pass
 
         return self._patterns
+
+    def _verify_bundled_signature(self, patterns_path: Path) -> None:
+        """Verify the cryptographic signature of bundled patterns.
+
+        Logs a security event if verification fails but does not block
+        pattern loading (graceful degradation).
+        """
+        try:
+            from tweek.security.pattern_signer import verify_patterns_file
+
+            result = verify_patterns_file(patterns_path)
+
+            if result["sig_found"] and not result["verified"]:
+                # Signature exists but is invalid — possible tampering
+                try:
+                    from tweek.logging.security_log import (
+                        EventType,
+                        SecurityEvent,
+                        get_logger,
+                    )
+                    get_logger().log(SecurityEvent(
+                        event_type=EventType.FILE_INTEGRITY_VIOLATION,
+                        tool_name="pattern_matcher",
+                        decision="alert",
+                        decision_reason=f"Pattern signature invalid: {result['reason']}",
+                        metadata={
+                            "file": str(patterns_path),
+                            "reason": result["reason"],
+                            "key_id": result.get("key_id"),
+                        },
+                        source="pattern_matcher",
+                    ))
+                except Exception:
+                    pass
+
+            # Store verification result for diagnostics
+            self._signature_status = result
+        except Exception:
+            self._signature_status = {
+                "verified": False,
+                "reason": "verification_error",
+                "key_id": None,
+                "sig_found": False,
+            }
 
     def _get_compiled(self, pattern: str) -> Optional[re.Pattern]:
         """Get or compile a regex pattern."""

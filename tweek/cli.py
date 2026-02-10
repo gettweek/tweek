@@ -92,6 +92,9 @@ from tweek.cli_memory import memory_group
 # Watch (file integrity monitoring)
 from tweek.cli_watch import watch
 
+# Patterns (signing and verification)
+from tweek.cli_patterns import patterns
+
 
 # Register all commands
 for cmd in [
@@ -121,6 +124,7 @@ for cmd in [
     feedback_group,
     memory_group,
     watch,
+    patterns,
 ]:
     main.add_command(cmd)
 

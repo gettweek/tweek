@@ -367,6 +367,7 @@ COMMAND_TIERS = {
         "config",
         "audit",
         "watch",
+        "patterns",
     ],
 }
 
