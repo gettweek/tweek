@@ -908,6 +908,38 @@ tweek mcp decide abc12345 deny -n "Not authorized"
 
 ---
 
+## Evaluate Command (`tweek evaluate`)
+
+Evaluate a skill for security risks with permission and behavioral analysis. Runs the full 7-layer security scan plus permission manifest extraction, cross-validation of declared vs. actual capabilities, behavioral signal detection, and a synthesized approve/reject/review recommendation.
+
+### `tweek evaluate`
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `SOURCE` | (required) | Skill directory path, SKILL.md file, or URL |
+| `--llm-review / --no-llm-review` | on | Run LLM semantic review (requires API key) |
+| `--json, --json-output` | off | Output results as JSON |
+| `--approve` | off | Install skill via isolation chamber if evaluation passes |
+| `--target [global\|project]` | global | Install target when using --approve |
+| `--verbose, -v` | off | Show detailed behavioral signals and evidence |
+| `--save-report PATH` | none | Save the evaluation report JSON to a file |
+
+```bash
+tweek evaluate ./my-skill/                         # Evaluate a skill directory
+tweek evaluate ./SKILL.md                          # Evaluate a single SKILL.md file
+tweek evaluate ./my-skill/ --no-llm-review         # Skip LLM review (faster)
+tweek evaluate ./my-skill/ --json                  # Machine-readable JSON output
+tweek evaluate ./my-skill/ --approve               # Auto-install if evaluation passes
+tweek evaluate ./my-skill/ --approve --target project  # Install to project skills
+tweek evaluate ./my-skill/ --save-report report.json   # Save report for agent review
+```
+
+**Exit codes:** 0 = approve, 1 = reject, 2 = requires review
+
+**Plan Mode Agent:** Use with the `skill-evaluator` agent (`.claude/agents/skill-evaluator.md`) for interactive evaluation inside Claude Code sessions. Generate a report with `--save-report`, then invoke the agent to produce a detailed human-readable security assessment.
+
+---
+
 ## Cross-References
 
 - [MEMORY.md](MEMORY.md) -- Agentic memory system (cross-session learning)

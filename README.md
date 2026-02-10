@@ -60,6 +60,14 @@ tweek protect gemini                    # Gemini CLI (MCP proxy)
 tweek proxy setup                       # Cursor, Windsurf, Continue.dev (HTTP proxy)
 ```
 
+### Evaluate Skills Before Installing
+
+```bash
+tweek evaluate ./my-skill/                # Full security evaluation with recommendation
+tweek evaluate ./my-skill/ --approve      # Auto-install if evaluation passes
+tweek evaluate ./my-skill/ --json         # Machine-readable output
+```
+
 ### Verify
 
 ```bash
