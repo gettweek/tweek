@@ -11,6 +11,7 @@ Includes log redaction for sensitive data based on OpenClaw's security hardening
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -391,7 +392,8 @@ class SecurityLogger:
                     working_directory TEXT,
                     metadata_json TEXT,
                     correlation_id TEXT,
-                    source TEXT
+                    source TEXT,
+                    entry_hash TEXT
                 );
 
                 -- Index for common queries
@@ -457,6 +459,7 @@ class SecurityLogger:
         migrations = [
             ("correlation_id", "TEXT"),
             ("source", "TEXT"),
+            ("entry_hash", "TEXT"),
         ]
         for col_name, col_type in migrations:
             if col_name not in existing_columns:
@@ -512,14 +515,40 @@ class SecurityLogger:
         redacted_reason = _sanitize_for_log(redacted_reason)
 
         with self._get_connection() as conn:
+            # Get previous entry's hash for chaining
+            prev_row = conn.execute(
+                "SELECT entry_hash FROM security_events ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            prev_hash = prev_row["entry_hash"] if prev_row and prev_row["entry_hash"] else ""
+
+            # Build canonical representation for hashing
+            metadata_str = json.dumps(redacted_metadata) if redacted_metadata else None
+            entry_hash = self._compute_entry_hash(
+                prev_hash=prev_hash,
+                event_type=event.event_type.value,
+                tool_name=event.tool_name,
+                command=redacted_command,
+                tier=event.tier,
+                pattern_name=event.pattern_name,
+                pattern_severity=event.pattern_severity,
+                decision=event.decision,
+                decision_reason=redacted_reason,
+                user_response=event.user_response,
+                session_id=event.session_id,
+                working_directory=event.working_directory,
+                metadata_json=metadata_str,
+                correlation_id=event.correlation_id,
+                source=event.source,
+            )
+
             cursor = conn.execute("""
                 INSERT INTO security_events (
                     event_type, tool_name, command, tier,
                     pattern_name, pattern_severity,
                     decision, decision_reason, user_response,
                     session_id, working_directory, metadata_json,
-                    correlation_id, source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    correlation_id, source, entry_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 event.event_type.value,
                 event.tool_name,
@@ -532,9 +561,10 @@ class SecurityLogger:
                 event.user_response,
                 event.session_id,
                 event.working_directory,
-                json.dumps(redacted_metadata) if redacted_metadata else None,
+                metadata_str,
                 event.correlation_id,
                 event.source,
+                entry_hash,
             ))
             row_id = cursor.lastrowid
 
@@ -791,6 +821,152 @@ class SecurityLogger:
                     writer.writerow(dict(row))
 
             return len(rows)
+
+    # --- Hash chain methods ---
+
+    @staticmethod
+    def _compute_entry_hash(
+        prev_hash: str,
+        event_type: str,
+        tool_name: str,
+        command: Optional[str] = None,
+        tier: Optional[str] = None,
+        pattern_name: Optional[str] = None,
+        pattern_severity: Optional[str] = None,
+        decision: Optional[str] = None,
+        decision_reason: Optional[str] = None,
+        user_response: Optional[str] = None,
+        session_id: Optional[str] = None,
+        working_directory: Optional[str] = None,
+        metadata_json: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> str:
+        """Compute SHA-256 hash for chain entry.
+
+        Creates a canonical JSON representation of the event fields
+        (sorted keys, deterministic), prepends the previous hash,
+        and returns the SHA-256 hex digest.
+        """
+        canonical = json.dumps({
+            "command": command,
+            "correlation_id": correlation_id,
+            "decision": decision,
+            "decision_reason": decision_reason,
+            "event_type": event_type,
+            "metadata_json": metadata_json,
+            "pattern_name": pattern_name,
+            "pattern_severity": pattern_severity,
+            "session_id": session_id,
+            "source": source,
+            "tier": tier,
+            "tool_name": tool_name,
+            "user_response": user_response,
+            "working_directory": working_directory,
+        }, sort_keys=True, separators=(",", ":"))
+        payload = prev_hash + canonical
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def verify_chain(self) -> Dict[str, Any]:
+        """Verify the integrity of the entire hash chain.
+
+        Walks all entries chronologically and recomputes each hash.
+
+        Returns:
+            Dict with keys:
+                valid: bool — True if chain is intact
+                total: int — total entries checked
+                verified: int — entries that passed verification
+                broken_at: Optional[int] — first row ID where chain broke
+                unchained: int — entries with no entry_hash (legacy)
+                errors: List[Dict] — details of each broken link
+        """
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM security_events ORDER BY id ASC"
+            ).fetchall()
+
+        if not rows:
+            return {
+                "valid": True,
+                "total": 0,
+                "verified": 0,
+                "broken_at": None,
+                "unchained": 0,
+                "errors": [],
+            }
+
+        prev_hash = ""
+        verified = 0
+        unchained = 0
+        errors = []
+        broken_at = None
+
+        for row in rows:
+            row_dict = dict(row)
+            stored_hash = row_dict.get("entry_hash")
+
+            # Legacy entries without hashes are counted but not verified
+            if not stored_hash:
+                unchained += 1
+                prev_hash = ""  # Reset chain after unchained entry
+                continue
+
+            expected = self._compute_entry_hash(
+                prev_hash=prev_hash,
+                event_type=row_dict["event_type"],
+                tool_name=row_dict["tool_name"],
+                command=row_dict.get("command"),
+                tier=row_dict.get("tier"),
+                pattern_name=row_dict.get("pattern_name"),
+                pattern_severity=row_dict.get("pattern_severity"),
+                decision=row_dict.get("decision"),
+                decision_reason=row_dict.get("decision_reason"),
+                user_response=row_dict.get("user_response"),
+                session_id=row_dict.get("session_id"),
+                working_directory=row_dict.get("working_directory"),
+                metadata_json=row_dict.get("metadata_json"),
+                correlation_id=row_dict.get("correlation_id"),
+                source=row_dict.get("source"),
+            )
+
+            if expected == stored_hash:
+                verified += 1
+            else:
+                if broken_at is None:
+                    broken_at = row_dict["id"]
+                errors.append({
+                    "id": row_dict["id"],
+                    "event_type": row_dict["event_type"],
+                    "timestamp": row_dict.get("timestamp", ""),
+                    "expected_hash": expected[:16] + "...",
+                    "stored_hash": stored_hash[:16] + "...",
+                })
+
+            prev_hash = stored_hash
+
+        return {
+            "valid": len(errors) == 0,
+            "total": len(rows),
+            "verified": verified,
+            "broken_at": broken_at,
+            "unchained": unchained,
+            "errors": errors,
+        }
+
+    def get_chain_status(self) -> Dict[str, Any]:
+        """Quick chain health check (summary only).
+
+        Returns:
+            Dict with keys: valid, total, verified, unchained
+        """
+        result = self.verify_chain()
+        return {
+            "valid": result["valid"],
+            "total": result["total"],
+            "verified": result["verified"],
+            "unchained": result["unchained"],
+        }
 
 
 # Singleton instance for easy access

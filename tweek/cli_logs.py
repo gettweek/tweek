@@ -238,6 +238,98 @@ def logs_clear(days: int, confirm: bool):
         console.print("[white]No events to clear[/white]")
 
 
+@logs.command("verify",
+    epilog="""\b
+Examples:
+  tweek logs verify                      Verify audit log hash chain integrity
+  tweek logs verify --json               Output results as JSON
+  tweek logs verify --quiet              Only output if chain is broken (for CI)
+"""
+)
+@click.option("--json", "json_out", is_flag=True, help="Output as JSON")
+@click.option("--quiet", "-q", is_flag=True, help="Only output if chain is broken")
+def logs_verify(json_out: bool, quiet: bool):
+    """Verify the integrity of the audit log hash chain.
+
+    Each log entry contains a SHA-256 hash that chains from the previous
+    entry. This command walks the entire chain and detects:
+
+    - Tampered entries (hash mismatch)
+    - Deleted entries (chain gaps)
+    - Legacy entries (pre-chain, no hash)
+
+    Exit code 0 if chain is intact, 1 if tampering detected.
+    """
+    import sys
+
+    from tweek.logging.security_log import get_logger
+
+    logger = get_logger()
+    result = logger.verify_chain()
+
+    if json_out:
+        import json as json_mod
+        click.echo(json_mod.dumps(result, indent=2))
+        if not result["valid"]:
+            sys.exit(1)
+        return
+
+    if result["total"] == 0:
+        if not quiet:
+            console.print("[yellow]No log entries to verify[/yellow]")
+        return
+
+    if result["valid"]:
+        if not quiet:
+            console.print(
+                f"[green]\u2713[/green] Audit log chain verified: "
+                f"{result['verified']} entries intact"
+            )
+            if result["unchained"] > 0:
+                console.print(
+                    f"[dim]  {result['unchained']} legacy entries "
+                    f"(pre-chain, no hash)[/dim]"
+                )
+        return
+
+    # Chain is broken — show details
+    console.print(
+        f"[red]\u2717 Audit log chain BROKEN[/red] at entry #{result['broken_at']}"
+    )
+    console.print(
+        f"  {result['verified']} verified, "
+        f"{len(result['errors'])} tampered, "
+        f"{result['unchained']} unchained "
+        f"out of {result['total']} total"
+    )
+
+    if result["errors"]:
+        error_table = Table(title="Tampered Entries")
+        error_table.add_column("ID", justify="right")
+        error_table.add_column("Timestamp")
+        error_table.add_column("Event Type")
+        error_table.add_column("Expected Hash")
+        error_table.add_column("Stored Hash")
+
+        for err in result["errors"][:20]:  # Cap display at 20
+            error_table.add_row(
+                str(err["id"]),
+                err["timestamp"],
+                err["event_type"],
+                err["expected_hash"],
+                err["stored_hash"],
+            )
+
+        console.print(error_table)
+
+        if len(result["errors"]) > 20:
+            console.print(
+                f"[dim]  ... and {len(result['errors']) - 20} more[/dim]"
+            )
+
+    sys.exit(1)
+
+
 @logs.command("bundle",
     epilog="""\b
 Examples:
