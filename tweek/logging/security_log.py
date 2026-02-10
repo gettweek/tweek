@@ -317,6 +317,10 @@ class EventType(Enum):
     FILE_INTEGRITY_RESTORE = "file_integrity_restore"      # File restored from backup
     FILE_INTEGRITY_APPROVE = "file_integrity_approve"      # Drift approved by user
 
+    # PII tokenization events
+    PII_TOKENIZED = "pii_tokenized"                          # PII replaced with tokens
+    PII_DETOKENIZED = "pii_detokenized"                      # Tokens replaced with PII
+
     # System events
     HEALTH_CHECK = "health_check"           # Diagnostic check results
     STARTUP = "startup"                     # System initialization

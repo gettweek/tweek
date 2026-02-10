@@ -95,6 +95,9 @@ from tweek.cli_watch import watch
 # Patterns (signing and verification)
 from tweek.cli_patterns import patterns
 
+# PII tokenization management
+from tweek.cli_pii import pii
+
 
 # Register all commands
 for cmd in [
@@ -125,6 +128,7 @@ for cmd in [
     memory_group,
     watch,
     patterns,
+    pii,
 ]:
     main.add_command(cmd)
 

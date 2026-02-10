@@ -1193,6 +1193,34 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             return {}
 
     # =========================================================================
+    # LAYER 0.5: PII Tokenization (INPUT direction)
+    # Replace PII in tool input with reversible tokens before screening
+    # =========================================================================
+    pii_token_mapping = None
+    try:
+        from tweek.security.pii_tokenizer import get_tokenizer
+        _pii_tokenizer = get_tokenizer(session_id)
+        if _pii_tokenizer.is_enabled():
+            _tokenized_content, _pii_matches = _pii_tokenizer.tokenize(content, direction="input")
+            if _pii_matches:
+                pii_token_mapping = {m.token: m.entity_type for m in _pii_matches}
+                content = _tokenized_content
+                _log(
+                    EventType.PII_TOKENIZED,
+                    tool_name,
+                    command=None,
+                    decision="tokenize",
+                    decision_reason=f"Tokenized {len(_pii_matches)} PII entity(ies)",
+                    session_id=session_id,
+                    metadata={
+                        "entity_types": list(set(m.entity_type for m in _pii_matches)),
+                        "count": len(_pii_matches),
+                    },
+                )
+    except Exception:
+        pass  # PII tokenization is best-effort
+
+    # =========================================================================
     # LAYER 0: Compliance Scanning (INPUT direction)
     # Scan incoming content for sensitive data before processing
     # =========================================================================

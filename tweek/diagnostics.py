@@ -55,6 +55,7 @@ def run_health_checks(verbose: bool = False, interactive: bool = False) -> List[
         _check_proxy_config,
         _check_plugin_integrity,
         _check_file_integrity,
+        _check_pii_tokenizer,
         _check_local_model,
         _check_llm_review,
     ]
@@ -667,6 +668,47 @@ def _check_file_integrity(verbose: bool = False) -> HealthCheck:
             label="File Integrity",
             status=CheckStatus.WARNING,
             message=f"Cannot check integrity: {e}",
+        )
+
+
+def _check_pii_tokenizer(verbose: bool = False) -> HealthCheck:
+    """Check PII tokenization system health."""
+    try:
+        from tweek.security.token_store import TokenStore
+
+        store = TokenStore()
+        stats = store.get_stats()
+        store.close()
+
+        # Check detection backend
+        backend = "regex"
+        try:
+            from tweek.security.pii_tokenizer import _check_presidio
+
+            if _check_presidio():
+                backend = "presidio"
+        except Exception:
+            pass
+
+        parts = []
+        if stats["total_tokens"] > 0:
+            parts.append(f"{stats['total_tokens']} token(s)")
+        if stats["active_sessions"] > 0:
+            parts.append(f"{stats['active_sessions']} session(s)")
+        parts.append(f"backend: {backend}")
+
+        return HealthCheck(
+            name="pii_tokenizer",
+            label="PII Tokenizer",
+            status=CheckStatus.OK,
+            message=", ".join(parts),
+        )
+    except Exception as e:
+        return HealthCheck(
+            name="pii_tokenizer",
+            label="PII Tokenizer",
+            status=CheckStatus.WARNING,
+            message=f"Cannot check PII tokenizer: {e}",
         )
 
 

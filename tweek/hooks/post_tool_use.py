@@ -310,6 +310,39 @@ def screen_content(
         except Exception:
             pass  # Provenance is best-effort
 
+    # Step 4.5: PII De-tokenization / Outbound tokenization
+    # Replace tokens from pre-hook with original values, and tokenize
+    # any NEW PII found in tool responses
+    try:
+        from tweek.security.pii_tokenizer import get_tokenizer as _get_pii_tokenizer
+        _pii_tokenizer = _get_pii_tokenizer(session_id)
+        if _pii_tokenizer.is_enabled():
+            # De-tokenize any tokens from pre-hook
+            content = _pii_tokenizer.detokenize(content, session_id)
+            # Tokenize NEW PII found in response
+            _tokenized_resp, _outbound_matches = _pii_tokenizer.tokenize(
+                content, direction="output"
+            )
+            if _outbound_matches:
+                content = _tokenized_resp
+                try:
+                    from tweek.logging.security_log import get_logger as _get_sec_logger, EventType
+                    _get_sec_logger().log_quick(
+                        EventType.PII_TOKENIZED,
+                        tool_name,
+                        decision="tokenize",
+                        decision_reason=f"Tokenized {len(_outbound_matches)} PII entity(ies) in response",
+                        session_id=session_id,
+                        metadata={
+                            "direction": "output",
+                            "entity_types": list(set(m.entity_type for m in _outbound_matches)),
+                        },
+                    )
+                except Exception:
+                    pass
+    except Exception:
+        pass  # PII tokenization is best-effort
+
     # Step 5: Content redaction for critical deterministic matches
     # Replace matched content with [REDACTED] to prevent AI from acting on it
     redacted_content = None
