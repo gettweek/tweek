@@ -290,6 +290,24 @@ class TweekConfig(BaseModel):
 # ============================================================================
 
 
+class PatternClassification(BaseModel):
+    """CTAP-compatible classification metadata for a pattern."""
+    category: str
+    subcategory: Optional[str] = None
+    mitre_atlas: List[str] = Field(default_factory=list)
+    owasp_llm: List[str] = Field(default_factory=list)
+    owasp_agentic: List[str] = Field(default_factory=list)
+    target_type: str = "agent"
+    attack_surface: str = "tool_use"
+
+
+class PatternReference(BaseModel):
+    """A structured reference (CVE, URL, advisory)."""
+    type: str = "cve"
+    id: str = ""
+    url: Optional[str] = None
+
+
 class PatternDefinition(BaseModel):
     """A single attack pattern definition from patterns.yaml."""
     id: int
@@ -299,6 +317,9 @@ class PatternDefinition(BaseModel):
     severity: PatternSeverity
     confidence: PatternConfidence
     family: Optional[str] = None
+    classification: Optional[PatternClassification] = None
+    tags: List[str] = Field(default_factory=list)
+    references: List[PatternReference] = Field(default_factory=list)
 
     @field_validator("regex")
     @classmethod

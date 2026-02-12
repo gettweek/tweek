@@ -24,8 +24,8 @@
 #   contextual - Depends on surrounding context; broad behavioral pattern
 # PRO tier adds: LLM review, session analysis, rate limiting
 
-version: 6
-pattern_count: 275
+version: 7
+pattern_count: 291
 
 patterns:
   # ============================================================================
@@ -41,6 +41,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: ssh_key_read
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, ssh, key, read]
+    references: []
 
   - id: 2
     name: aws_credentials
@@ -49,6 +59,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: aws_credentials
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, aws, credentials]
+    references: []
 
   - id: 3
     name: env_file_access
@@ -57,6 +77,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: env_file_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, env, file, access]
+    references: []
 
   - id: 4
     name: keychain_dump
@@ -65,6 +95,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: keychain_dump
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, keychain, dump]
+    references: []
 
   - id: 5
     name: gcloud_credentials
@@ -73,6 +113,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: gcloud_credentials
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, gcloud, credentials]
+    references: []
 
   - id: 6
     name: netrc_access
@@ -81,6 +131,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: netrc_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, netrc, access]
+    references: []
 
   - id: 7
     name: kube_config
@@ -89,6 +149,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: kube_config
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, kube, config]
+    references: []
 
   - id: 8
     name: ssh_directory_access
@@ -97,6 +167,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: ssh_directory_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, ssh, directory, access]
+    references: []
 
   - id: 9
     name: env_variable_expansion
@@ -105,6 +185,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: env_variable_expansion
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, env, variable, expansion]
+    references: []
 
   - id: 10
     name: history_access
@@ -113,6 +203,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: history_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, history, access]
+    references: []
 
   # --- Network Exfiltration ---
   - id: 11
@@ -122,6 +222,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: curl_post_secrets
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, curl, post, secrets]
+    references: []
 
   - id: 12
     name: exfil_paste_sites
@@ -130,6 +240,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: exfil_paste_sites
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, exfil, paste, sites]
+    references: []
 
   - id: 13
     name: netcat_outbound
@@ -138,6 +258,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: netcat_outbound
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, netcat, outbound]
+    references: []
 
   - id: 14
     name: reverse_shell
@@ -146,6 +276,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: reverse_shell
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, reverse, shell]
+    references: []
 
   - id: 15
     name: curl_post_file
@@ -154,6 +294,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: curl_post_file
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, curl, post, file]
+    references: []
 
   - id: 16
     name: pipe_to_shell
@@ -162,6 +312,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: pipe_to_shell
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, pipe, shell]
+    references: []
 
   # --- Prompt Injection (basic) ---
   - id: 17
@@ -171,6 +331,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: instruction_override
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, instruction, override]
+    references: []
 
   - id: 18
     name: role_hijack
@@ -179,6 +349,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: role_hijack
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, role, hijack]
+    references: []
 
   - id: 19
     name: privilege_claim
@@ -187,6 +367,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: privilege_claim
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, privilege, claim]
+    references: []
 
   # --- Destructive Commands ---
   - id: 20
@@ -196,6 +386,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: destructive_ops
+    classification:
+      category: tool_abuse
+      subcategory: recursive_delete_root
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [destructive_ops, tool_abuse, tool_use, recursive, delete, root]
+    references: []
 
   - id: 21
     name: disk_wipe
@@ -204,6 +404,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: destructive_ops
+    classification:
+      category: tool_abuse
+      subcategory: disk_wipe
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [destructive_ops, tool_abuse, tool_use, disk, wipe]
+    references: []
 
   # --- Config Manipulation ---
   - id: 22
@@ -213,6 +423,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: autorun_config_write
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, autorun, config, write]
+    references: []
 
   - id: 23
     name: hook_bypass
@@ -221,6 +441,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: hook_bypass
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, hook, bypass]
+    references: []
 
   # ============================================================================
   # ADVANCED DETECTION (24-116)
@@ -235,6 +465,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: npm_token_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, npm, token, access]
+    references: []
 
   - id: 25
     name: docker_config_access
@@ -243,6 +483,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: docker_config_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, docker, config, access]
+    references: []
 
   - id: 26
     name: pypirc_access
@@ -251,6 +501,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: pypirc_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, pypirc, access]
+    references: []
 
   - id: 27
     name: git_credentials_access
@@ -259,6 +519,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: git_credentials_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, git, credentials, access]
+    references: []
 
   - id: 28
     name: azure_credentials
@@ -267,6 +537,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: azure_credentials
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, azure, credentials]
+    references: []
 
   - id: 29
     name: env_command
@@ -275,6 +555,16 @@ patterns:
     severity: medium
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: env_command
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, env, command]
+    references: []
 
   - id: 30
     name: browser_credential_theft
@@ -283,6 +573,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: browser_credential_theft
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, browser, credential, theft]
+    references: []
 
   - id: 31
     name: crypto_wallet_theft
@@ -291,6 +591,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: crypto_wallet_theft
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, crypto, wallet, theft]
+    references: []
 
   # --- Advanced Network Exfiltration ---
   - id: 32
@@ -300,6 +610,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: wget_post
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, wget, post]
+    references: []
 
   - id: 33
     name: base64_curl_pipe
@@ -308,6 +628,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: base64_curl_pipe
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, base64, curl, pipe]
+    references: []
 
   - id: 34
     name: dns_exfiltration
@@ -316,6 +646,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: dns_exfiltration
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, dns, exfiltration]
+    references: []
 
   - id: 35
     name: icmp_tunnel
@@ -324,6 +664,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: icmp_tunnel
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, icmp, tunnel]
+    references: []
 
   - id: 36
     name: curl_with_env
@@ -332,6 +682,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: curl_with_env
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, curl, env]
+    references: []
 
   - id: 37
     name: webhook_exfil
@@ -340,6 +700,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: webhook_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, webhook, exfil]
+    references: []
 
   - id: 38
     name: git_exfil
@@ -348,6 +718,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: git_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, git, exfil]
+    references: []
 
   - id: 39
     name: scp_exfil
@@ -356,6 +736,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: scp_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, scp, exfil]
+    references: []
 
   # --- Prompt Injection - Evasive (40-55) ---
   - id: 40
@@ -365,6 +755,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: policy_confusion
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, policy, confusion]
+    references: []
 
   - id: 41
     name: context_reset
@@ -373,6 +773,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: context_reset
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, context, reset]
+    references: []
 
   - id: 42
     name: system_prompt_extract
@@ -381,6 +791,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: system_prompt_extract
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, system, prompt, extract]
+    references: []
 
   - id: 43
     name: jailbreak_dan
@@ -389,6 +809,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: jailbreak_dan
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, jailbreak, dan]
+    references: []
 
   - id: 44
     name: base64_instruction
@@ -397,6 +827,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: base64_instruction
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, base64, instruction]
+    references: []
 
   - id: 45
     name: unicode_obfuscation
@@ -405,6 +845,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: unicode_obfuscation
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, unicode, obfuscation]
+    references: []
 
   - id: 46
     name: delimiter_injection
@@ -413,6 +863,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: delimiter_injection
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, delimiter, injection]
+    references: []
 
   - id: 47
     name: markdown_hidden
@@ -421,6 +881,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: markdown_hidden
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, markdown, hidden]
+    references: []
 
   - id: 48
     name: hex_encoded_command
@@ -429,6 +899,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: hex_encoded_command
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, hex, encoded, command]
+    references: []
 
   - id: 49
     name: rot13_obfuscation
@@ -437,6 +917,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: rot13_obfuscation
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, rot13, obfuscation]
+    references: []
 
   - id: 50
     name: leetspeak_bypass
@@ -445,6 +935,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: leetspeak_bypass
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, leetspeak, bypass]
+    references: []
 
   # --- Prompt Injection - Social/Cognitive (51-60) ---
   - id: 51
@@ -454,6 +954,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: urgency_pressure
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, urgency, pressure]
+    references: []
 
   - id: 52
     name: authority_claim
@@ -462,6 +972,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: authority_claim
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, authority, claim]
+    references: []
 
   - id: 53
     name: reciprocity_exploit
@@ -470,6 +990,16 @@ patterns:
     severity: low
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: reciprocity_exploit
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, reciprocity, exploit]
+    references: []
 
   - id: 54
     name: empathy_exploit
@@ -478,6 +1008,16 @@ patterns:
     severity: low
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: empathy_exploit
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, empathy, exploit]
+    references: []
 
   - id: 55
     name: flattery_manipulation
@@ -486,6 +1026,16 @@ patterns:
     severity: low
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: flattery_manipulation
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, flattery, manipulation]
+    references: []
 
   - id: 56
     name: authority_laundering
@@ -494,6 +1044,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: authority_laundering
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, authority, laundering]
+    references: []
 
   - id: 57
     name: moral_coercion
@@ -502,6 +1062,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: moral_coercion
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, moral, coercion]
+    references: []
 
   - id: 58
     name: benign_transformation_loophole
@@ -510,6 +1080,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: benign_transformation_loophole
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, benign, transformation, loophole]
+    references: []
 
   - id: 59
     name: hypothetical_operational
@@ -518,6 +1098,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: hypothetical_operational
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, hypothetical, operational]
+    references: []
 
   - id: 60
     name: capability_aggregation_signal
@@ -526,6 +1116,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: capability_aggregation_signal
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, capability, aggregation, signal]
+    references: []
 
   # --- ACIP-Inspired (61-65) ---
   - id: 61
@@ -535,6 +1135,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: out_of_band_exfil_request
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, out, band, exfil, request]
+    references: []
 
   - id: 62
     name: oracle_probing
@@ -543,6 +1153,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: oracle_probing
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, oracle, probing]
+    references: []
 
   - id: 63
     name: persona_simulation
@@ -551,6 +1171,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: persona_simulation
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, persona, simulation]
+    references: []
 
   # --- MCP CVEs (64-72) ---
   - id: 64
@@ -560,6 +1190,18 @@ patterns:
     severity: critical
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_remote_rce
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, remote, rce, cve]
+    references:
+      - type: cve
+        id: CVE-2025-6514
 
   - id: 65
     name: figma_mcp_rce
@@ -568,6 +1210,18 @@ patterns:
     severity: critical
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: figma_mcp_rce
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, figma, rce, cve]
+    references:
+      - type: cve
+        id: CVE-2025-53967
 
   - id: 66
     name: cursor_mcp_injection
@@ -576,6 +1230,18 @@ patterns:
     severity: critical
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: cursor_mcp_injection
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, cursor, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-64106
 
   - id: 67
     name: mcp_tool_poisoning
@@ -584,6 +1250,16 @@ patterns:
     severity: critical
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_tool_poisoning
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, tool, poisoning]
+    references: []
 
   - id: 68
     name: mcp_path_traversal
@@ -592,6 +1268,16 @@ patterns:
     severity: critical
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_path_traversal
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, path, traversal]
+    references: []
 
   - id: 69
     name: mcp_protocol_injection
@@ -600,6 +1286,16 @@ patterns:
     severity: critical
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_protocol_injection
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, protocol, injection]
+    references: []
 
   - id: 70
     name: mcp_sampling_abuse
@@ -608,6 +1304,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_sampling_abuse
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, sampling, abuse]
+    references: []
 
   - id: 71
     name: mcp_rug_pull
@@ -616,6 +1322,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_rug_pull
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, rug, pull]
+    references: []
 
   # --- Claude-Specific CVEs (72-78) ---
   - id: 72
@@ -625,6 +1341,18 @@ patterns:
     severity: critical
     confidence: heuristic
     family: system_recon
+    classification:
+      category: data_exfiltration
+      subcategory: claude_system_spoof
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [system_recon, data_exfiltration, tool_use, claude, system, spoof, cve]
+    references:
+      - type: cve
+        id: CVE-2025-54794
 
   - id: 73
     name: claude_path_bypass
@@ -633,6 +1361,18 @@ patterns:
     severity: critical
     confidence: heuristic
     family: system_recon
+    classification:
+      category: data_exfiltration
+      subcategory: claude_path_bypass
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [system_recon, data_exfiltration, tool_use, claude, path, bypass, cve]
+    references:
+      - type: cve
+        id: CVE-2025-54795
 
   - id: 74
     name: claude_file_exfil
@@ -641,6 +1381,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: claude_file_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, claude, file, exfil]
+    references: []
 
   - id: 75
     name: cursorrules_injection
@@ -649,6 +1399,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: cursorrules_injection
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, cursorrules, injection]
+    references: []
 
   - id: 76
     name: skill_chaining
@@ -657,6 +1417,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: skill_chaining
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, skill, chaining]
+    references: []
 
   - id: 77
     name: cowork_exfil
@@ -665,6 +1435,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: cowork_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, cowork, exfil]
+    references: []
 
   # --- Multi-Agent Attacks (78-82) ---
   - id: 78
@@ -674,6 +1454,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: peer_agent_request
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, peer, agent, request]
+    references: []
 
   - id: 79
     name: inter_agent_delegation
@@ -682,6 +1472,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: inter_agent_delegation
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, inter, agent, delegation]
+    references: []
 
   - id: 80
     name: agent_trust_exploit
@@ -690,6 +1490,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: agent_trust_exploit
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, agent, trust, exploit]
+    references: []
 
   - id: 81
     name: agent_chain_attack
@@ -698,6 +1508,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: agent_chain_attack
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, agent, chain, attack]
+    references: []
 
   # --- RAG Poisoning (82-86) ---
   - id: 82
@@ -707,6 +1527,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: hidden_text_injection
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, hidden, text, injection]
+    references: []
 
   - id: 83
     name: document_metadata_injection
@@ -715,6 +1545,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: document_metadata_injection
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, document, metadata, injection]
+    references: []
 
   - id: 84
     name: comment_injection
@@ -723,6 +1563,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: comment_injection
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, comment, injection]
+    references: []
 
   - id: 85
     name: pdf_js_injection
@@ -731,6 +1581,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: pdf_js_injection
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, pdf, injection]
+    references: []
 
   # --- Covert Exfiltration Channels (86-92) ---
   - id: 86
@@ -740,6 +1600,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: covert_channels
+    classification:
+      category: data_exfiltration
+      subcategory: log_to_leak
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [covert_channels, data_exfiltration, tool_use, log, leak]
+    references: []
 
   - id: 87
     name: error_message_exfil
@@ -748,6 +1618,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: covert_channels
+    classification:
+      category: data_exfiltration
+      subcategory: error_message_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [covert_channels, data_exfiltration, tool_use, error, message, exfil]
+    references: []
 
   - id: 88
     name: timing_channel
@@ -756,6 +1636,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: covert_channels
+    classification:
+      category: data_exfiltration
+      subcategory: timing_channel
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [covert_channels, data_exfiltration, tool_use, timing, channel]
+    references: []
 
   - id: 89
     name: clipboard_exfil
@@ -764,6 +1654,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: clipboard_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, clipboard, exfil]
+    references: []
 
   - id: 90
     name: screenshot_exfil
@@ -772,6 +1672,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: screenshot_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, screenshot, exfil]
+    references: []
 
   - id: 91
     name: steganography_exfil
@@ -780,6 +1690,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: steganography_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, steganography, exfil]
+    references: []
 
   # --- Config Manipulation (92-96) ---
   - id: 92
@@ -789,6 +1709,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: settings_manipulation
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, settings, manipulation]
+    references: []
 
   - id: 93
     name: gitconfig_manipulation
@@ -797,6 +1727,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: gitconfig_manipulation
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, gitconfig, manipulation]
+    references: []
 
   # --- macOS-Specific (94-101) ---
   - id: 94
@@ -806,6 +1746,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: applescript_password_prompt
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, applescript, password, prompt]
+    references: []
 
   - id: 95
     name: launchagent_persistence
@@ -814,6 +1764,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: launchagent_persistence
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, launchagent]
+    references: []
 
   - id: 96
     name: login_item_persistence
@@ -822,6 +1782,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: login_item_persistence
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, login, item]
+    references: []
 
   - id: 97
     name: tcc_bypass
@@ -830,6 +1800,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: tcc_bypass
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, tcc, bypass]
+    references: []
 
   - id: 98
     name: keychain_unlock
@@ -838,6 +1818,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: keychain_unlock
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, keychain, unlock]
+    references: []
 
   # --- Sandbox Evasion (99-102) ---
   - id: 99
@@ -847,6 +1837,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: sandbox_escape
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, sandbox, escape]
+    references: []
 
   - id: 100
     name: container_escape
@@ -855,6 +1855,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: container_escape
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, container, escape]
+    references: []
 
   - id: 101
     name: chroot_escape
@@ -863,6 +1873,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: chroot_escape
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, chroot, escape]
+    references: []
 
   # --- Code Injection (102-107) ---
   - id: 102
@@ -872,6 +1892,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: eval_command
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, eval, command]
+    references: []
 
   - id: 214
     name: exec_dynamic
@@ -880,6 +1910,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: exec_dynamic
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, exec, dynamic]
+    references: []
 
   - id: 215
     name: compile_dynamic
@@ -888,6 +1928,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: compile_dynamic
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, compile, dynamic]
+    references: []
 
   - id: 103
     name: source_remote
@@ -896,6 +1946,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: source_remote
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, source, remote]
+    references: []
 
   - id: 104
     name: dyld_injection
@@ -904,6 +1964,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: dyld_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, dyld, injection]
+    references: []
 
   - id: 105
     name: app_bundle_tampering
@@ -912,6 +1982,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: app_bundle_tampering
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, app, bundle, tampering]
+    references: []
 
   - id: 106
     name: fork_bomb
@@ -920,6 +2000,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: destructive_ops
+    classification:
+      category: tool_abuse
+      subcategory: fork_bomb
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [destructive_ops, tool_abuse, tool_use, fork, bomb]
+    references: []
 
   - id: 107
     name: force_overwrite
@@ -928,6 +2018,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: destructive_ops
+    classification:
+      category: tool_abuse
+      subcategory: force_overwrite
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [destructive_ops, tool_abuse, tool_use, force, overwrite]
+    references: []
 
   # --- Reconnaissance (108-111) ---
   - id: 108
@@ -937,6 +2037,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: system_recon
+    classification:
+      category: data_exfiltration
+      subcategory: system_profiling
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [system_recon, data_exfiltration, tool_use, system, profiling]
+    references: []
 
   - id: 109
     name: network_scanning
@@ -945,6 +2055,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: system_recon
+    classification:
+      category: data_exfiltration
+      subcategory: network_scanning
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [system_recon, data_exfiltration, tool_use, network, scanning]
+    references: []
 
   - id: 110
     name: process_enumeration
@@ -953,6 +2073,16 @@ patterns:
     severity: low
     confidence: contextual
     family: system_recon
+    classification:
+      category: data_exfiltration
+      subcategory: process_enumeration
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [system_recon, data_exfiltration, tool_use, process, enumeration]
+    references: []
 
   # --- Encoding/Obfuscation (111-114) ---
   - id: 111
@@ -962,6 +2092,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: base64_encode_secrets
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, base64, encode, secrets]
+    references: []
 
   - id: 112
     name: xxd_encode
@@ -970,6 +2110,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: xxd_encode
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, xxd, encode]
+    references: []
 
   - id: 113
     name: gzip_obfuscation
@@ -978,6 +2128,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: gzip_obfuscation
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, gzip, obfuscation]
+    references: []
 
   # --- Permission Changes (114-116) ---
   - id: 114
@@ -987,6 +2147,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: chmod_sensitive
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, chmod, sensitive]
+    references: []
 
   - id: 115
     name: chown_escalation
@@ -995,6 +2165,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: chown_escalation
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, chown, escalation]
+    references: []
 
   - id: 116
     name: setuid_modification
@@ -1003,6 +2183,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: setuid_modification
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, setuid, modification]
+    references: []
 
   # Evasion technique patterns (117-126)
   - id: 117
@@ -1012,6 +2202,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: python_file_read
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, python, file, read]
+    references: []
 
   - id: 118
     name: curl_write_sensitive
@@ -1020,6 +2220,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: curl_write_sensitive
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, curl, write, sensitive]
+    references: []
 
   - id: 119
     name: tar_sensitive_dirs
@@ -1028,6 +2238,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: tar_sensitive_dirs
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, tar, sensitive, dirs]
+    references: []
 
   - id: 120
     name: cp_credentials_to_temp
@@ -1036,6 +2256,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: cp_credentials_to_temp
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, credentials, temp]
+    references: []
 
   - id: 121
     name: symlink_credential_access
@@ -1044,6 +2274,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: symlink_credential_access
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, symlink, credential, access]
+    references: []
 
   - id: 122
     name: find_exec_credentials
@@ -1052,6 +2292,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: find_exec_credentials
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, find, exec, credentials]
+    references: []
 
   - id: 123
     name: perl_ruby_file_read
@@ -1060,6 +2310,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: perl_ruby_file_read
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, perl, ruby, file, read]
+    references: []
 
   - id: 124
     name: tee_exfil
@@ -1068,6 +2328,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: tee_exfil
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, tee, exfil]
+    references: []
 
   - id: 125
     name: importlib_evasion
@@ -1076,6 +2346,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: importlib_evasion
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, importlib, evasion]
+    references: []
 
   - id: 126
     name: variable_indirection
@@ -1084,6 +2364,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: variable_indirection
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, variable, indirection]
+    references: []
 
   # ============================================================================
   # CVE GAP COVERAGE PATTERNS (127-168)
@@ -1102,6 +2392,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: pandas_eval_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, pandas, eval, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-46724
 
   - id: 128
     name: sympify_eval_injection
@@ -1110,6 +2412,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: sympify_eval_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, sympify, eval, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2024-46946
 
   - id: 129
     name: llm_exec_chain
@@ -1118,6 +2432,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: llm_exec_chain
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, llm, exec, chain, cve]
+    references:
+      - type: cve
+        id: CVE-2023-29374
 
   - id: 130
     name: langchain_rce_wrappers
@@ -1126,6 +2452,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: langchain_rce_wrappers
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, langchain, rce, wrappers, cve]
+    references:
+      - type: cve
+        id: CVE-2023-34540
 
   - id: 131
     name: langchain_serialization_injection
@@ -1134,6 +2472,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: langchain_serialization_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, langchain, serialization, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-68664
 
   - id: 132
     name: langchain_path_traversal
@@ -1142,6 +2492,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: langchain_path_traversal
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, langchain, path, traversal, cve]
+    references:
+      - type: cve
+        id: CVE-2024-28088
 
   - id: 133
     name: llm_ssrf_api_base
@@ -1150,6 +2512,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: llm_ssrf_api_base
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, llm, ssrf, api, cve]
+    references:
+      - type: cve
+        id: CVE-2025-2828
 
   # --- IDE/Editor Config File Manipulation (134-139) ---
   # CVE-2025-54135, CVE-2025-59944, CVE-2025-53098, CVE-2025-68433, CVE-2025-54133
@@ -1161,6 +2535,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: ide_mcp_config_write
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, ide, config, write, cve]
+    references:
+      - type: cve
+        id: CVE-2025-54135
 
   - id: 135
     name: cursor_dotfile_write
@@ -1169,6 +2555,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: cursor_dotfile_write
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, cursor, dotfile, write, cve]
+    references:
+      - type: cve
+        id: CVE-2025-54135
 
   - id: 136
     name: roo_config_manipulation
@@ -1177,6 +2575,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: roo_config_manipulation
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, roo, config, manipulation, cve]
+    references:
+      - type: cve
+        id: CVE-2025-53098
 
   - id: 137
     name: zed_settings_rce
@@ -1185,6 +2595,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: zed_settings_rce
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, zed, settings, rce, cve]
+    references:
+      - type: cve
+        id: CVE-2025-68433
 
   - id: 138
     name: ide_config_case_bypass
@@ -1193,6 +2615,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: ide_config_case_bypass
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, ide, config, case, cve]
+    references:
+      - type: cve
+        id: CVE-2025-59944
 
   - id: 139
     name: mcp_server_injection
@@ -1201,6 +2635,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_server_injection
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, server, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-54133
 
   # --- MCP OAuth/Auth Attacks (140-142) ---
   # CVE-2025-54074, CVE-2025-61591, CVE-2025-66416
@@ -1212,6 +2658,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_oauth_injection
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, oauth, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-61591
 
   - id: 141
     name: mcp_malicious_server_rce
@@ -1220,6 +2678,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_malicious_server_rce
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, malicious, server, rce, cve]
+    references:
+      - type: cve
+        id: CVE-2025-54074
 
   - id: 142
     name: dns_rebinding_localhost
@@ -1228,6 +2698,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: dns_rebinding_localhost
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, dns, rebinding, localhost, cve]
+    references:
+      - type: cve
+        id: CVE-2025-66416
 
   # --- Container/Network Isolation Bypass (143-145) ---
   # GHSA-gpx9-96j6-pp87
@@ -1239,6 +2721,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: docker_host_internal
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, docker, host, internal]
+    references: []
 
   - id: 144
     name: container_localhost_bypass
@@ -1247,6 +2739,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: container_localhost_bypass
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, container, localhost, bypass]
+    references: []
 
   - id: 145
     name: cloud_metadata_ssrf
@@ -1255,6 +2757,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: credential_theft
+    classification:
+      category: credential_theft
+      subcategory: cloud_metadata_ssrf
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI03, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [credential_theft, tool_use, cloud, metadata, ssrf]
+    references: []
 
   # --- Symlink Path Traversal (146-148) ---
   # CVE-2025-59829, CVE-2025-53110, CVE-2025-53109
@@ -1266,6 +2778,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: path_traversal
+    classification:
+      category: tool_abuse
+      subcategory: symlink_path_bypass
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [path_traversal, tool_abuse, tool_use, symlink, path, bypass, cve]
+    references:
+      - type: cve
+        id: CVE-2025-59829
 
   - id: 147
     name: mcp_filesystem_symlink
@@ -1274,6 +2798,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: path_traversal
+    classification:
+      category: tool_abuse
+      subcategory: mcp_filesystem_symlink
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [path_traversal, tool_abuse, tool_use, mcp, filesystem, symlink, cve]
+    references:
+      - type: cve
+        id: CVE-2025-53110
 
   - id: 148
     name: symlink_prefix_bypass
@@ -1282,6 +2818,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: path_traversal
+    classification:
+      category: tool_abuse
+      subcategory: symlink_prefix_bypass
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [path_traversal, tool_abuse, tool_use, symlink, prefix, bypass, cve]
+    references:
+      - type: cve
+        id: CVE-2025-53109
 
   # --- Markdown/Rendering RCE Chains (149-152) ---
   # CVE-2026-22793, CVE-2025-66222, CVE-2025-59417
@@ -1293,6 +2841,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: mermaid_xss_rce
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, mermaid, xss, rce, cve]
+    references:
+      - type: cve
+        id: CVE-2025-66222
 
   - id: 150
     name: echarts_option_injection
@@ -1301,6 +2861,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: echarts_option_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, echarts, option, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2026-22793
 
   - id: 151
     name: svg_script_injection
@@ -1309,6 +2881,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: svg_script_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, svg, script, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-59417
 
   - id: 152
     name: markdown_html_rce
@@ -1317,6 +2901,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: markdown_html_rce
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, markdown, html, rce]
+    references: []
 
   # --- Unsafe Deserialization/Template Injection (153-157) ---
   # CVE-2024-23730, CVE-2025-6985, CVE-2025-59340
@@ -1328,6 +2922,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: yaml_unsafe_load
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, yaml, unsafe, load, cve]
+    references:
+      - type: cve
+        id: CVE-2024-23730
 
   - id: 154
     name: xslt_xxe_injection
@@ -1336,6 +2942,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: xslt_xxe_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, xslt, xxe, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-6985
 
   - id: 155
     name: jinja_template_injection
@@ -1344,6 +2962,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: jinja_template_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, jinja, template, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2025-59340
 
   - id: 156
     name: pickle_deserialization
@@ -1352,6 +2982,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: pickle_deserialization
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, pickle, deserialization]
+    references: []
 
   - id: 157
     name: java_deserialization
@@ -1360,6 +3000,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: java_deserialization
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, java, deserialization]
+    references: []
 
   # --- SSRF/Request Forgery (158-160) ---
   # CVE-2024-6587, CVE-2024-27565, CVE-2025-34072
@@ -1371,6 +3021,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: ssrf_internal_network
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, ssrf, internal, network]
+    references: []
 
   - id: 159
     name: slack_mcp_link_unfurl
@@ -1379,6 +3039,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: slack_mcp_link_unfurl
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, slack, mcp, link, unfurl, cve]
+    references:
+      - type: cve
+        id: CVE-2025-34072
 
   - id: 160
     name: ssrf_redirect_bypass
@@ -1387,6 +3059,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: ssrf_redirect_bypass
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, ssrf, redirect, bypass]
+    references: []
 
   # --- SQL/NoSQL Injection via LLM Tools (161-164) ---
   # CVE-2024-7042, CVE-2024-8309, CVE-2025-67509
@@ -1398,6 +3080,18 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: sql_injection_outfile
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, sql, injection, outfile, cve]
+    references:
+      - type: cve
+        id: CVE-2025-67509
 
   - id: 162
     name: sql_injection_union
@@ -1406,6 +3100,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: sql_injection_union
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, sql, injection, union]
+    references: []
 
   - id: 163
     name: cypher_injection
@@ -1414,6 +3118,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: cypher_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, cypher, injection, cve]
+    references:
+      - type: cve
+        id: CVE-2024-7042
 
   - id: 164
     name: nosql_injection
@@ -1422,6 +3138,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: nosql_injection
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, nosql, injection]
+    references: []
 
   # --- Supply Chain Attacks (165-167) ---
   # CVE-2025-59333, CVE-2025-59046, CVE-2026-24056
@@ -1433,6 +3159,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: supply_chain
+    classification:
+      category: supply_chain_attack
+      subcategory: npm_install_url
+      mitre_atlas: [AML.T0049, AML.T0056]
+      owasp_llm: [LLM05]
+      owasp_agentic: [ASI04]
+      target_type: system
+      attack_surface: supply_chain
+    tags: [supply_chain, supply_chain_attack, supply_chain, npm, install, url, cve]
+    references:
+      - type: cve
+        id: CVE-2025-59333
 
   - id: 166
     name: pip_install_url
@@ -1441,6 +3179,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: supply_chain
+    classification:
+      category: supply_chain_attack
+      subcategory: pip_install_url
+      mitre_atlas: [AML.T0049, AML.T0056]
+      owasp_llm: [LLM05]
+      owasp_agentic: [ASI04]
+      target_type: system
+      attack_surface: supply_chain
+    tags: [supply_chain, supply_chain_attack, supply_chain, pip, install, url]
+    references: []
 
   - id: 167
     name: pnpm_symlink_traversal
@@ -1449,6 +3197,18 @@ patterns:
     severity: medium
     confidence: contextual
     family: supply_chain
+    classification:
+      category: supply_chain_attack
+      subcategory: pnpm_symlink_traversal
+      mitre_atlas: [AML.T0049, AML.T0056]
+      owasp_llm: [LLM05]
+      owasp_agentic: [ASI04]
+      target_type: system
+      attack_surface: supply_chain
+    tags: [supply_chain, supply_chain_attack, supply_chain, pnpm, symlink, traversal, cve]
+    references:
+      - type: cve
+        id: CVE-2026-24056
 
   # --- WebSocket/Local API Attacks (168) ---
   # CVE-2025-52882, CVE-2025-59956
@@ -1460,6 +3220,18 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: websocket_unauthorized_connect
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, websocket, unauthorized, connect, cve]
+    references:
+      - type: cve
+        id: CVE-2025-52882
 
   # ============================================================================
   # PROMPT INJECTION - BROAD STRUCTURAL DETECTION (169-215)
@@ -1478,6 +3250,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: decode_execute_instruction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, decode, execute, instruction]
+    references: []
 
   - id: 170
     name: base64_in_conversation
@@ -1486,6 +3268,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: base64_in_conversation
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, base64, conversation]
+    references: []
 
   - id: 171
     name: hex_string_in_conversation
@@ -1494,6 +3286,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: hex_string_in_conversation
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, hex, string, conversation]
+    references: []
 
   - id: 172
     name: encoded_payload_with_instruction
@@ -1502,6 +3304,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: encoded_payload_with_instruction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, encoded, payload, instruction]
+    references: []
 
   - id: 173
     name: reversed_text_with_instruction
@@ -1510,6 +3322,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: reversed_text_with_instruction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, reversed, text, instruction]
+    references: []
 
   - id: 174
     name: leetspeak_instruction_bypass
@@ -1518,6 +3340,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: leetspeak_instruction_bypass
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, leetspeak, instruction, bypass]
+    references: []
 
   - id: 175
     name: output_base64_exfil
@@ -1526,6 +3358,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: output_base64_exfil
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, output, base64, exfil]
+    references: []
 
   - id: 176
     name: output_hex_exfil
@@ -1534,6 +3376,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: output_hex_exfil
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, output, hex, exfil]
+    references: []
 
   - id: 177
     name: decode_follow_message_combo
@@ -1542,6 +3394,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: decode_follow_message_combo
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, decode, follow, message, combo]
+    references: []
 
   - id: 178
     name: encoded_message_then_instruction
@@ -1550,6 +3412,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: encoded_message_then_instruction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, encoded, message, then, instruction]
+    references: []
 
   # --- Direct Prompt Extraction (179-186) ---
 
@@ -1560,6 +3432,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_completion_bait
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, completion, bait]
+    references: []
 
   - id: 180
     name: prompt_format_request
@@ -1568,6 +3450,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_format_request
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, format, request]
+    references: []
 
   - id: 181
     name: prompt_translate_request
@@ -1576,6 +3468,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_translate_request
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, translate, request]
+    references: []
 
   - id: 182
     name: prompt_meta_discussion
@@ -1584,6 +3486,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_meta_discussion
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, meta, discussion]
+    references: []
 
   - id: 183
     name: prompt_contrast_query
@@ -1592,6 +3504,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_contrast_query
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, contrast, query]
+    references: []
 
   - id: 184
     name: prompt_first_word_extraction
@@ -1600,6 +3522,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_first_word_extraction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, first, word, extraction]
+    references: []
 
   - id: 185
     name: prompt_blunt_output
@@ -1608,6 +3540,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_blunt_output
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, blunt, output]
+    references: []
 
   - id: 186
     name: prompt_educational_pretext
@@ -1616,6 +3558,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: prompt_educational_pretext
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, prompt, educational, pretext]
+    references: []
 
   # --- Social Engineering (187-193) ---
 
@@ -1626,6 +3578,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_admin_display
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, admin, display]
+    references: []
 
   - id: 188
     name: social_developer_wrote
@@ -1634,6 +3596,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_developer_wrote
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, developer, wrote]
+    references: []
 
   - id: 189
     name: social_gaslight_already
@@ -1642,6 +3614,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_gaslight_already
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, gaslight, already]
+    references: []
 
   - id: 190
     name: social_memory_probe
@@ -1650,6 +3632,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_memory_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, memory, probe]
+    references: []
 
   - id: 191
     name: social_proof_sharing
@@ -1658,6 +3650,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_proof_sharing
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, proof, sharing]
+    references: []
 
   - id: 192
     name: social_friendship_trust
@@ -1666,6 +3668,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_friendship_trust
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, friendship, trust]
+    references: []
 
   - id: 193
     name: social_double_bind
@@ -1674,6 +3686,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_double_bind
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, double, bind]
+    references: []
 
   # --- Technical Exploitation (194-201) ---
 
@@ -1684,6 +3706,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_system_debug_mode
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, system, debug, mode]
+    references: []
 
   - id: 195
     name: tech_priority_supersede
@@ -1692,6 +3724,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_priority_supersede
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, priority, supersede]
+    references: []
 
   - id: 196
     name: tech_function_simulate
@@ -1700,6 +3742,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_function_simulate
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, function, simulate]
+    references: []
 
   - id: 197
     name: tech_xml_config_dump
@@ -1708,6 +3760,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_xml_config_dump
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, xml, config, dump]
+    references: []
 
   - id: 198
     name: tech_negative_space_probe
@@ -1716,6 +3778,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_negative_space_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, negative, space, probe]
+    references: []
 
   - id: 199
     name: tech_permission_probe
@@ -1724,6 +3796,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_permission_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, permission, probe]
+    references: []
 
   - id: 200
     name: tech_error_dump_context
@@ -1732,6 +3814,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_error_dump_context
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, error, dump, context]
+    references: []
 
   - id: 201
     name: tech_context_window_probe
@@ -1740,6 +3832,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: tech_context_window_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, tech, context, window, probe]
+    references: []
 
   # --- Crescendo, CoT Hijack, Many-Shot, ASCII Art, Advanced (202-215) ---
 
@@ -1750,6 +3852,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: crescendo_guidelines_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, crescendo, guidelines, probe]
+    references: []
 
   - id: 203
     name: crescendo_ai_documentation
@@ -1758,6 +3870,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: crescendo_ai_documentation
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, crescendo, documentation]
+    references: []
 
   - id: 204
     name: cot_step_extract
@@ -1766,6 +3888,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: cot_step_extract
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, cot, step, extract]
+    references: []
 
   - id: 205
     name: cot_schema_exploit
@@ -1774,6 +3906,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: cot_schema_exploit
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, cot, schema, exploit]
+    references: []
 
   - id: 206
     name: many_shot_compliance
@@ -1782,6 +3924,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: many_shot_compliance
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, many, shot, compliance]
+    references: []
 
   - id: 207
     name: many_shot_roleplay_comply
@@ -1790,6 +3942,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: many_shot_roleplay_comply
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, many, shot, roleplay, comply]
+    references: []
 
   - id: 208
     name: ascii_art_instruction
@@ -1798,6 +3960,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: ascii_art_instruction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, ascii, art, instruction]
+    references: []
 
   - id: 209
     name: advanced_godmode
@@ -1806,6 +3978,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: advanced_godmode
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, advanced, godmode]
+    references: []
 
   - id: 210
     name: advanced_policy_puppetry
@@ -1814,6 +3996,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: advanced_policy_puppetry
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, advanced, policy, puppetry]
+    references: []
 
   - id: 211
     name: advanced_dual_output
@@ -1822,6 +4014,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: advanced_dual_output
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, advanced, dual, output]
+    references: []
 
   - id: 212
     name: social_cognitive_overload
@@ -1830,6 +4032,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_cognitive_overload
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, cognitive, overload]
+    references: []
 
   - id: 213
     name: social_urgency_compliance
@@ -1838,6 +4050,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: social_urgency_compliance
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, social, urgency, compliance]
+    references: []
 
   # ============================================================================
   # GAP ANALYSIS PATTERNS (216-249)
@@ -1857,6 +4079,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: reverse_shell_python
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, reverse, shell, python]
+    references: []
 
   - id: 217
     name: reverse_shell_php
@@ -1865,6 +4097,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: reverse_shell_php
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, reverse, shell, php]
+    references: []
 
   - id: 218
     name: reverse_shell_perl_ruby
@@ -1873,6 +4115,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: reverse_shell_perl_ruby
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, reverse, shell, perl, ruby]
+    references: []
 
   - id: 219
     name: reverse_shell_mkfifo
@@ -1881,6 +4133,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: reverse_shell_mkfifo
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, reverse, shell, mkfifo]
+    references: []
 
   - id: 220
     name: reverse_shell_encoded
@@ -1889,6 +4151,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: reverse_shell_encoded
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, reverse, shell, encoded]
+    references: []
 
   # --- AI Agent Workflow Attacks (221-224) ---
   # 346 CVEs related to AI agents; only 4 prior patterns
@@ -1901,6 +4173,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: agent_tool_redirection
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, agent, tool, redirection]
+    references: []
 
   - id: 222
     name: agent_unsandboxed_exec
@@ -1909,6 +4191,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: agent_unsandboxed_exec
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, agent, unsandboxed, exec]
+    references: []
 
   - id: 223
     name: agent_scope_escalation
@@ -1917,6 +4209,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: agent_scope_escalation
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, agent, scope, escalation]
+    references: []
 
   - id: 224
     name: agent_memory_poisoning
@@ -1925,6 +4227,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: agent_memory_poisoning
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, agent, memory, poisoning]
+    references: []
 
   # --- Privilege Escalation (225-229) ---
   # 50 CVEs tagged privilege-escalation; only 3 prior patterns (chmod/chown/setuid)
@@ -1936,6 +4248,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: privesc_sudo_abuse
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, privesc, sudo, abuse]
+    references: []
 
   - id: 226
     name: privesc_suid_hunt
@@ -1944,6 +4266,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: privesc_suid_hunt
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, privesc, suid, hunt]
+    references: []
 
   - id: 227
     name: privesc_cron_inject
@@ -1952,6 +4284,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: privesc_cron_inject
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, privesc, cron, inject]
+    references: []
 
   - id: 228
     name: privesc_path_hijack
@@ -1960,6 +4302,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: privesc_path_hijack
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, privesc, path, hijack]
+    references: []
 
   - id: 229
     name: privesc_capability_abuse
@@ -1968,6 +4320,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: privesc_capability_abuse
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, privesc, capability, abuse]
+    references: []
 
   # --- Advanced Sandbox Escape (230-233) ---
   # 192 CVEs tagged sandbox-escape; addresses Python import chains,
@@ -1980,6 +4342,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: sandbox_import_chain
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, sandbox, import, chain]
+    references: []
 
   - id: 231
     name: sandbox_magic_domain_variants
@@ -1988,6 +4360,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: sandbox_magic_domain_variants
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, sandbox, magic, domain]
+    references: []
 
   - id: 232
     name: sandbox_proc_leak
@@ -1996,6 +4378,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: sandbox_proc_leak
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, sandbox, proc, leak]
+    references: []
 
   - id: 233
     name: sandbox_whitelisted_escape
@@ -2004,6 +4396,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: sandbox_escape
+    classification:
+      category: privilege_escalation
+      subcategory: sandbox_whitelisted_escape
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [sandbox_escape, privilege_escalation, code_execution, sandbox, whitelisted, escape]
+    references: []
 
   # --- LLM Code Generation RCE (234-236) ---
   # 381 CVEs tagged RCE; addresses framework-mediated code execution,
@@ -2016,6 +4418,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: llm_code_interpreter_exec
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, llm, code, interpreter]
+    references: []
 
   - id: 235
     name: llm_shell_generation
@@ -2024,6 +4436,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: llm_shell_generation
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, llm, shell, generation]
+    references: []
 
   - id: 236
     name: llm_node_vm_escape
@@ -2032,6 +4454,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: llm_node_vm_escape
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, llm, node, escape]
+    references: []
 
   # --- Tool Poisoning / MCP Extended (237-240) ---
   # Addresses hidden Unicode in tool descriptions, prompt injection via
@@ -2044,6 +4476,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_hidden_unicode_instruction
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, hidden, unicode, instruction]
+    references: []
 
   - id: 238
     name: mcp_response_injection
@@ -2052,6 +4494,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_response_injection
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, response, injection]
+    references: []
 
   - id: 239
     name: mcp_cross_tool_chain
@@ -2060,6 +4512,16 @@ patterns:
     severity: medium
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_cross_tool_chain
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, cross, tool, chain]
+    references: []
 
   - id: 240
     name: mcp_description_manipulation
@@ -2068,6 +4530,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: mcp_attacks
+    classification:
+      category: tool_abuse
+      subcategory: mcp_description_manipulation
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: tool
+      attack_surface: mcp
+    tags: [mcp_attacks, tool_abuse, mcp, description, manipulation]
+    references: []
 
   # --- Deserialization Expansion (241-243) ---
   # 22 CVEs; extends beyond pickle/yaml to marshal, dill, cloudpickle, jsonpickle
@@ -2079,6 +4551,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: python_marshal_deserialize
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, python, marshal, deserialize]
+    references: []
 
   - id: 242
     name: python_dill_cloudpickle
@@ -2087,6 +4569,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: python_dill_cloudpickle
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, python, dill, cloudpickle]
+    references: []
 
   - id: 243
     name: jsonpickle_deserialize
@@ -2095,6 +4587,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: jsonpickle_deserialize
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, jsonpickle, deserialize]
+    references: []
 
   # --- SSRF Cloud Metadata (244-245) ---
   # 35 CVEs; extends cloud metadata coverage beyond AWS to GCP, Azure, link-local
@@ -2106,6 +4608,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: ssrf_cloud_metadata_gcp_azure
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, ssrf, cloud, metadata]
+    references: []
 
   - id: 245
     name: ssrf_link_local_bypass
@@ -2114,6 +4626,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: ssrf_link_local_bypass
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, ssrf, link, local]
+    references: []
 
   # --- Path Traversal Variants (246-247) ---
   # 46 CVEs; extends beyond symlink patterns to encoded traversal and null bytes
@@ -2125,6 +4647,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: path_traversal
+    classification:
+      category: tool_abuse
+      subcategory: path_traversal_encoded
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [path_traversal, tool_abuse, tool_use, path, traversal, encoded]
+    references: []
 
   - id: 247
     name: path_traversal_windows
@@ -2133,6 +4665,16 @@ patterns:
     severity: medium
     confidence: heuristic
     family: path_traversal
+    classification:
+      category: tool_abuse
+      subcategory: path_traversal_windows
+      mitre_atlas: [AML.T0056, AML.T0057]
+      owasp_llm: [LLM07, LLM08]
+      owasp_agentic: [ASI02]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [path_traversal, tool_abuse, tool_use, path, traversal, windows]
+    references: []
 
   # --- Supply Chain Attacks (248-249) ---
   # 6 tagged CVEs but underreported; typosquatting and post-install scripts
@@ -2144,6 +4686,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: supply_chain
+    classification:
+      category: supply_chain_attack
+      subcategory: supply_chain_typosquat_ai
+      mitre_atlas: [AML.T0049, AML.T0056]
+      owasp_llm: [LLM05]
+      owasp_agentic: [ASI04]
+      target_type: system
+      attack_surface: supply_chain
+    tags: [supply_chain, supply_chain_attack, supply_chain, supply, chain, typosquat]
+    references: []
 
   - id: 249
     name: supply_chain_postinstall_exec
@@ -2152,6 +4704,16 @@ patterns:
     severity: medium
     confidence: heuristic
     family: supply_chain
+    classification:
+      category: supply_chain_attack
+      subcategory: supply_chain_postinstall_exec
+      mitre_atlas: [AML.T0049, AML.T0056]
+      owasp_llm: [LLM05]
+      owasp_agentic: [ASI04]
+      target_type: system
+      attack_surface: supply_chain
+    tags: [supply_chain, supply_chain_attack, supply_chain, supply, chain, postinstall]
+    references: []
 
   # ============================================================================
   # RED TEAM HARDENING PATTERNS (250-259)
@@ -2171,6 +4733,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: indirect_creator_extraction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, indirect, creator, extraction]
+    references: []
 
   - id: 251
     name: verbatim_repeat_framing
@@ -2179,6 +4751,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: verbatim_repeat_framing
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, verbatim, repeat, framing]
+    references: []
 
   - id: 252
     name: authentication_flow_extraction
@@ -2187,6 +4769,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: authentication_flow_extraction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, authentication, flow, extraction]
+    references: []
 
   - id: 253
     name: internal_architecture_probe
@@ -2195,6 +4787,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: internal_architecture_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, internal, architecture, probe]
+    references: []
 
   # --- Crescendo Openers (254-256) ---
   # Gradual escalation from benign curiosity about AI design was the most
@@ -2207,6 +4809,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: crescendo_design_philosophy
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, crescendo, design, philosophy]
+    references: []
 
   - id: 255
     name: crescendo_ai_curiosity
@@ -2215,6 +4827,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: crescendo_ai_curiosity
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, crescendo, curiosity]
+    references: []
 
   - id: 256
     name: crescendo_helpfulness_probe
@@ -2223,6 +4845,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: crescendo_helpfulness_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, crescendo, helpfulness, probe]
+    references: []
 
   # --- PostToolUse Self-Descriptive Leak Detection (257-259) ---
   # Even when attacks bypassed screening, the target LLM sometimes paraphrased
@@ -2235,6 +4867,16 @@ patterns:
     severity: low
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: self_describe_purpose
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, self, describe, purpose]
+    references: []
 
   - id: 258
     name: self_describe_protection
@@ -2243,6 +4885,16 @@ patterns:
     severity: low
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: self_describe_protection
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, self, describe, protection]
+    references: []
 
   - id: 259
     name: self_describe_instructions
@@ -2251,6 +4903,16 @@ patterns:
     severity: low
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: self_describe_instructions
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, self, describe, instructions]
+    references: []
 
   - id: 260
     name: summarize_instructions_extraction
@@ -2259,6 +4921,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: summarize_instructions_extraction
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, summarize, instructions, extraction]
+    references: []
 
   - id: 261
     name: special_instructions_probe
@@ -2267,6 +4939,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: special_instructions_probe
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, special, instructions, probe]
+    references: []
 
   - id: 262
     name: system_prompt_reference_broad
@@ -2275,6 +4957,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: prompt_injection
+    classification:
+      category: prompt_injection
+      subcategory: system_prompt_reference_broad
+      mitre_atlas: [AML.T0048, AML.T0051, AML.T0052]
+      owasp_llm: [LLM01]
+      owasp_agentic: [ASI01]
+      target_type: llm
+      attack_surface: llm
+    tags: [prompt_injection, llm, system, prompt, reference, broad]
+    references: []
 
   # ============================================================================
   # TERMINAL & URL SECURITY PATTERNS (263-275)
@@ -2293,6 +4985,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: punycode_domain
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, punycode, domain]
+    references: []
 
   - id: 264
     name: non_ascii_hostname
@@ -2301,6 +5003,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: non_ascii_hostname
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, non, ascii, hostname]
+    references: []
 
   # --- Homoglyph Script Detection (265-266) ---
 
@@ -2311,6 +5023,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: cyrillic_in_url
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, cyrillic, url]
+    references: []
 
   - id: 266
     name: greek_in_url
@@ -2319,6 +5041,16 @@ patterns:
     severity: medium
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: greek_in_url
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, greek, url]
+    references: []
 
   # --- Bidi Text Direction Attacks (267) ---
 
@@ -2329,6 +5061,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: bidi_isolate_chars
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, bidi, isolate, chars]
+    references: []
 
   # --- URL Spoofing (268-270) ---
 
@@ -2339,6 +5081,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: url_userinfo_trick
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, url, userinfo, trick]
+    references: []
 
   - id: 269
     name: lookalike_tld
@@ -2347,6 +5099,16 @@ patterns:
     severity: medium
     confidence: contextual
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: lookalike_tld
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, lookalike, tld]
+    references: []
 
   - id: 270
     name: fullwidth_dot_in_url
@@ -2355,6 +5117,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: fullwidth_dot_in_url
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, fullwidth, dot, url]
+    references: []
 
   # --- Insecure Transport (271-272) ---
 
@@ -2365,6 +5137,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: supply_chain
+    classification:
+      category: supply_chain_attack
+      subcategory: insecure_tls_flags
+      mitre_atlas: [AML.T0049, AML.T0056]
+      owasp_llm: [LLM05]
+      owasp_agentic: [ASI04]
+      target_type: system
+      attack_surface: supply_chain
+    tags: [supply_chain, supply_chain_attack, supply_chain, insecure, tls, flags]
+    references: []
 
   - id: 272
     name: shortened_url_to_shell
@@ -2373,6 +5155,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: shortened_url_to_shell
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, shortened, url, shell]
+    references: []
 
   # --- Dotfile Persistence & Encoding (273-275) ---
 
@@ -2383,6 +5175,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: dotfile_overwrite_via_redirect
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, dotfile, overwrite, redirect]
+    references: []
 
   - id: 274
     name: double_encoding_in_url
@@ -2391,6 +5193,16 @@ patterns:
     severity: medium
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: double_encoding_in_url
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, double, encoding, url]
+    references: []
 
   - id: 275
     name: raw_ip_url_to_shell
@@ -2399,6 +5211,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: data_exfiltration
+    classification:
+      category: data_exfiltration
+      subcategory: raw_ip_url_to_shell
+      mitre_atlas: [AML.T0053, AML.T0054]
+      owasp_llm: [LLM01, LLM06]
+      owasp_agentic: [ASI01, ASI06]
+      target_type: agent
+      attack_surface: tool_use
+    tags: [data_exfiltration, tool_use, raw, url, shell]
+    references: []
 
   # --- Obfuscation Detection (276-281) ---
   # Detect encoded/obfuscated payloads piped to execution.
@@ -2411,6 +5233,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: base64_decode_exec
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, base64, decode, exec]
+    references: []
 
   - id: 277
     name: echo_base64_pipe
@@ -2419,6 +5251,16 @@ patterns:
     severity: high
     confidence: deterministic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: echo_base64_pipe
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, echo, base64, pipe]
+    references: []
 
   - id: 278
     name: hex_decode_exec
@@ -2427,6 +5269,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: hex_decode_exec
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, hex, decode, exec]
+    references: []
 
   - id: 279
     name: eval_encoded_payload
@@ -2435,6 +5287,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: eval_encoded_payload
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, eval, encoded, payload]
+    references: []
 
   - id: 280
     name: openssl_decode_exec
@@ -2443,6 +5305,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: openssl_decode_exec
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, openssl, decode, exec]
+    references: []
 
   - id: 281
     name: suspicious_long_base64
@@ -2451,6 +5323,16 @@ patterns:
     severity: medium
     confidence: heuristic
     family: evasion_techniques
+    classification:
+      category: encoding_evasion
+      subcategory: suspicious_long_base64
+      mitre_atlas: [AML.T0050, AML.T0048]
+      owasp_llm: [LLM01, LLM02]
+      owasp_agentic: [ASI01, ASI05]
+      target_type: llm
+      attack_surface: llm
+    tags: [evasion_techniques, encoding_evasion, llm, suspicious, long, base64]
+    references: []
 
   # --- Persistence Detection (282-287) ---
   # Detect attempts to establish persistent access via OS-level mechanisms.
@@ -2463,6 +5345,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: launchagent_dir_write
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, launchagent, dir, write]
+    references: []
 
   - id: 283
     name: launchdaemon_dir_write
@@ -2471,6 +5363,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: launchdaemon_dir_write
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, launchdaemon, dir, write]
+    references: []
 
   - id: 284
     name: systemd_service_creation
@@ -2479,6 +5381,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: systemd_service_creation
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, systemd, service, creation]
+    references: []
 
   - id: 285
     name: cron_modification
@@ -2487,6 +5399,16 @@ patterns:
     severity: high
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: cron_modification
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, cron, modification]
+    references: []
 
   - id: 286
     name: shell_profile_append
@@ -2495,6 +5417,16 @@ patterns:
     severity: high
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: shell_profile_append
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, shell, profile, append]
+    references: []
 
   - id: 287
     name: authorized_keys_modification
@@ -2503,6 +5435,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: persistence
+    classification:
+      category: privilege_escalation
+      subcategory: authorized_keys_modification
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [persistence, privilege_escalation, tool_use, authorized, keys, modification]
+    references: []
 
   # --- macOS Quarantine & Gatekeeper Bypass (288-290) ---
   # Detect removal of macOS security attributes that prevent execution of downloaded files.
@@ -2515,6 +5457,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: quarantine_removal
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, quarantine, removal]
+    references: []
 
   - id: 289
     name: xattr_security_removal
@@ -2523,6 +5475,16 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: xattr_security_removal
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, xattr, security, removal]
+    references: []
 
   - id: 290
     name: gatekeeper_disable
@@ -2531,6 +5493,16 @@ patterns:
     severity: critical
     confidence: deterministic
     family: privilege_escalation
+    classification:
+      category: privilege_escalation
+      subcategory: gatekeeper_disable
+      mitre_atlas: [AML.T0057, AML.T0050]
+      owasp_llm: [LLM08]
+      owasp_agentic: [ASI03, ASI02]
+      target_type: system
+      attack_surface: tool_use
+    tags: [privilege_escalation, tool_use, gatekeeper, disable]
+    references: []
 
   - id: 291
     name: chmod_exec_downloaded
@@ -2539,3 +5511,13 @@ patterns:
     severity: high
     confidence: heuristic
     family: code_injection
+    classification:
+      category: code_security
+      subcategory: chmod_exec_downloaded
+      mitre_atlas: [AML.T0055, AML.T0056]
+      owasp_llm: [LLM02, LLM07]
+      owasp_agentic: [ASI05, ASI02]
+      target_type: system
+      attack_surface: code_execution
+    tags: [code_injection, code_security, code_execution, chmod, exec, downloaded]
+    references: []
