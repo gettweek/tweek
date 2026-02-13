@@ -7,9 +7,9 @@ This hook intercepts tool calls before execution and applies tiered security scr
 Security Layers (Defense in Depth):
 0. Self-Protection - Block AI modification of security config
 0S. Skill Guard - Block direct skill directory manipulation
+W. Whitelist Check - Early exit for trusted tool+path combos
 1. Rate Limiting - Early flood/DoS protection (base tier)
 C. Compliance Scanning - Non-bypassable regulatory checks (HIPAA/PCI/GDPR)
-W. Whitelist Check - Skip screening for trusted tool+path combos
 P. PII Tokenization - Protect PII from reaching external LLMs
 T. Tier Classification - Determine effective tier with escalations
 2. Pattern Matching - Regex patterns for known attack vectors
@@ -1267,6 +1267,29 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             pass  # Best-effort — fall through to normal screening
 
     # =========================================================================
+    # WHITELIST CHECK (early exit — skip all screening for trusted combos)
+    # Moved before rate limiting, compliance, PII, and pattern matching so
+    # whitelisted operations exit the pipeline immediately with zero overhead.
+    # Compliance scanning is intentionally AFTER this: if you need compliance
+    # checks on whitelisted ops, move this block below compliance.
+    # =========================================================================
+    overrides = _sandbox.get_overrides() if _sandbox else get_overrides()
+    enforcement_policy = overrides.get_enforcement_policy() if overrides else EnforcementPolicy()
+    if overrides:
+        whitelist_match = overrides.check_whitelist(tool_name, tool_input, content)
+        if whitelist_match:
+            _log(
+                EventType.ALLOWED,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier="whitelisted",
+                decision="allow",
+                decision_reason=f"Whitelisted: {whitelist_match.get('reason', 'matched whitelist rule')}",
+                metadata={"whitelist_rule": whitelist_match}
+            )
+            return {}
+
+    # =========================================================================
     # LAYER 1: Rate Limiting (early check — resource protection)
     # Uses base tier (fast dict lookup) to prevent DoS/flood attacks before
     # expensive compliance scanning, PII tokenization, and tier classification.
@@ -1341,27 +1364,6 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                 "permissionDecisionReason": f" COMPLIANCE BLOCK\n{compliance_msg}",
             }
         }
-
-    # =========================================================================
-    # WHITELIST CHECK: Skip pattern/LLM screening for whitelisted combinations
-    # Compliance has already run — whitelist only bypasses security screening.
-    # Uses project-scoped overrides (additive-only merge) if sandbox active.
-    # =========================================================================
-    overrides = _sandbox.get_overrides() if _sandbox else get_overrides()
-    enforcement_policy = overrides.get_enforcement_policy() if overrides else EnforcementPolicy()
-    if overrides:
-        whitelist_match = overrides.check_whitelist(tool_name, tool_input, content)
-        if whitelist_match:
-            _log(
-                EventType.ALLOWED,
-                tool_name,
-                command=content if tool_name == "Bash" else None,
-                tier="whitelisted",
-                decision="allow",
-                decision_reason=f"Whitelisted: {whitelist_match.get('reason', 'matched whitelist rule')}",
-                metadata={"whitelist_rule": whitelist_match}
-            )
-            return {}
 
     # =========================================================================
     # PII Tokenization (INPUT direction)
