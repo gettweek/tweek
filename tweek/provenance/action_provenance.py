@@ -11,8 +11,8 @@ Provenance Lattice (lowest → highest trust):
   UNKNOWN(0) → TAINT_INFLUENCED(1) → SKILL_CONTEXT(2) →
   AGENT_GENERATED(3) → USER_INITIATED(4) → USER_VERIFIED(5)
 
-USER_VERIFIED persists for the entire run/turn once a user approves an `ask`
-prompt, until taint escalation resets it (invariant #6: taint resets trust).
+USER_VERIFIED persists for ASK_VERIFICATION_WINDOW (50) tool calls after
+approval, then expires. Also reset by taint escalation (invariant #6).
 """
 
 from __future__ import annotations
@@ -71,15 +71,19 @@ def classify_provenance(
     if active_skill:
         return "skill_context"
 
-    # Priority 3: Check for user ask-approval (persists for entire run)
+    # Priority 3: Check for user ask-approval (with expiry window)
     try:
-        from tweek.memory.provenance import get_taint_store
+        from tweek.memory.provenance import get_taint_store, ASK_VERIFICATION_WINDOW
         store = get_taint_store()
         state = store.get_session_taint(session_id)
 
-        # USER_VERIFIED: user approved an ask prompt and taint hasn't reset it
+        # USER_VERIFIED: user approved an ask prompt, taint hasn't reset it,
+        # AND the approval is within the verification window
         if state.get("ask_verified", False):
-            return "user_verified"
+            total_calls = state.get("total_tool_calls", 0)
+            approval_call = state.get("ask_approval_tool_call_num", 0)
+            if (total_calls - approval_call) <= ASK_VERIFICATION_WINDOW:
+                return "user_verified"
 
         # USER_INITIATED: first tool call in this session
         if state.get("total_tool_calls", 0) == 0:

@@ -23,4 +23,9 @@ MCowBQYDK2VwAyEAw20tusp+WNm6ioSL9uDp38NRVoUJxbOmukBQWY+sVb4=
     """-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAM2cFlaXbl1h8j+xlvJ/hcIDVKXjODFobgWbT42viFx0=
 -----END PUBLIC KEY-----""",
+    # Key 3 — post FP-reduction pattern refinement (2026-02-13)
+    # Key ID: db9693bdc959724d
+    """-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAiG1NTtQElD8OkpcI++ky9yrNL09SAHg+NZSHjPK29ZU=
+-----END PUBLIC KEY-----""",
 ]

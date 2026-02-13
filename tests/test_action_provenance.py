@@ -3,18 +3,24 @@ Tests for Action Provenance Classification (Layer 0.25)
 
 Tests classify_provenance() under various session states:
 - Clean session, no approvals → AGENT_GENERATED
-- After ask approval → USER_VERIFIED (persists for entire run)
+- After ask approval → USER_VERIFIED (persists for 50 calls)
+- After 50+ calls without re-approval → expires to AGENT_GENERATED
 - First tool call → USER_INITIATED
 - Active skill → SKILL_CONTEXT
 - Tainted session → TAINT_INFLUENCED
 - Taint after verification → resets to TAINT_INFLUENCED
+- DB file permissions are 0600
 """
 from __future__ import annotations
 
 import pytest
 from pathlib import Path
 
+import os
+import stat
+
 from tweek.memory.provenance import (
+    ASK_VERIFICATION_WINDOW,
     SessionTaintStore,
     reset_taint_store,
     escalate_taint,
@@ -110,17 +116,59 @@ class TestClassifyProvenance:
         )
         assert result == "user_verified"
 
-    def test_user_verified_persists_across_many_calls(self, store):
-        """USER_VERIFIED persists for the entire run (no fixed window)."""
+    def test_user_verified_persists_within_window(self, store):
+        """USER_VERIFIED persists within the verification window (50 calls)."""
         store.record_tool_call("sess-3", "Read")
         store.record_ask_approval("sess-3")
 
-        # Simulate many subsequent tool calls
+        # Simulate calls within the window
         for i in range(20):
             store.record_tool_call("sess-3", "Bash")
 
         result = classify_provenance(
             session_id="sess-3",
+            tool_name="Edit",
+            taint_level="clean",
+        )
+        assert result == "user_verified"
+
+    def test_user_verified_expires_after_window(self, store):
+        """USER_VERIFIED expires after ASK_VERIFICATION_WINDOW tool calls."""
+        store.record_tool_call("sess-expiry", "Read")
+        store.record_ask_approval("sess-expiry")
+
+        # Simulate calls beyond the verification window
+        for i in range(ASK_VERIFICATION_WINDOW + 5):
+            store.record_tool_call("sess-expiry", "Bash")
+
+        result = classify_provenance(
+            session_id="sess-expiry",
+            tool_name="Edit",
+            taint_level="clean",
+        )
+        assert result == "agent_generated"
+
+    def test_user_verified_renewed_by_re_approval(self, store):
+        """USER_VERIFIED can be renewed by a new ask approval."""
+        store.record_tool_call("sess-renew", "Read")
+        store.record_ask_approval("sess-renew")
+
+        # Simulate calls beyond window
+        for i in range(ASK_VERIFICATION_WINDOW + 5):
+            store.record_tool_call("sess-renew", "Bash")
+
+        # Should have expired
+        result = classify_provenance(
+            session_id="sess-renew",
+            tool_name="Edit",
+            taint_level="clean",
+        )
+        assert result == "agent_generated"
+
+        # Re-approve → USER_VERIFIED again
+        store.record_ask_approval("sess-renew")
+        result = classify_provenance(
+            session_id="sess-renew",
             tool_name="Edit",
             taint_level="clean",
         )
@@ -272,3 +320,138 @@ class TestAskApprovalTracking:
         store.record_tool_call("sess-f", "Read")
         approved = store.check_and_record_ask_approval("sess-f")
         assert approved is False
+
+    def test_ask_approval_records_tool_call_num(self, store):
+        """record_ask_approval stores the current tool_call number."""
+        store.record_tool_call("sess-tc", "Read")
+        store.record_tool_call("sess-tc", "Read")
+        store.record_tool_call("sess-tc", "Read")
+        state = store.record_ask_approval("sess-tc")
+        assert state["ask_approval_tool_call_num"] == 3
+
+    def test_ask_verified_decay_on_record_tool_call(self, store):
+        """record_tool_call resets ask_verified after window expires."""
+        store.record_tool_call("sess-decay", "Read")
+        store.record_ask_approval("sess-decay")
+
+        # Verify it's set
+        state = store.get_session_taint("sess-decay")
+        assert state["ask_verified"] is True
+
+        # Push past the window
+        for _ in range(ASK_VERIFICATION_WINDOW + 2):
+            store.record_tool_call("sess-decay", "Bash")
+
+        state = store.get_session_taint("sess-decay")
+        assert state["ask_verified"] is False
+
+
+class TestDatabasePermissions:
+    """Test that database files are created with restricted permissions."""
+
+    def test_db_file_permissions(self, tmp_path):
+        """Database file should have 0600 permissions (owner read/write only)."""
+        reset_taint_store()
+        db_path = tmp_path / "perm_test.db"
+        s = SessionTaintStore(db_path=db_path)
+        try:
+            # Force a write to create the DB file
+            s.record_tool_call("perm-sess", "Read")
+            mode = os.stat(db_path).st_mode
+            # Check that group and other have no permissions
+            assert not (mode & stat.S_IRGRP), "Group should not have read permission"
+            assert not (mode & stat.S_IWGRP), "Group should not have write permission"
+            assert not (mode & stat.S_IROTH), "Others should not have read permission"
+            assert not (mode & stat.S_IWOTH), "Others should not have write permission"
+            # Owner should have read+write
+            assert mode & stat.S_IRUSR, "Owner should have read permission"
+            assert mode & stat.S_IWUSR, "Owner should have write permission"
+        finally:
+            s.close()
+            reset_taint_store()
+
+    def test_memory_store_permissions(self, tmp_path):
+        """MemoryStore database should also have 0600 permissions."""
+        from tweek.memory.store import MemoryStore
+        db_path = tmp_path / "mem_perm_test.db"
+        ms = MemoryStore(db_path=db_path)
+        try:
+            mode = os.stat(db_path).st_mode
+            assert not (mode & stat.S_IRGRP), "Group read not allowed"
+            assert not (mode & stat.S_IWGRP), "Group write not allowed"
+            assert not (mode & stat.S_IROTH), "Others read not allowed"
+            assert not (mode & stat.S_IWOTH), "Others write not allowed"
+        finally:
+            ms.close()
+
+
+class TestPatternRefinements:
+    """Test that refined patterns reduce false positives without missing attacks."""
+
+    @pytest.fixture
+    def matcher(self):
+        """Get a PatternMatcher instance."""
+        from tweek.hooks.pre_tool_use import PatternMatcher
+        return PatternMatcher()
+
+    def test_env_file_access_matches_real_env(self, matcher):
+        """Pattern should match actual .env file access."""
+        matches = matcher.check_all("cat .env")
+        env_matches = [m for m in matches if m.get("name") == "env_file_access"]
+        assert len(env_matches) > 0, ".env access should trigger"
+
+    def test_env_file_access_skips_example(self, matcher):
+        """Pattern should NOT match .env.example (safe template file)."""
+        matches = matcher.check_all("cat .env.example")
+        env_matches = [m for m in matches if m.get("name") == "env_file_access"]
+        assert len(env_matches) == 0, ".env.example should not trigger"
+
+    def test_env_file_access_skips_template(self, matcher):
+        """Pattern should NOT match .env.template."""
+        matches = matcher.check_all("cat .env.template")
+        env_matches = [m for m in matches if m.get("name") == "env_file_access"]
+        assert len(env_matches) == 0, ".env.template should not trigger"
+
+    def test_env_file_access_skips_sample(self, matcher):
+        """Pattern should NOT match .env.sample."""
+        matches = matcher.check_all("cat .env.sample")
+        env_matches = [m for m in matches if m.get("name") == "env_file_access"]
+        assert len(env_matches) == 0, ".env.sample should not trigger"
+
+    def test_ssh_access_matches_private_key(self, matcher):
+        """Pattern should match reading SSH private keys."""
+        matches = matcher.check_all("cat ~/.ssh/id_rsa")
+        ssh_matches = [m for m in matches if m.get("name") == "ssh_directory_access"]
+        assert len(ssh_matches) > 0, "SSH private key access should trigger"
+
+    def test_ssh_access_matches_authorized_keys(self, matcher):
+        """Pattern should match reading authorized_keys."""
+        matches = matcher.check_all("cat ~/.ssh/authorized_keys")
+        ssh_matches = [m for m in matches if m.get("name") == "ssh_directory_access"]
+        assert len(ssh_matches) > 0, "authorized_keys access should trigger"
+
+    def test_ssh_access_skips_ls(self, matcher):
+        """Pattern should NOT match `ls .ssh` (just listing, no key access)."""
+        matches = matcher.check_all("ls .ssh")
+        ssh_matches = [m for m in matches if m.get("name") == "ssh_directory_access"]
+        assert len(ssh_matches) == 0, "ls .ssh should not trigger (no key access)"
+
+    def test_env_var_expansion_requires_command(self, matcher):
+        """env_variable_expansion now requires a command prefix (echo, curl, etc)."""
+        # Bare $API_KEY in code/docs should NOT trigger
+        matches = matcher.check_all("Set your $API_KEY in the config")
+        env_matches = [m for m in matches if m.get("name") == "env_variable_expansion"]
+        assert len(env_matches) == 0, "Bare $API_KEY in docs should not trigger"
+
+    def test_env_var_expansion_matches_curl(self, matcher):
+        """env_variable_expansion should match curl with secret vars."""
+        matches = matcher.check_all("curl -H 'Authorization: Bearer $API_KEY' https://api.com")
+        env_matches = [m for m in matches if m.get("name") == "env_variable_expansion"]
+        assert len(env_matches) > 0, "curl with $API_KEY should trigger"
+
+    def test_env_var_expansion_is_contextual(self, matcher):
+        """env_variable_expansion should now have contextual confidence."""
+        matches = matcher.check_all("echo $SECRET_TOKEN")
+        env_matches = [m for m in matches if m.get("name") == "env_variable_expansion"]
+        if env_matches:
+            assert env_matches[0].get("confidence") == "contextual"

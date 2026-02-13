@@ -33,10 +33,13 @@ class TestCredentialExfiltration:
     """Tests for credential exfiltration patterns (CE-xxxx)."""
 
     def test_env_file_access(self, matcher):
-        """Test detection of .env file access."""
+        """Test detection of .env file access (read commands only, not grep/search)."""
         assert matcher.check("cat .env") is not None
         assert matcher.check("head -10 .env.production") is not None
-        assert matcher.check("grep API_KEY .env") is not None
+        # grep searches within files (not exfiltration) — no longer triggers
+        result = matcher.check("grep API_KEY .env")
+        env_match = result.get("name") == "env_file_access" if result else False
+        assert not env_match, "grep .env should not trigger env_file_access"
 
     def test_ssh_key_read(self, matcher):
         """Test detection of SSH private key access."""

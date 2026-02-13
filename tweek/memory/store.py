@@ -12,6 +12,7 @@ Storage locations:
 import hashlib
 import math
 import sqlite3
+import stat
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -66,6 +67,19 @@ class MemoryStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: Optional[sqlite3.Connection] = None
         self._ensure_schema()
+        self._secure_permissions()
+
+    def _secure_permissions(self):
+        """Restrict database file permissions to owner-only (0600)."""
+        try:
+            if self.db_path.exists():
+                self.db_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            for suffix in ("-wal", "-shm"):
+                p = self.db_path.parent / (self.db_path.name + suffix)
+                if p.exists():
+                    p.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        except OSError:
+            pass  # Best-effort
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get or create a SQLite connection with WAL mode."""

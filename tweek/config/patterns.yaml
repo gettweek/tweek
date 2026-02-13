@@ -73,7 +73,7 @@ patterns:
   - id: 3
     name: env_file_access
     description: "Attempts to read .env files containing secrets"
-    regex: '(cat|head|tail|less|more|bat|grep|rg|ag)\s+.*\.env'
+    regex: '(cat|head|tail|less|more|bat)\s+.*\.env(?!\.example|\.template|\.sample|\.local\.example|\.test|\.ci|\.defaults)\b'
     severity: high
     confidence: heuristic
     family: credential_theft
@@ -162,8 +162,8 @@ patterns:
 
   - id: 8
     name: ssh_directory_access
-    description: "Accessing SSH directory contents"
-    regex: '(ls|find|cat)\s+.*\.ssh'
+    description: "Accessing SSH private keys or authorized_keys"
+    regex: '(cat|head|tail|less|more)\s+.*\.ssh/(id_[a-z]+|authorized_keys|known_hosts)'
     severity: high
     confidence: heuristic
     family: credential_theft
@@ -180,10 +180,10 @@ patterns:
 
   - id: 9
     name: env_variable_expansion
-    description: "Accessing environment variables containing secrets"
-    regex: '\$\{?(API_KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|PRIVATE_KEY|AUTH)[A-Z_]*\}?'
+    description: "Accessing environment variables containing secrets via shell expansion"
+    regex: '(echo|printf|curl|wget|export)\s+.*\$\{?(API_KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|PRIVATE_KEY|AUTH)[A-Z_]*\}?'
     severity: high
-    confidence: heuristic
+    confidence: contextual
     family: credential_theft
     classification:
       category: credential_theft

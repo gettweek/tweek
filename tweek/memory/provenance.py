@@ -19,10 +19,34 @@ Storage: SQLite persistent in memory.db (same DB as pattern decisions).
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import stat
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
+
+# =========================================================================
+# File Security
+# =========================================================================
+
+def _secure_db_permissions(db_path: Path):
+    """Restrict database file permissions to owner-only (0600).
+
+    Security databases contain enforcement decisions and session state.
+    They should not be readable by other users on the system.
+    """
+    try:
+        if db_path.exists():
+            db_path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0600
+        # Also secure the WAL and SHM files if they exist
+        for suffix in ("-wal", "-shm"):
+            wal_path = db_path.parent / (db_path.name + suffix)
+            if wal_path.exists():
+                wal_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        pass  # Best-effort on platforms that don't support chmod
+
 
 # =========================================================================
 # Constants
@@ -34,6 +58,10 @@ TAINT_RANK = {level: i for i, level in enumerate(TAINT_LEVELS)}
 
 # How many tool calls between taint decay steps
 DECAY_INTERVAL = 5
+
+# How many tool calls before ask_verified expires without re-verification.
+# After this many calls, the user must re-approve to maintain USER_VERIFIED status.
+ASK_VERIFICATION_WINDOW = 50
 
 # Tools classified as external content sources (derived from tool registry)
 def _tools_for_capabilities(*caps):
@@ -64,6 +92,7 @@ CREATE TABLE IF NOT EXISTS session_taint (
     ask_verified INTEGER NOT NULL DEFAULT 0,
     total_ask_approvals INTEGER NOT NULL DEFAULT 0,
     last_ask_approval_at TEXT,
+    ask_approval_tool_call_num INTEGER NOT NULL DEFAULT 0,
     pending_ask INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -71,6 +100,9 @@ CREATE TABLE IF NOT EXISTS session_taint (
 
 CREATE INDEX IF NOT EXISTS idx_st_taint_level
     ON session_taint(taint_level);
+
+CREATE INDEX IF NOT EXISTS idx_st_session_taint
+    ON session_taint(session_id, taint_level);
 """
 
 # Migration for existing databases without ask-approval columns
@@ -78,6 +110,7 @@ _MIGRATION_ADD_ASK_COLUMNS = [
     "ALTER TABLE session_taint ADD COLUMN ask_verified INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE session_taint ADD COLUMN total_ask_approvals INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE session_taint ADD COLUMN last_ask_approval_at TEXT",
+    "ALTER TABLE session_taint ADD COLUMN ask_approval_tool_call_num INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE session_taint ADD COLUMN pending_ask INTEGER NOT NULL DEFAULT 0",
 ]
 
@@ -143,6 +176,7 @@ class SessionTaintStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: Optional[sqlite3.Connection] = None
         self._ensure_schema()
+        _secure_db_permissions(self.db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -206,6 +240,7 @@ class SessionTaintStore:
                 "ask_verified": False,
                 "total_ask_approvals": 0,
                 "last_ask_approval_at": None,
+                "ask_approval_tool_call_num": 0,
             }
 
         result = dict(row)
@@ -232,6 +267,14 @@ class SessionTaintStore:
             current_taint = decay_taint(current_taint)
             new_turns_since_taint = 0  # Reset counter after decay
 
+        # Check ask_verified expiry window.
+        # If the user hasn't re-approved within ASK_VERIFICATION_WINDOW
+        # tool calls, reset ask_verified to prevent stale trust.
+        ask_verified = 1 if state.get("ask_verified", False) else 0
+        approval_call_num = state.get("ask_approval_tool_call_num", 0)
+        if ask_verified and (new_total - approval_call_num) > ASK_VERIFICATION_WINDOW:
+            ask_verified = 0
+
         # Upsert
         conn.execute("""
             INSERT INTO session_taint
@@ -239,23 +282,27 @@ class SessionTaintStore:
                  total_tool_calls, total_external_ingests,
                  total_taint_escalations,
                  last_taint_source, last_taint_reason,
+                 ask_verified,
                  updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(session_id) DO UPDATE SET
                 taint_level = excluded.taint_level,
                 turns_since_taint = excluded.turns_since_taint,
                 total_tool_calls = excluded.total_tool_calls,
+                ask_verified = excluded.ask_verified,
                 updated_at = datetime('now')
         """, (
             session_id, current_taint, new_turns_since_taint,
             new_total, state["total_external_ingests"],
             state["total_taint_escalations"],
             state["last_taint_source"], state["last_taint_reason"],
+            ask_verified,
         ))
 
         state["taint_level"] = current_taint
         state["turns_since_taint"] = new_turns_since_taint
         state["total_tool_calls"] = new_total
+        state["ask_verified"] = bool(ask_verified)
         return state
 
     def record_taint(
@@ -393,6 +440,7 @@ class SessionTaintStore:
         new_approvals = state.get("total_ask_approvals", 0) + 1
         now = datetime.now(tz=None).isoformat()
 
+        current_tool_calls = state.get("total_tool_calls", 0)
         conn.execute("""
             INSERT INTO session_taint
                 (session_id, taint_level, turns_since_taint,
@@ -400,13 +448,15 @@ class SessionTaintStore:
                  total_taint_escalations,
                  last_taint_source, last_taint_reason,
                  ask_verified, total_ask_approvals, last_ask_approval_at,
+                 ask_approval_tool_call_num,
                  updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, datetime('now'))
             ON CONFLICT(session_id) DO UPDATE SET
                 ask_verified = 1,
                 pending_ask = 0,
                 total_ask_approvals = excluded.total_ask_approvals,
                 last_ask_approval_at = excluded.last_ask_approval_at,
+                ask_approval_tool_call_num = excluded.ask_approval_tool_call_num,
                 updated_at = datetime('now')
         """, (
             session_id, state["taint_level"],
@@ -415,12 +465,13 @@ class SessionTaintStore:
             state["total_external_ingests"],
             state["total_taint_escalations"],
             state["last_taint_source"], state["last_taint_reason"],
-            new_approvals, now,
+            new_approvals, now, current_tool_calls,
         ))
 
         state["ask_verified"] = True
         state["total_ask_approvals"] = new_approvals
         state["last_ask_approval_at"] = now
+        state["ask_approval_tool_call_num"] = current_tool_calls
         return state
 
     def clear_session(self, session_id: str):
