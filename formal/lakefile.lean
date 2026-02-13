@@ -9,4 +9,4 @@ package «tweek-formal» where
 @[default_target]
 lean_lib Tweek where
   srcDir := "."
-  roots := #[`Tweek.Provenance, `Tweek.Taint, `Tweek.Decision, `Tweek.Invariants]
+  roots := #[`Tweek.Provenance, `Tweek.Taint, `Tweek.Decision, `Tweek.Invariants, `Tweek.Taxonomy]

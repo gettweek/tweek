@@ -1,15 +1,25 @@
-"""CTAP-compatible attack taxonomy for Tweek pattern enrichment.
+"""Three-tier OWASP-grounded attack taxonomy for Tweek pattern enrichment.
 
-Provides MITRE ATLAS, OWASP LLM Top 10, and OWASP Agentic Top 10 taxonomy
-mappings. Ported from crab-trap's CTAP v1.0 taxonomy with Tweek-specific
-family-to-category mappings for pattern enrichment.
+Three-tier hierarchy (matching crab-trap oracle):
+  Tier 1 — Risk Categories (10):  OWASP Agentic Top 10 (ASI01–ASI10)
+  Tier 2 — Agentic Threats (17):  OWASP Agentic Threats Taxonomy (T01–T17)
+  Tier 3 — Attack Categories (17): Internal categories (CTAP-compatible)
+
+Each category maps to exactly one threat (total function).
+Each threat maps to exactly one risk (total function).
+The composition Category → Risk is therefore also total.
+
+Also provides many-to-many secondary mappings (MITRE ATLAS, OWASP LLM Top 10,
+OWASP Agentic Top 10) for richer pattern tagging.
 
 Taxonomy sources:
   - MITRE ATLAS: https://atlas.mitre.org
   - OWASP LLM Top 10: https://owasp.org/www-project-top-10-for-large-language-model-applications/
   - OWASP Agentic Top 10: https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications/
+  - OWASP Agentic Threats: https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/
 
-Attribution: Taxonomy structure adapted from crab-trap CTAP v1.0
+Attribution: Taxonomy structure adapted from crab-trap CTAP v1.0.
+Tier 2 (T01–T17) and total-function mappings from crab-trap oracle (Feb 2026).
 """
 
 from __future__ import annotations
@@ -228,6 +238,132 @@ OWASP_AGENTIC_TOP_10: dict[str, dict[str, str]] = {
             "poisoned training, or adversarial manipulation of orchestration logic."
         ),
     },
+}
+
+# ---------------------------------------------------------------------------
+# Tier 2: OWASP Agentic Threats Taxonomy (T01-T17)
+# Intermediate mapping layer between attack categories and risk categories.
+# Each threat maps to exactly one ASI risk (proven total in Lean oracle).
+# ---------------------------------------------------------------------------
+
+AGENTIC_THREATS: dict[str, dict[str, str]] = {
+    "T01": {
+        "name": "Agentic System Prompt Injection",
+        "description": "Adversary injects instructions via system prompt manipulation.",
+        "parent_risk": "ASI01",
+    },
+    "T02": {
+        "name": "Agentic Data Exfiltration",
+        "description": "Adversary uses agent tools to extract sensitive data.",
+        "parent_risk": "ASI01",
+    },
+    "T03": {
+        "name": "Direct Resource Access by Agent",
+        "description": "Agent accesses resources beyond intended scope.",
+        "parent_risk": "ASI02",
+    },
+    "T04": {
+        "name": "Identity Impersonation & Delegation Exploits",
+        "description": "Adversary exploits agent identity or delegation mechanisms.",
+        "parent_risk": "ASI03",
+    },
+    "T05": {
+        "name": "Privilege Compromise via Agent Manipulation",
+        "description": "Adversary manipulates agent to escalate privileges.",
+        "parent_risk": "ASI03",
+    },
+    "T06": {
+        "name": "Uncontrolled Agentic Actions",
+        "description": "Agent takes actions without proper authorization checks.",
+        "parent_risk": "ASI02",
+    },
+    "T07": {
+        "name": "Denial of Agentic Service",
+        "description": "Adversary disrupts agent availability or throughput.",
+        "parent_risk": "ASI08",
+    },
+    "T08": {
+        "name": "Agent State & Memory Exploitation",
+        "description": "Adversary manipulates agent memory or conversation state.",
+        "parent_risk": "ASI06",
+    },
+    "T09": {
+        "name": "Agent Communication & Negotiation Manipulation",
+        "description": "Adversary intercepts or manipulates inter-agent communication.",
+        "parent_risk": "ASI07",
+    },
+    "T10": {
+        "name": "Tool & Integration Manipulation",
+        "description": "Adversary exploits tool interfaces or return values.",
+        "parent_risk": "ASI02",
+    },
+    "T11": {
+        "name": "Agent Fingerprinting & Reconnaissance",
+        "description": "Adversary probes agent capabilities and configuration.",
+        "parent_risk": "ASI03",
+    },
+    "T12": {
+        "name": "Repudiation of Agent Actions",
+        "description": "Agent actions lack accountability or audit trail.",
+        "parent_risk": "ASI09",
+    },
+    "T13": {
+        "name": "Cross-Agent Escalation & Trust Exploitation",
+        "description": "Adversary exploits trust between agents to escalate attacks.",
+        "parent_risk": "ASI07",
+    },
+    "T14": {
+        "name": "Rogue Agents",
+        "description": "Agent deviates from intended behavior due to compromise.",
+        "parent_risk": "ASI10",
+    },
+    "T15": {
+        "name": "Agentic Workflow Disruption",
+        "description": "Adversary disrupts multi-step agentic workflows.",
+        "parent_risk": "ASI08",
+    },
+    "T16": {
+        "name": "Supply Chain Vulnerabilities in Agentic Systems",
+        "description": "Compromise of agent components, plugins, or dependencies.",
+        "parent_risk": "ASI04",
+    },
+    "T17": {
+        "name": "Insecure Code Generation & Execution",
+        "description": "Agent generates or executes unsafe code.",
+        "parent_risk": "ASI05",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Total-function mappings (proven in Lean oracle)
+# Each category maps to exactly one primary threat (T01-T17).
+# Each threat maps to exactly one parent risk (ASI01-ASI10).
+# ---------------------------------------------------------------------------
+
+# Category → primary Agentic Threat (total function, 1:1)
+CATEGORY_TO_THREAT: dict[str, str] = {
+    "credential_theft": "T04",        # → Identity Impersonation
+    "prompt_injection": "T01",        # → System Prompt Injection
+    "tool_abuse": "T10",              # → Tool & Integration Manipulation
+    "skill_injection": "T10",         # → Tool & Integration Manipulation
+    "data_exfiltration": "T02",       # → Agentic Data Exfiltration
+    "privilege_escalation": "T05",    # → Privilege Compromise
+    "social_engineering": "T09",      # → Communication Manipulation
+    "encoding_evasion": "T01",        # → System Prompt Injection
+    "context_overflow": "T08",        # → State & Memory Exploitation
+    "multi_turn_manipulation": "T13", # → Cross-Agent Escalation
+    "code_security": "T17",           # → Insecure Code Generation
+    "rag_poisoning": "T08",           # → State & Memory Exploitation
+    "return_injection": "T10",        # → Tool & Integration Manipulation
+    "serialization_attack": "T17",    # → Insecure Code Generation
+    "supply_chain_attack": "T16",     # → Supply Chain Vulnerabilities
+    "approval_bypass": "T06",         # → Uncontrolled Agentic Actions
+    "multimodal_injection": "T01",    # → System Prompt Injection
+}
+
+# Threat → parent Risk (total function, 1:1) — derived from AGENTIC_THREATS
+THREAT_TO_RISK: dict[str, str] = {
+    tid: t["parent_risk"] for tid, t in AGENTIC_THREATS.items()
 }
 
 # ---------------------------------------------------------------------------
@@ -451,3 +587,35 @@ def map_category_to_owasp_agentic(category: str) -> list[str]:
 def map_surface_to_asi(surface: str) -> list[str]:
     """Return OWASP Agentic risk IDs for the given attack surface."""
     return list(SURFACE_TO_ASI.get(surface, []))
+
+
+# ---------------------------------------------------------------------------
+# Three-tier chain: Category → Threat → Risk (total functions)
+# ---------------------------------------------------------------------------
+
+
+def map_category_to_threat(category: str) -> str | None:
+    """Return the primary Agentic Threat ID (T01-T17) for an attack category.
+
+    Total function over ATTACK_CATEGORIES — returns None only for unknown categories.
+    """
+    return CATEGORY_TO_THREAT.get(category)
+
+
+def map_threat_to_risk(threat_id: str) -> str | None:
+    """Return the parent OWASP Agentic Risk ID (ASI01-ASI10) for a threat.
+
+    Total function over AGENTIC_THREATS — returns None only for unknown threat IDs.
+    """
+    return THREAT_TO_RISK.get(threat_id)
+
+
+def map_category_to_risk(category: str) -> str | None:
+    """Compose Category → Threat → Risk in one call.
+
+    Returns the ASI risk ID for a given attack category, or None if unmapped.
+    """
+    threat = CATEGORY_TO_THREAT.get(category)
+    if threat is None:
+        return None
+    return THREAT_TO_RISK.get(threat)
