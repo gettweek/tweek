@@ -461,6 +461,16 @@ def process_hook(input_data: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass  # Provenance is best-effort
 
+    # Provenance: record ask approval if user approved a pending ask.
+    # Post_tool_use fires only when a tool EXECUTES — if pre_tool_use
+    # returned "ask" and we're here, the user clicked "Allow" (unforgeable).
+    try:
+        from tweek.memory.provenance import get_taint_store as _get_taint_store
+        if session_id:
+            _get_taint_store().check_and_record_ask_approval(session_id)
+    except Exception:
+        pass  # Provenance is best-effort
+
     # Extract text content from the response
     content = extract_response_content(tool_name, tool_response)
 

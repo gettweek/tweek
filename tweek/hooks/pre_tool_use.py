@@ -5,8 +5,15 @@ Tweek Pre-Tool-Use Hook for Claude Code
 This hook intercepts tool calls before execution and applies tiered security screening.
 
 Security Layers (Defense in Depth):
-1. Rate Limiting - Detect resource theft and burst attacks
+0. Self-Protection - Block AI modification of security config
+0S. Skill Guard - Block direct skill directory manipulation
+1. Rate Limiting - Early flood/DoS protection (base tier)
+C. Compliance Scanning - Non-bypassable regulatory checks (HIPAA/PCI/GDPR)
+W. Whitelist Check - Skip screening for trusted tool+path combos
+P. PII Tokenization - Protect PII from reaching external LLMs
+T. Tier Classification - Determine effective tier with escalations
 2. Pattern Matching - Regex patterns for known attack vectors
+2.5. Heuristic Scoring - Confidence-gated LLM escalation
 3. LLM Review - Semantic analysis for risky/dangerous tiers
 4. Session Analysis - Cross-turn anomaly detection
 5. Sandbox Preview - Speculative execution (dangerous tier only)
@@ -260,12 +267,27 @@ def _get_heuristic_scorer(tier_mgr: "TierManager") -> Optional[Any]:
         return None
 
 
+# Compiled regex: detect piped stdin bypass attempts on tweek commands.
+# Catches: echo y | tweek ..., echo "yes" | tweek ..., yes | tweek ...,
+#          printf 'y\n' | tweek ..., <<< "y" tweek ...
+_PIPED_STDIN_RE = re.compile(
+    r"(?:"
+    r"(?:echo|printf)\s+['\"]?(?:y|yes|Y|YES)(?:\\n)?['\"]?"  # echo y, echo "yes", printf 'y\n'
+    r"|yes"                                                      # yes command
+    r")\s*\|"                                                    # piped into
+    r"\s*tweek\b"                                                # tweek command
+    r"|<<<\s*['\"]?(?:y|yes|Y|YES)['\"]?\s+tweek\b",            # <<< "y" tweek ...
+    re.IGNORECASE,
+)
+
+
 def _resolve_enforcement(
     pattern_match: Optional[Dict],
     enforcement_policy: Optional[EnforcementPolicy],
     has_non_pattern_trigger: bool = False,
     memory_adjustment: Optional[Dict] = None,
     taint_level: str = "clean",
+    action_provenance: str = "agent_generated",
 ) -> str:
     """Determine the enforcement decision based on severity + confidence.
 
@@ -274,6 +296,8 @@ def _resolve_enforcement(
         enforcement_policy: The active EnforcementPolicy (from overrides config).
         has_non_pattern_trigger: True if LLM/session/sandbox/compliance triggered.
         memory_adjustment: Optional memory-based adjustment suggestion.
+        taint_level: Current session taint level.
+        action_provenance: Action provenance classification.
 
     Returns:
         Decision string: "deny", "ask", or "log".
@@ -352,6 +376,7 @@ def _resolve_enforcement(
                     severity=severity,
                     confidence=confidence,
                     taint_level=taint_level,
+                    action_provenance=action_provenance,
                 )
         except Exception:
             pass  # Provenance is best-effort
@@ -890,12 +915,19 @@ def extract_target_paths(tool_name: str, tool_input: Dict[str, Any]) -> List[str
 def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     """Main hook logic with tiered security screening.
 
-    Security Layers:
-    1. Rate Limiting - Detect resource theft
-    2. Pattern Matching - Known attack vectors
-    3. LLM Review - Semantic analysis
-    4. Session Analysis - Cross-turn anomalies
-    5. Sandbox Preview - Speculative execution
+    Security Layers (in execution order):
+    0.  Self-Protection - Block AI from modifying security config
+    0S. Skill Guard - Block direct skill directory manipulation
+    1.  Rate Limiting - Early flood/DoS protection (base tier)
+    C.  Compliance - Non-bypassable regulatory checks (before whitelist)
+    W.  Whitelist - Skip screening for trusted tool+path combos
+    P.  PII Tokenization - Protect PII from reaching external LLMs
+    T.  Tier Classification - Determine effective tier with escalations
+    2.  Pattern Matching - Known attack vectors
+    2.5 Heuristic Scoring - Confidence-gated LLM escalation
+    3.  LLM Review - Semantic analysis
+    4.  Session Analysis - Cross-turn anomalies
+    5.  Sandbox Preview - Speculative execution
 
     Args:
         input_data: Dict with tool_name, tool_input from Claude Code
@@ -1030,9 +1062,9 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                 }
             }
 
-        # Block AI from running tweek trust/untrust/uninstall/unprotect — human-only commands
+        # Block AI from running tweek security commands — human-only
         command_stripped = command.strip()
-        if re.match(r"tweek\s+(trust|untrust|uninstall|unprotect)\b", command_stripped):
+        if re.match(r"tweek\s+(trust|untrust|uninstall|unprotect|override)\b", command_stripped):
             if "uninstall" in command_stripped or "unprotect" in command_stripped:
                 reason = (
                     "TWEEK SELF-PROTECTION: Uninstall must be done by a human.\n"
@@ -1041,6 +1073,14 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     "AI agents cannot remove security protections."
                 )
                 log_reason = "BLOCKED: AI cannot run tweek uninstall"
+            elif "override" in command_stripped:
+                reason = (
+                    "TWEEK SELF-PROTECTION: Break-glass overrides must be created by a human.\n"
+                    "Run this command directly in your terminal:\n"
+                    f"  {command_stripped}\n"
+                    "AI agents cannot create overrides to bypass their own screening."
+                )
+                log_reason = "BLOCKED: AI cannot create break-glass overrides"
             else:
                 reason = (
                     "TWEEK SELF-PROTECTION: Trust decisions must be made by a human.\n"
@@ -1061,6 +1101,60 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     "hookEventName": "PreToolUse",
                     "permissionDecision": "deny",
                     "permissionDecisionReason": reason,
+                }
+            }
+
+        # Block AI from running skill lifecycle commands — human-only
+        # These are security-equivalent to trust/override but were missing
+        # from self-protection, enabling isolation chamber bypass.
+        if re.match(
+            r"tweek\s+skills\s+"
+            r"(jail\s+(release|purge)"
+            r"|chamber\s+(approve|reject)"
+            r"|config\s+--mode)\b",
+            command_stripped,
+        ):
+            _log(
+                EventType.BLOCKED,
+                tool_name,
+                tier="self_protection",
+                decision="deny",
+                decision_reason=f"BLOCKED: AI cannot run skill lifecycle command: {command_stripped}",
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        "TWEEK SELF-PROTECTION: Skill lifecycle decisions must be made by a human.\n"
+                        "Run this command directly in your terminal:\n"
+                        f"  {command_stripped}\n"
+                        "AI agents cannot release jailed skills, approve/reject chamber skills,\n"
+                        "or change isolation mode."
+                    ),
+                }
+            }
+
+        # Block piped stdin bypass on any tweek command.
+        # Agents pipe "y" or "yes" into tweek CLI prompts to bypass
+        # Click confirmation gates that are meant for human intent verification.
+        if _PIPED_STDIN_RE.search(command_stripped):
+            _log(
+                EventType.BLOCKED,
+                tool_name,
+                tier="self_protection",
+                decision="deny",
+                decision_reason=f"BLOCKED: Piped stdin bypass detected: {command_stripped}",
+            )
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        "TWEEK SELF-PROTECTION: Cannot pipe input to bypass tweek confirmations.\n"
+                        "Tweek CLI confirmations require genuine human interaction.\n"
+                        "Run the tweek command directly in your terminal without piped input."
+                    ),
                 }
             }
 
@@ -1173,8 +1267,85 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             pass  # Best-effort — fall through to normal screening
 
     # =========================================================================
-    # WHITELIST CHECK: Skip screening for whitelisted tool+path combinations
-    # Uses project-scoped overrides (additive-only merge) if sandbox active
+    # LAYER 1: Rate Limiting (early check — resource protection)
+    # Uses base tier (fast dict lookup) to prevent DoS/flood attacks before
+    # expensive compliance scanning, PII tokenization, and tier classification.
+    # =========================================================================
+    tier_mgr = _get_tier_manager()
+    pattern_matcher = _get_pattern_matcher()
+    base_tier = tier_mgr.get_base_tier(tool_name, _active_skill)
+    rate_limit_msg = None
+    try:
+        from tweek.security.rate_limiter import get_rate_limiter
+
+        rate_limiter = get_rate_limiter()
+        rate_result = rate_limiter.check(
+            tool_name=tool_name,
+            command=content if tool_name == "Bash" else None,
+            session_id=session_id,
+            tier=base_tier
+        )
+
+        if not rate_result.allowed:
+            rate_limit_msg = rate_limiter.format_violation_message(rate_result)
+            _log(
+                EventType.PATTERN_MATCH,
+                tool_name,
+                command=content if tool_name == "Bash" else None,
+                tier=base_tier,
+                pattern_name="rate_limit",
+                pattern_severity="high",
+                decision="ask",
+                decision_reason=f"Rate limit violations: {rate_result.violations}",
+                metadata={"rate_limit": rate_result.details}
+            )
+
+            # Rate limit alone triggers prompt — short-circuit before expensive ops
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "ask",
+                    "permissionDecisionReason": format_prompt_message(
+                        None, None, content, base_tier,
+                        rate_limit_msg=rate_limit_msg
+                    ),
+                }
+            }
+    except ImportError:
+        pass  # Rate limiter not available
+    except Exception as e:
+        _log(
+            EventType.ERROR,
+            tool_name,
+            decision_reason=f"Rate limiter error: {e}",
+        )
+
+    # =========================================================================
+    # COMPLIANCE SCANNING (INPUT direction — non-bypassable)
+    # Runs before whitelist: regulatory obligations (HIPAA, PCI, GDPR, etc.)
+    # cannot be skipped even for trusted/whitelisted operations.
+    # =========================================================================
+    compliance_block, compliance_msg, compliance_findings = run_compliance_scans(
+        content=content,
+        direction="input",
+        logger=logger,
+        session_id=session_id,
+        tool_name=tool_name
+    )
+
+    if compliance_block:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": f" COMPLIANCE BLOCK\n{compliance_msg}",
+            }
+        }
+
+    # =========================================================================
+    # WHITELIST CHECK: Skip pattern/LLM screening for whitelisted combinations
+    # Compliance has already run — whitelist only bypasses security screening.
+    # Uses project-scoped overrides (additive-only merge) if sandbox active.
     # =========================================================================
     overrides = _sandbox.get_overrides() if _sandbox else get_overrides()
     enforcement_policy = overrides.get_enforcement_policy() if overrides else EnforcementPolicy()
@@ -1193,8 +1364,9 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
             return {}
 
     # =========================================================================
-    # LAYER 0.5: PII Tokenization (INPUT direction)
-    # Replace PII in tool input with reversible tokens before screening
+    # PII Tokenization (INPUT direction)
+    # Replace PII in tool input with reversible tokens before screening.
+    # Prevents raw PII from reaching LLM providers in Layer 3.
     # =========================================================================
     pii_token_mapping = None
     try:
@@ -1220,32 +1392,8 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     except Exception:
         pass  # PII tokenization is best-effort
 
-    # =========================================================================
-    # LAYER 0: Compliance Scanning (INPUT direction)
-    # Scan incoming content for sensitive data before processing
-    # =========================================================================
-    compliance_block, compliance_msg, compliance_findings = run_compliance_scans(
-        content=content,
-        direction="input",
-        logger=logger,
-        session_id=session_id,
-        tool_name=tool_name
-    )
-
-    if compliance_block:
-        return {
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": f" COMPLIANCE BLOCK\n{compliance_msg}",
-            }
-        }
-
-    # Use cached managers (avoids YAML re-parsing on every invocation)
-    tier_mgr = _get_tier_manager()
-    pattern_matcher = _get_pattern_matcher()
-
-    # Determine effective tier (skill context overrides tool tier if configured)
+    # Determine effective tier with content/path escalation checks
+    # (tier_mgr and pattern_matcher already initialized before rate limiting)
     effective_tier, escalation = tier_mgr.get_effective_tier(
         tool_name, content,
         skill_name=_active_skill,
@@ -1344,53 +1492,24 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
         _session_taint_level = "low"  # Provenance unavailable — no relaxation
 
     # =========================================================================
-    # LAYER 1: Rate Limiting
+    # LAYER 0.25: Intent Classification (Action Provenance)
+    # Classifies every tool call's provenance before screening to distinguish
+    # user-initiated actions from agent-generated or injection-driven ones.
+    # USER_VERIFIED status persists for the entire run once a user approves
+    # an `ask` prompt, until taint escalation resets it.
     # =========================================================================
-    rate_limit_msg = None
+    _action_provenance = "agent_generated"
     try:
-        from tweek.security.rate_limiter import get_rate_limiter
-
-        rate_limiter = get_rate_limiter()
-        rate_result = rate_limiter.check(
-            tool_name=tool_name,
-            command=content if tool_name == "Bash" else None,
-            session_id=session_id,
-            tier=effective_tier
-        )
-
-        if not rate_result.allowed:
-            rate_limit_msg = rate_limiter.format_violation_message(rate_result)
-            _log(
-                EventType.PATTERN_MATCH,
-                tool_name,
-                command=content if tool_name == "Bash" else None,
-                tier=effective_tier,
-                pattern_name="rate_limit",
-                pattern_severity="high",
-                decision="ask",
-                decision_reason=f"Rate limit violations: {rate_result.violations}",
-                metadata={"rate_limit": rate_result.details}
+        from tweek.provenance.action_provenance import classify_provenance
+        if session_id:
+            _action_provenance = classify_provenance(
+                session_id=session_id,
+                tool_name=tool_name,
+                taint_level=_session_taint_level,
+                active_skill=_active_skill,
             )
-
-            # Rate limit alone triggers prompt
-            return {
-                "hookSpecificOutput": {
-                    "hookEventName": "PreToolUse",
-                    "permissionDecision": "ask",
-                    "permissionDecisionReason": format_prompt_message(
-                        None, None, content, effective_tier,
-                        rate_limit_msg=rate_limit_msg
-                    ),
-                }
-            }
-    except ImportError:
-        pass  # Rate limiter not available
-    except Exception as e:
-        _log(
-            EventType.ERROR,
-            tool_name,
-            decision_reason=f"Rate limiter error: {e}",
-        )
+    except Exception:
+        _action_provenance = "agent_generated"  # Classification unavailable
 
     # Safe tier - no further screening
     if not screening_methods:
@@ -1601,6 +1720,36 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                         "anomalies": [a.value for a in session_result.anomalies]
                     }
                 )
+
+            # Hard-block: graduated escalation + high risk = strong attack evidence
+            if session_result.should_hard_block:
+                _log(
+                    EventType.BLOCKED,
+                    tool_name,
+                    command=content if tool_name == "Bash" else None,
+                    tier=effective_tier,
+                    pattern_name="session_hard_block",
+                    pattern_severity="critical",
+                    decision="deny",
+                    decision_reason=(
+                        f"Session hard-block: graduated escalation + high risk "
+                        f"(score={session_result.risk_score:.0%}, "
+                        f"anomalies={[a.value for a in session_result.anomalies]})"
+                    ),
+                )
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": (
+                            "TWEEK SESSION HARD-BLOCK: This session shows strong evidence of "
+                            "a persistent attack.\n"
+                            f"Risk score: {session_result.risk_score:.0%}\n"
+                            f"Anomalies: {', '.join(a.value for a in session_result.anomalies)}\n\n"
+                            "All operations are blocked. Start a new session to continue working."
+                        ),
+                    }
+                }
         except ImportError:
             pass  # Session analyzer not available
         except Exception as e:
@@ -1700,7 +1849,7 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
     if pattern_match or llm_triggered or session_triggered or sandbox_triggered or compliance_triggered:
         # Determine graduated enforcement decision
         has_non_pattern = llm_triggered or session_triggered or sandbox_triggered or compliance_triggered
-        decision = _resolve_enforcement(pattern_match, enforcement_policy, has_non_pattern, memory_adjustment, _session_taint_level)
+        decision = _resolve_enforcement(pattern_match, enforcement_policy, has_non_pattern, memory_adjustment, _session_taint_level, _action_provenance)
 
         # Build the warning message for ask/deny decisions
         final_msg = format_prompt_message(
@@ -1827,8 +1976,17 @@ def process_hook(input_data: dict, logger: SecurityLogger) -> dict:
                     "compliance_triggered": compliance_triggered,
                     "compliance_findings": len(compliance_findings) if compliance_findings else 0,
                     "enforcement_decision": "ask",
+                    "action_provenance": _action_provenance,
                 }
             )
+            # Provenance: mark pending ask so post_tool_use can record
+            # the approval if the user clicks "Allow" (unforgeable signal)
+            try:
+                if session_id:
+                    from tweek.memory.provenance import get_taint_store as _get_ts
+                    _get_ts().set_pending_ask(session_id)
+            except Exception:
+                pass  # Provenance is best-effort
             # Memory: record ask decision (user_response set to None until feedback)
             try:
                 from tweek.memory.queries import memory_write_after_decision, memory_update_workflow

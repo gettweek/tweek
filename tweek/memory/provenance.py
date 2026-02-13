@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS session_taint (
     total_tool_calls INTEGER NOT NULL DEFAULT 0,
     total_external_ingests INTEGER NOT NULL DEFAULT 0,
     total_taint_escalations INTEGER NOT NULL DEFAULT 0,
+    ask_verified INTEGER NOT NULL DEFAULT 0,
+    total_ask_approvals INTEGER NOT NULL DEFAULT 0,
+    last_ask_approval_at TEXT,
+    pending_ask INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -68,6 +72,14 @@ CREATE TABLE IF NOT EXISTS session_taint (
 CREATE INDEX IF NOT EXISTS idx_st_taint_level
     ON session_taint(taint_level);
 """
+
+# Migration for existing databases without ask-approval columns
+_MIGRATION_ADD_ASK_COLUMNS = [
+    "ALTER TABLE session_taint ADD COLUMN ask_verified INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE session_taint ADD COLUMN total_ask_approvals INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE session_taint ADD COLUMN last_ask_approval_at TEXT",
+    "ALTER TABLE session_taint ADD COLUMN pending_ask INTEGER NOT NULL DEFAULT 0",
+]
 
 
 # =========================================================================
@@ -151,6 +163,24 @@ class SessionTaintStore:
     def _ensure_schema(self):
         conn = self._get_connection()
         conn.executescript(PROVENANCE_SCHEMA)
+        # Migrate existing databases: add ask-approval columns if missing
+        self._migrate_ask_columns(conn)
+
+    def _migrate_ask_columns(self, conn: sqlite3.Connection):
+        """Add ask-approval columns to existing session_taint tables."""
+        try:
+            # Check if columns exist by querying table info
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(session_taint)")
+            }
+            if "ask_verified" not in columns:
+                for stmt in _MIGRATION_ADD_ASK_COLUMNS:
+                    try:
+                        conn.execute(stmt)
+                    except sqlite3.OperationalError:
+                        pass  # Column already exists (race condition)
+        except Exception:
+            pass  # Migration is best-effort
 
     def get_session_taint(self, session_id: str) -> Dict[str, Any]:
         """Get current taint state for a session.
@@ -173,9 +203,15 @@ class SessionTaintStore:
                 "total_taint_escalations": 0,
                 "last_taint_source": None,
                 "last_taint_reason": None,
+                "ask_verified": False,
+                "total_ask_approvals": 0,
+                "last_ask_approval_at": None,
             }
 
-        return dict(row)
+        result = dict(row)
+        # Normalize ask_verified from SQLite integer to Python bool
+        result["ask_verified"] = bool(result.get("ask_verified", 0))
+        return result
 
     def record_tool_call(self, session_id: str, tool_name: str) -> Dict[str, Any]:
         """Record a tool call and apply taint decay if applicable.
@@ -245,14 +281,21 @@ class SessionTaintStore:
 
         new_ingests = state["total_external_ingests"] + 1
 
+        # Invariant #6: Taint escalation resets user verification.
+        # Ingesting suspicious content invalidates prior trust.
+        new_ask_verified = 0 if TAINT_RANK.get(new_taint, 0) >= TAINT_RANK["medium"] else (
+            1 if state.get("ask_verified", False) else 0
+        )
+
         conn.execute("""
             INSERT INTO session_taint
                 (session_id, taint_level, turns_since_taint,
                  total_tool_calls, total_external_ingests,
                  total_taint_escalations,
                  last_taint_source, last_taint_reason,
+                 ask_verified,
                  updated_at)
-            VALUES (?, ?, 0, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(session_id) DO UPDATE SET
                 taint_level = excluded.taint_level,
                 turns_since_taint = 0,
@@ -261,11 +304,13 @@ class SessionTaintStore:
                 total_taint_escalations = excluded.total_taint_escalations,
                 last_taint_source = excluded.last_taint_source,
                 last_taint_reason = excluded.last_taint_reason,
+                ask_verified = excluded.ask_verified,
                 updated_at = datetime('now')
         """, (
             session_id, new_taint,
             state["total_tool_calls"], new_ingests,
             new_escalations, source, reason,
+            new_ask_verified,
         ))
 
         state["taint_level"] = new_taint
@@ -274,6 +319,7 @@ class SessionTaintStore:
         state["total_taint_escalations"] = new_escalations
         state["last_taint_source"] = source
         state["last_taint_reason"] = reason
+        state["ask_verified"] = bool(new_ask_verified)
         return state
 
     def record_external_ingest(self, session_id: str, source: str):
@@ -304,6 +350,78 @@ class SessionTaintStore:
             state["total_taint_escalations"],
             source, state["last_taint_reason"],
         ))
+
+    def set_pending_ask(self, session_id: str, pending: bool = True):
+        """Mark that an 'ask' decision was returned to the user.
+
+        Called from pre_tool_use when returning permissionDecision: "ask".
+        If the user approves, post_tool_use fires and calls
+        check_and_record_ask_approval() to convert this to a verified approval.
+        """
+        conn = self._get_connection()
+        conn.execute("""
+            UPDATE session_taint SET pending_ask = ?, updated_at = datetime('now')
+            WHERE session_id = ?
+        """, (1 if pending else 0, session_id))
+
+    def check_and_record_ask_approval(self, session_id: str) -> bool:
+        """Check for pending ask and record approval if found.
+
+        Called from post_tool_use. If a tool was asked about and is now
+        executing (post_tool_use fires), the user approved.
+
+        Returns True if an approval was recorded.
+        """
+        state = self.get_session_taint(session_id)
+        if state.get("pending_ask", 0):
+            self.record_ask_approval(session_id)
+            return True
+        return False
+
+    def record_ask_approval(self, session_id: str) -> Dict[str, Any]:
+        """Record that user approved an 'ask' prompt — unforgeable intent signal.
+
+        When a user clicks "Allow" in Claude Code's UI, this records the
+        approval. The ask_verified flag persists for the entire run/turn
+        until taint escalation resets it (invariant #6: taint resets trust).
+
+        Returns the updated taint state.
+        """
+        conn = self._get_connection()
+        state = self.get_session_taint(session_id)
+
+        new_approvals = state.get("total_ask_approvals", 0) + 1
+        now = datetime.now(tz=None).isoformat()
+
+        conn.execute("""
+            INSERT INTO session_taint
+                (session_id, taint_level, turns_since_taint,
+                 total_tool_calls, total_external_ingests,
+                 total_taint_escalations,
+                 last_taint_source, last_taint_reason,
+                 ask_verified, total_ask_approvals, last_ask_approval_at,
+                 updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, datetime('now'))
+            ON CONFLICT(session_id) DO UPDATE SET
+                ask_verified = 1,
+                pending_ask = 0,
+                total_ask_approvals = excluded.total_ask_approvals,
+                last_ask_approval_at = excluded.last_ask_approval_at,
+                updated_at = datetime('now')
+        """, (
+            session_id, state["taint_level"],
+            state["turns_since_taint"],
+            state["total_tool_calls"],
+            state["total_external_ingests"],
+            state["total_taint_escalations"],
+            state["last_taint_source"], state["last_taint_reason"],
+            new_approvals, now,
+        ))
+
+        state["ask_verified"] = True
+        state["total_ask_approvals"] = new_approvals
+        state["last_ask_approval_at"] = now
+        return state
 
     def clear_session(self, session_id: str):
         """Remove taint tracking for a session."""
@@ -354,29 +472,46 @@ def adjust_enforcement_for_taint(
     severity: str,
     confidence: str,
     taint_level: str,
+    action_provenance: str = "agent_generated",
 ) -> str:
-    """Adjust an enforcement decision based on session taint level.
+    """Adjust an enforcement decision based on session taint and action provenance.
 
-    In CLEAN sessions: relax heuristic/contextual patterns to "log"
-    In TAINTED sessions: keep base enforcement (or escalate)
+    Decision algebra:
+    1. Deny is never weakened (invariant #3)
+    2. Critical+deterministic is always deny (invariant #2, immune patterns)
+    3. USER_VERIFIED + clean session + non-critical + non-deterministic → log (invariant #5)
+    4. Clean sessions → balanced overrides (existing behavior)
+    5. Tainted (medium+) → escalate log→ask for heuristic high/critical
+    6. Critical taint → escalate all log→ask for medium+
 
     Args:
         base_decision: The decision from EnforcementPolicy.resolve()
         severity: Pattern severity (critical/high/medium/low)
         confidence: Pattern confidence (deterministic/heuristic/contextual)
         taint_level: Current session taint level
+        action_provenance: Action provenance classification (default: agent_generated)
 
     Returns:
         Adjusted decision: "deny", "ask", or "log"
     """
-    # Never relax a "deny" decision — deny is hardcoded by policy.
-    # This also covers critical+deterministic (always deny from policy).
+    # Invariant #3: Never relax a "deny" decision — deny is hardcoded by policy.
+    # This also covers critical+deterministic (invariant #2: immune patterns).
     # Note: break-glass may downgrade deny→ask before we see it, and
     # we should respect that intentional override.
     if base_decision == "deny":
         return "deny"
 
-    # In clean sessions, apply the balanced overrides
+    # Invariant #5: USER_VERIFIED + clean → maximal relaxation
+    # When a user has approved an ask prompt and the session is clean,
+    # relax non-critical, non-deterministic patterns to log.
+    # This is the primary false-positive reduction mechanism.
+    if (taint_level == "clean"
+            and action_provenance == "user_verified"
+            and severity != "critical"
+            and confidence != "deterministic"):
+        return "log"
+
+    # In clean sessions, apply the balanced overrides (existing behavior)
     if taint_level == "clean":
         override = BALANCED_CLEAN_OVERRIDES.get(severity, {}).get(confidence)
         if override is not None:

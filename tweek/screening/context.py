@@ -44,6 +44,7 @@ class ScreeningContext:
     mcp_server: Optional[str] = None
     project_config_path: Optional[str] = None
     tool_input: Optional[Dict[str, Any]] = None
+    action_provenance: Optional[str] = None  # From ActionProvenance lattice
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -60,6 +61,7 @@ class ScreeningContext:
             "mcp_server": self.mcp_server,
             "project_config_path": self.project_config_path,
             "tool_input": self.tool_input,
+            "action_provenance": self.action_provenance,
         }
 
     def to_legacy_dict(self) -> Dict[str, Any]:
@@ -78,4 +80,6 @@ class ScreeningContext:
         }
         if self.tool_input:
             result["tool_input"] = self.tool_input
+        if self.action_provenance:
+            result["action_provenance"] = self.action_provenance
         return result
