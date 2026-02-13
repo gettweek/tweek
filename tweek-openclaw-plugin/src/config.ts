@@ -63,6 +63,24 @@ export interface AgentContextConfig {
   injectSoulPolicy: boolean;
 }
 
+/** MCP tool screening configuration */
+export interface McpScreeningConfig {
+  enabled: boolean;
+  /** Default security tier for MCP tools (default: "risky") */
+  defaultTier: SecurityTier;
+  /** Upstream MCP servers to trust at lower tier */
+  trustedUpstreams: string[];
+}
+
+/** Config tamper protection configuration */
+export interface ConfigProtectionConfig {
+  enabled: boolean;
+  /** Block security preset/feature downgrades */
+  blockDowngrades: boolean;
+  /** Block disabling security features entirely */
+  blockDisable: boolean;
+}
+
 /** Full Tweek plugin configuration */
 export interface TweekPluginConfig {
   /** Master switch — when false, plugin registers but does not activate hooks */
@@ -75,6 +93,8 @@ export interface TweekPluginConfig {
   messageScanning: MessageScanningConfig;
   sessionAnalysis: SessionAnalysisConfig;
   agentContext: AgentContextConfig;
+  mcpScreening: McpScreeningConfig;
+  configProtection: ConfigProtectionConfig;
 }
 
 /** Default tool security tiers */
@@ -127,6 +147,16 @@ const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort" | "enabl
       enabled: false,
       injectSoulPolicy: false,
     },
+    mcpScreening: {
+      enabled: false,
+      defaultTier: "default",
+      trustedUpstreams: [],
+    },
+    configProtection: {
+      enabled: false,
+      blockDowngrades: false,
+      blockDisable: false,
+    },
   },
   cautious: {
     preset: "cautious",
@@ -160,6 +190,16 @@ const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort" | "enabl
     agentContext: {
       enabled: true,
       injectSoulPolicy: true,
+    },
+    mcpScreening: {
+      enabled: true,
+      defaultTier: "risky",
+      trustedUpstreams: [],
+    },
+    configProtection: {
+      enabled: true,
+      blockDowngrades: false,
+      blockDisable: true,
     },
   },
   paranoid: {
@@ -200,6 +240,16 @@ const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort" | "enabl
     agentContext: {
       enabled: true,
       injectSoulPolicy: true,
+    },
+    mcpScreening: {
+      enabled: true,
+      defaultTier: "dangerous",
+      trustedUpstreams: [],
+    },
+    configProtection: {
+      enabled: true,
+      blockDowngrades: true,
+      blockDisable: true,
     },
   },
 };
@@ -255,6 +305,14 @@ export function resolveConfig(
     agentContext: {
       ...preset.agentContext,
       ...(userConfig.agentContext ?? {}),
+    },
+    mcpScreening: {
+      ...preset.mcpScreening,
+      ...(userConfig.mcpScreening ?? {}),
+    },
+    configProtection: {
+      ...preset.configProtection,
+      ...(userConfig.configProtection ?? {}),
     },
   };
 }

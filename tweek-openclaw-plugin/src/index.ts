@@ -18,8 +18,16 @@ import { OutputScanner } from "./output-scanner";
 import { MessageScanner } from "./message-scanner";
 import { SessionTracker } from "./session-tracker";
 import { AgentContextBuilder } from "./agent-context";
+import { McpScreener } from "./mcp-screener";
+import { ConfigGuard } from "./config-guard";
 import { resolveConfig, type TweekPluginConfig } from "./config";
-import { formatStartupBanner, formatSessionAnalysis } from "./notifications";
+import {
+  formatStartupBanner,
+  formatSessionAnalysis,
+  formatMcpBlock,
+  formatSkillLifecycle,
+  formatConfigGuard,
+} from "./notifications";
 
 const PLUGIN_VERSION = "1.0.0";
 
@@ -99,6 +107,57 @@ interface AgentStartResult {
   systemPromptAddition?: string;
 }
 
+/** Before MCP call hook parameters */
+interface BeforeMcpCallParams {
+  upstream_name: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+}
+
+/** Before MCP call hook result */
+interface BeforeMcpCallResult {
+  block?: boolean;
+  blockReason?: string;
+}
+
+/** After MCP call hook parameters */
+interface AfterMcpCallParams {
+  upstream_name: string;
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  tool_response: string;
+}
+
+/** Skill install hook parameters */
+interface SkillInstallParams {
+  skill_name: string;
+  skill_dir: string;
+}
+
+/** Skill install hook result */
+interface SkillInstallResult {
+  allow?: boolean;
+  blockReason?: string;
+}
+
+/** Skill uninstall hook parameters */
+interface SkillUninstallParams {
+  skill_name: string;
+  skill_dir: string;
+}
+
+/** Config change hook parameters */
+interface ConfigChangeParams {
+  old_config: Record<string, unknown>;
+  new_config: Record<string, unknown>;
+}
+
+/** Config change hook result */
+interface ConfigChangeHookResult {
+  block?: boolean;
+  blockReason?: string;
+}
+
 /**
  * The Tweek Security plugin for OpenClaw.
  */
@@ -151,6 +210,8 @@ const tweekPlugin: OpenClawPluginDefinition = {
     const messageScanner = new MessageScanner(scanner, config, log);
     const sessionTracker = new SessionTracker(scanner, config, log);
     const agentContext = new AgentContextBuilder(scanner, config, log);
+    const mcpScreener = new McpScreener(scanner, config, log);
+    const configGuard = new ConfigGuard(config, log);
 
     // Register the scanning server as a managed service
     api.registerService("tweek-scanner", {
@@ -168,25 +229,7 @@ const tweekPlugin: OpenClawPluginDefinition = {
     api.on("before_tool_call", async (params: unknown): Promise<BeforeToolCallResult> => {
       const toolParams = params as BeforeToolCallParams;
 
-      // Check for skill installation commands
-      if (
-        toolParams.tool_name === "bash" ||
-        toolParams.tool_name === "Bash"
-      ) {
-        const command = (toolParams.tool_input.command as string) ?? "";
-
-        if (SkillGuard.isInstallCommand(command)) {
-          const skillName = SkillGuard.extractSkillName(command);
-          if (skillName) {
-            // For install commands, we need the skill content first
-            // The actual scanning happens after download but before activation
-            // Log the interception for now
-            log(`[Tweek] Detected skill install: ${skillName}`);
-          }
-        }
-      }
-
-      // Standard tool screening
+      // Standard tool screening (skill install detection moved to skill_install hook)
       const result = await toolScreener.screen(
         toolParams.tool_name,
         toolParams.tool_input
@@ -317,6 +360,69 @@ const tweekPlugin: OpenClawPluginDefinition = {
       return {};
     });
 
+    // Hook: before_mcp_call — screen MCP tool calls before forwarding
+    api.on("before_mcp_call", async (params: unknown): Promise<BeforeMcpCallResult> => {
+      const p = params as BeforeMcpCallParams;
+      const result = await mcpScreener.screen(p.upstream_name, p.tool_name, p.tool_input);
+      if (result.block) {
+        log(formatMcpBlock(p.upstream_name, p.tool_name, result.blockReason ?? "blocked"));
+        return { block: true, blockReason: result.blockReason };
+      }
+      return {};
+    });
+
+    // Hook: after_mcp_call — scan MCP responses + feed session tracker
+    api.on("after_mcp_call", async (params: unknown): Promise<void> => {
+      const p = params as AfterMcpCallParams;
+      if (!p.tool_response) return;
+
+      const namespacedName = `mcp__${p.upstream_name}__${p.tool_name}`;
+      const result = await outputScanner.scan(namespacedName, p.tool_response);
+      if (result.blocked) {
+        log(`[Tweek] MCP output from '${namespacedName}' blocked: ${result.reason}`);
+      }
+
+      await sessionTracker.recordToolCall(namespacedName, result.blocked ? "block" : "allow", "mcp");
+      const analysis = await sessionTracker.checkAnalysis();
+      if (analysis?.should_hard_block) {
+        log(formatSessionAnalysis(analysis));
+      }
+    });
+
+    // Hook: skill_install — proper lifecycle hook for skill installation scanning
+    api.on("skill_install", async (params: unknown): Promise<SkillInstallResult> => {
+      const p = params as SkillInstallParams;
+      const result = await skillGuard.checkInstall(p.skill_dir, p.skill_name);
+      if (!result.allowed) {
+        log(formatSkillLifecycle(p.skill_name, "blocked"));
+        return { allow: false, blockReason: result.message };
+      }
+      log(formatSkillLifecycle(p.skill_name, "installed"));
+      await sessionTracker.recordToolCall(`skill_install:${p.skill_name}`, "allow", "lifecycle");
+      return { allow: true };
+    });
+
+    // Hook: skill_uninstall — audit trail + session tracking
+    api.on("skill_uninstall", async (params: unknown): Promise<Record<string, never>> => {
+      const p = params as SkillUninstallParams;
+      log(formatSkillLifecycle(p.skill_name, "uninstalled"));
+      await sessionTracker.recordToolCall(`skill_uninstall:${p.skill_name}`, "allow", "lifecycle");
+      return {};
+    });
+
+    // Hook: config_change — tamper protection for Tweek's own config
+    api.on("config_change", async (params: unknown): Promise<ConfigChangeHookResult> => {
+      const p = params as ConfigChangeParams;
+      const result = configGuard.check(p.old_config, p.new_config);
+      if (result.warnings.length > 0) {
+        log(formatConfigGuard(result.warnings, !result.allow));
+      }
+      if (!result.allow) {
+        return { block: true, blockReason: result.blockReason };
+      }
+      return {};
+    });
+
     // Register skill scan command
     api.registerCommand("tweek-scan", async (...args: unknown[]) => {
       const skillDir = args[0] as string;
@@ -425,6 +531,8 @@ export { OutputScanner } from "./output-scanner";
 export { MessageScanner } from "./message-scanner";
 export { SessionTracker } from "./session-tracker";
 export { AgentContextBuilder } from "./agent-context";
+export { McpScreener } from "./mcp-screener";
+export { ConfigGuard } from "./config-guard";
 export { resolveConfig, type TweekPluginConfig } from "./config";
 export type {
   ScanReport,
@@ -437,5 +545,7 @@ export type {
 } from "./scanner-bridge";
 export type { SkillGuardResult } from "./skill-guard";
 export type { ToolScreenResult } from "./tool-screener";
+export type { McpScreenResult } from "./mcp-screener";
+export type { ConfigChangeResult as ConfigGuardResult } from "./config-guard";
 export type { OutputScreenResult } from "./output-scanner";
 export type { MessageScreenResult, OutboundScreenResult } from "./message-scanner";

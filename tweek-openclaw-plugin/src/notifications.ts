@@ -190,6 +190,59 @@ export function formatPiiWarning(
   );
 }
 
+/**
+ * Format an MCP tool block notification.
+ */
+export function formatMcpBlock(
+  upstream: string,
+  tool: string,
+  reason: string
+): string {
+  return (
+    `[Tweek] MCP tool BLOCKED: mcp__${upstream}__${tool}\n` +
+    `[Tweek]   Reason: ${reason}`
+  );
+}
+
+/**
+ * Format a skill lifecycle event notification.
+ */
+export function formatSkillLifecycle(
+  skillName: string,
+  action: "installed" | "uninstalled" | "blocked"
+): string {
+  switch (action) {
+    case "installed":
+      return `[Tweek] Skill '${skillName}' installed (passed security scan)`;
+    case "uninstalled":
+      return `[Tweek] Skill '${skillName}' uninstalled`;
+    case "blocked":
+      return `[Tweek] Skill '${skillName}' installation BLOCKED by security scan`;
+  }
+}
+
+/**
+ * Format a config guard notification.
+ */
+export function formatConfigGuard(
+  warnings: string[],
+  blocked: boolean
+): string {
+  const lines: string[] = [];
+
+  if (blocked) {
+    lines.push(`[Tweek] Config change BLOCKED — security downgrade detected`);
+  } else {
+    lines.push(`[Tweek] Config change detected — security warnings`);
+  }
+
+  for (const w of warnings) {
+    lines.push(`[Tweek]   ${w}`);
+  }
+
+  return lines.join("\n");
+}
+
 function countCritical(report: ScanReport): number {
   return report.severity_counts.critical;
 }
