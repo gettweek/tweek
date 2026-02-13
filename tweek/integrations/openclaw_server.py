@@ -10,9 +10,14 @@ Endpoints:
     POST /scan               - Run 7-layer SkillScanner on a skill directory
     POST /screen             - Screen a tool call (pre-execution)
     POST /output             - Scan tool output (post-execution)
+    POST /message            - Scan inbound message for injection
+    POST /message/outbound   - Scan outbound message for PII/leakage
+    POST /session/event      - Record session event for analysis
+    POST /session/analyze    - Run full session analysis
     POST /fingerprint/check  - Check if skill is known/approved
     POST /fingerprint/register - Register approved skill hash
     GET  /health             - Server health + scanner status
+    GET  /soul               - Get loaded soul.md security policy
     GET  /report/<skill>     - Retrieve scan report
 
 Usage:
@@ -50,6 +55,10 @@ RATE_LIMITS = {
     "/scan": 5,
     "/screen": 60,
     "/output": 60,
+    "/message": 120,
+    "/message/outbound": 120,
+    "/session/event": 120,
+    "/session/analyze": 10,
     "/fingerprint/check": 30,
     "/fingerprint/register": 10,
 }
@@ -351,6 +360,87 @@ def _get_report(skill_name: str) -> Dict[str, Any]:
         return {"error": f"Failed to read report: {e}"}
 
 
+def _scan_inbound_message(content: str, role: str = "user") -> Dict[str, Any]:
+    """Scan an inbound message for prompt injection patterns."""
+    from tweek.integrations.message_scanner import scan_inbound_message
+    return scan_inbound_message(content, role)
+
+
+def _scan_outbound_message(content: str) -> Dict[str, Any]:
+    """Scan an outbound message for PII and credential leakage."""
+    from tweek.integrations.message_scanner import scan_outbound_message
+    return scan_outbound_message(content)
+
+
+def _record_session_event(
+    session_id: str, event_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Record a session event for cross-turn analysis.
+
+    Writes the event to the security log so SessionAnalyzer can detect
+    patterns across multiple tool calls.
+    """
+    logger = _get_logger()
+    if not logger:
+        return {"recorded": False, "error": "Security logger unavailable"}
+
+    try:
+        evt_type = _EVENT_TYPES.get("ALLOWED") or _EVENT_TYPES.get("USER_PROMPTED")
+        if evt_type:
+            logger.log_quick(
+                evt_type,
+                event_data.get("tool_name", "unknown"),
+                command=json.dumps(event_data.get("tool_input", {}))[:500],
+                decision=event_data.get("decision", "allow"),
+                decision_reason=event_data.get("reason", ""),
+                source="openclaw_gateway",
+                session_id=session_id,
+            )
+        return {"recorded": True, "session_id": session_id}
+    except Exception as e:
+        return {"recorded": False, "error": str(e)}
+
+
+def _analyze_session(session_id: str) -> Dict[str, Any]:
+    """Run full session analysis and return serializable result."""
+    try:
+        from tweek.security.session_analyzer import get_session_analyzer
+        analyzer = get_session_analyzer()
+        analysis = analyzer.analyze(session_id)
+
+        return {
+            "session_id": analysis.session_id,
+            "risk_score": round(analysis.risk_score, 3),
+            "is_suspicious": analysis.is_suspicious,
+            "is_high_risk": analysis.is_high_risk,
+            "should_hard_block": analysis.should_hard_block,
+            "anomalies": [a.value for a in analysis.anomalies],
+            "recommendations": analysis.recommendations,
+            "details": analysis.details,
+        }
+    except Exception as e:
+        return {
+            "session_id": session_id,
+            "risk_score": 0.0,
+            "is_suspicious": False,
+            "is_high_risk": False,
+            "should_hard_block": False,
+            "anomalies": [],
+            "recommendations": [],
+            "details": {"error": str(e)},
+        }
+
+
+def _get_soul_policy() -> Dict[str, Any]:
+    """Load the operator's soul.md security policy."""
+    try:
+        from tweek.config.soul import load_soul_policy
+        policy = load_soul_policy()
+        return {"policy": policy}
+    except Exception as e:
+        return {"policy": None, "error": str(e)}
+
+
 def _validate_skill_path(path_str: str) -> Optional[str]:
     """Validate that a skill path resolves under the allowed base directory.
 
@@ -395,6 +485,11 @@ class OpenClawScanHandler(BaseHTTPRequestHandler):
                 "service": "tweek-openclaw-scanner",
                 "port": self.server.server_address[1],
             })
+        elif parsed.path == "/soul":
+            if not self._check_auth():
+                return
+            result = _get_soul_policy()
+            self._respond(200, result)
         elif parsed.path.startswith("/report/"):
             if not self._check_auth():
                 return
@@ -439,6 +534,14 @@ class OpenClawScanHandler(BaseHTTPRequestHandler):
             self._handle_screen(data)
         elif parsed.path == "/output":
             self._handle_output(data)
+        elif parsed.path == "/message":
+            self._handle_message_scan(data)
+        elif parsed.path == "/message/outbound":
+            self._handle_outbound_scan(data)
+        elif parsed.path == "/session/event":
+            self._handle_session_event(data)
+        elif parsed.path == "/session/analyze":
+            self._handle_session_analyze(data)
         elif parsed.path == "/fingerprint/check":
             self._handle_fingerprint_check(data)
         elif parsed.path == "/fingerprint/register":
@@ -522,6 +625,40 @@ class OpenClawScanHandler(BaseHTTPRequestHandler):
 
         report_path = data.get("report_path")
         result = _register_fingerprint(path, verdict, report_path)
+        self._respond(200, result)
+
+    def _handle_message_scan(self, data: Dict):
+        content = data.get("content", "")
+        role = data.get("role", "user")
+        if not content:
+            self._respond(400, {"error": "Missing 'content' field"})
+            return
+        result = _scan_inbound_message(content, role)
+        self._respond(200, result)
+
+    def _handle_outbound_scan(self, data: Dict):
+        content = data.get("content", "")
+        if not content:
+            self._respond(400, {"error": "Missing 'content' field"})
+            return
+        result = _scan_outbound_message(content)
+        self._respond(200, result)
+
+    def _handle_session_event(self, data: Dict):
+        session_id = data.get("session_id", "")
+        if not session_id:
+            self._respond(400, {"error": "Missing 'session_id' field"})
+            return
+        result = _record_session_event(session_id, data)
+        status = 200 if result.get("recorded") else 500
+        self._respond(status, result)
+
+    def _handle_session_analyze(self, data: Dict):
+        session_id = data.get("session_id", "")
+        if not session_id:
+            self._respond(400, {"error": "Missing 'session_id' field"})
+            return
+        result = _analyze_session(session_id)
         self._respond(200, result)
 
     def _check_auth(self) -> bool:
@@ -626,9 +763,14 @@ def run_server(port: int = DEFAULT_PORT):
     print(f"  POST /scan               - Scan a skill directory (7-layer)")
     print(f"  POST /screen             - Screen a tool call")
     print(f"  POST /output             - Scan tool output")
+    print(f"  POST /message            - Scan inbound message for injection")
+    print(f"  POST /message/outbound   - Scan outbound message for PII/leakage")
+    print(f"  POST /session/event      - Record session event")
+    print(f"  POST /session/analyze    - Run session analysis")
     print(f"  POST /fingerprint/check  - Check skill fingerprint")
     print(f"  POST /fingerprint/register - Register approved skill")
     print(f"  GET  /health             - Health check")
+    print(f"  GET  /soul               - Get security policy")
     print(f"  GET  /report/<skill>     - Retrieve scan report")
     print(f"Press Ctrl+C to stop.")
 

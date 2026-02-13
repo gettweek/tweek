@@ -15,8 +15,11 @@ import { ScannerBridge } from "./scanner-bridge";
 import { SkillGuard } from "./skill-guard";
 import { ToolScreener } from "./tool-screener";
 import { OutputScanner } from "./output-scanner";
+import { MessageScanner } from "./message-scanner";
+import { SessionTracker } from "./session-tracker";
+import { AgentContextBuilder } from "./agent-context";
 import { resolveConfig, type TweekPluginConfig } from "./config";
-import { formatStartupBanner } from "./notifications";
+import { formatStartupBanner, formatSessionAnalysis } from "./notifications";
 
 const PLUGIN_VERSION = "1.0.0";
 
@@ -60,6 +63,40 @@ interface AfterToolCallParams {
   tool_name: string;
   tool_input: Record<string, unknown>;
   tool_response: string;
+}
+
+/** Message received hook parameters */
+interface MessageReceivedParams {
+  content: string;
+  role: string;
+}
+
+/** Message received hook result */
+interface MessageReceivedResult {
+  block?: boolean;
+  blockReason?: string;
+}
+
+/** Message sending hook parameters */
+interface MessageSendingParams {
+  content: string;
+}
+
+/** Message sending hook result */
+interface MessageSendingResult {
+  block?: boolean;
+  blockReason?: string;
+  content?: string;
+}
+
+/** Session start/end hook parameters */
+interface SessionParams {
+  session_id: string;
+}
+
+/** Agent start hook result */
+interface AgentStartResult {
+  systemPromptAddition?: string;
 }
 
 /**
@@ -111,6 +148,9 @@ const tweekPlugin: OpenClawPluginDefinition = {
     skillGuard = new SkillGuard(scanner, config, log);
     toolScreener = new ToolScreener(scanner, config, log);
     outputScanner = new OutputScanner(scanner, config, log);
+    const messageScanner = new MessageScanner(scanner, config, log);
+    const sessionTracker = new SessionTracker(scanner, config, log);
+    const agentContext = new AgentContextBuilder(scanner, config, log);
 
     // Register the scanning server as a managed service
     api.registerService("tweek-scanner", {
@@ -162,7 +202,7 @@ const tweekPlugin: OpenClawPluginDefinition = {
       return {};
     });
 
-    // Hook: after_tool_call — scan tool output
+    // Hook: after_tool_call — scan tool output + feed session tracker
     api.on("after_tool_call", async (params: unknown): Promise<void> => {
       const toolParams = params as AfterToolCallParams;
 
@@ -177,6 +217,17 @@ const tweekPlugin: OpenClawPluginDefinition = {
         log(
           `[Tweek] Output from '${toolParams.tool_name}' contained security risk: ${result.reason}`
         );
+      }
+
+      // Feed the session tracker for cross-turn analysis
+      await sessionTracker.recordToolCall(
+        toolParams.tool_name,
+        result.blocked ? "block" : "allow",
+        "default"
+      );
+      const analysis = await sessionTracker.checkAnalysis();
+      if (analysis?.should_hard_block) {
+        log(formatSessionAnalysis(analysis));
       }
     });
 
@@ -217,6 +268,53 @@ const tweekPlugin: OpenClawPluginDefinition = {
         scannerProcess.kill("SIGTERM");
         scannerProcess = null;
       }
+    });
+
+    // Hook: message_received — scan inbound messages for injection
+    api.on("message_received", async (params: unknown): Promise<MessageReceivedResult> => {
+      const msgParams = params as MessageReceivedParams;
+      const result = await messageScanner.scanInbound(msgParams.content, msgParams.role);
+      if (result.blocked) {
+        return { block: true, blockReason: result.reason };
+      }
+      return {};
+    });
+
+    // Hook: message_sending — scan outbound messages for PII/leakage
+    api.on("message_sending", async (params: unknown): Promise<MessageSendingResult> => {
+      const msgParams = params as MessageSendingParams;
+      const result = await messageScanner.scanOutbound(msgParams.content);
+      if (result.blocked) {
+        return { block: true, blockReason: result.reason };
+      }
+      if (result.redacted) {
+        return { content: result.redacted };
+      }
+      return {};
+    });
+
+    // Hook: session_start — initialize session tracking
+    api.on("session_start", async (params: unknown): Promise<void> => {
+      const sessionParams = params as SessionParams;
+      sessionTracker.setSessionId(sessionParams.session_id);
+      log(`[Tweek] Session tracking started: ${sessionParams.session_id}`);
+    });
+
+    // Hook: session_end — run final session analysis
+    api.on("session_end", async (): Promise<void> => {
+      const analysis = await sessionTracker.checkAnalysis();
+      if (analysis?.is_suspicious) {
+        log(formatSessionAnalysis(analysis));
+      }
+    });
+
+    // Hook: before_agent_start — inject security context (soul.md)
+    api.on("before_agent_start", async (): Promise<AgentStartResult> => {
+      const context = await agentContext.buildContext();
+      if (context) {
+        return { systemPromptAddition: context };
+      }
+      return {};
     });
 
     // Register skill scan command
@@ -324,8 +422,20 @@ export { ScannerBridge } from "./scanner-bridge";
 export { SkillGuard } from "./skill-guard";
 export { ToolScreener } from "./tool-screener";
 export { OutputScanner } from "./output-scanner";
+export { MessageScanner } from "./message-scanner";
+export { SessionTracker } from "./session-tracker";
+export { AgentContextBuilder } from "./agent-context";
 export { resolveConfig, type TweekPluginConfig } from "./config";
-export type { ScanReport, ScreeningDecision, OutputScanResult } from "./scanner-bridge";
+export type {
+  ScanReport,
+  ScreeningDecision,
+  OutputScanResult,
+  MessageScanResult,
+  OutboundScanResult,
+  SessionAnalysisResult,
+  SoulPolicyResult,
+} from "./scanner-bridge";
 export type { SkillGuardResult } from "./skill-guard";
 export type { ToolScreenResult } from "./tool-screener";
 export type { OutputScreenResult } from "./output-scanner";
+export type { MessageScreenResult, OutboundScreenResult } from "./message-scanner";

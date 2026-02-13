@@ -69,6 +69,61 @@ export interface HealthCheckResult {
   port: number;
 }
 
+/** Inbound message scan result */
+export interface MessageScanResult {
+  flagged: boolean;
+  risk_level: string;
+  findings: Array<{
+    pattern: string;
+    description: string;
+    severity: string;
+    matched_text: string;
+  }>;
+  recommendations: string[];
+}
+
+/** Outbound message scan result */
+export interface OutboundScanResult {
+  flagged: boolean;
+  pii_findings: Array<{
+    name: string;
+    severity: string;
+    description: string;
+    count: number;
+  }>;
+  secret_findings: Array<{
+    name: string;
+    severity: string;
+    description: string;
+  }>;
+  redacted: string | null;
+}
+
+/** Session analysis result */
+export interface SessionAnalysisResult {
+  session_id: string;
+  risk_score: number;
+  is_suspicious: boolean;
+  is_high_risk: boolean;
+  should_hard_block: boolean;
+  anomalies: string[];
+  recommendations: string[];
+  details: Record<string, unknown>;
+}
+
+/** Session event recording result */
+export interface SessionEventResult {
+  recorded: boolean;
+  session_id?: string;
+  error?: string;
+}
+
+/** Soul.md policy result */
+export interface SoulPolicyResult {
+  policy: string | null;
+  error?: string;
+}
+
 /**
  * HTTP bridge to the Tweek Python scanning server.
  */
@@ -149,6 +204,52 @@ export class ScannerBridge {
    */
   async getReport(skillName: string): Promise<ScanReport> {
     return this.get<ScanReport>(`/report/${encodeURIComponent(skillName)}`);
+  }
+
+  /**
+   * Scan an inbound message for prompt injection patterns.
+   */
+  async scanMessage(
+    content: string,
+    role: string = "user"
+  ): Promise<MessageScanResult> {
+    return this.post<MessageScanResult>("/message", { content, role });
+  }
+
+  /**
+   * Scan an outbound message for PII and credential leakage.
+   */
+  async scanOutbound(content: string): Promise<OutboundScanResult> {
+    return this.post<OutboundScanResult>("/message/outbound", { content });
+  }
+
+  /**
+   * Record a session event for cross-turn analysis.
+   */
+  async recordSessionEvent(
+    sessionId: string,
+    event: Record<string, unknown>
+  ): Promise<SessionEventResult> {
+    return this.post<SessionEventResult>("/session/event", {
+      session_id: sessionId,
+      ...event,
+    });
+  }
+
+  /**
+   * Run full session analysis for anomaly detection.
+   */
+  async analyzeSession(sessionId: string): Promise<SessionAnalysisResult> {
+    return this.post<SessionAnalysisResult>("/session/analyze", {
+      session_id: sessionId,
+    });
+  }
+
+  /**
+   * Get the operator's soul.md security policy.
+   */
+  async getSoulPolicy(): Promise<SoulPolicyResult> {
+    return this.get<SoulPolicyResult>("/soul");
   }
 
   /**

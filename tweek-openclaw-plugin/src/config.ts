@@ -36,6 +36,33 @@ export interface OutputScanningConfig {
   exfiltrationDetection: boolean;
 }
 
+/** Message scanning configuration */
+export interface MessageScanningConfig {
+  enabled: boolean;
+  /** Scan inbound user/agent messages for prompt injection */
+  scanInbound: boolean;
+  /** Scan outbound responses for PII and credential leakage */
+  scanOutbound: boolean;
+  /** Auto-redact PII in outbound messages (vs just warn) */
+  redactPii: boolean;
+}
+
+/** Session analysis configuration */
+export interface SessionAnalysisConfig {
+  enabled: boolean;
+  /** Run full session analysis every N tool calls (0 = disabled) */
+  analyzeInterval: number;
+  /** Hard-block when session is high risk + graduated escalation */
+  blockOnHighRisk: boolean;
+}
+
+/** Agent context injection configuration */
+export interface AgentContextConfig {
+  enabled: boolean;
+  /** Include soul.md security policy in agent system prompts */
+  injectSoulPolicy: boolean;
+}
+
 /** Full Tweek plugin configuration */
 export interface TweekPluginConfig {
   /** Master switch — when false, plugin registers but does not activate hooks */
@@ -45,6 +72,9 @@ export interface TweekPluginConfig {
   skillGuard: SkillGuardConfig;
   toolScreening: ToolScreeningConfig;
   outputScanning: OutputScanningConfig;
+  messageScanning: MessageScanningConfig;
+  sessionAnalysis: SessionAnalysisConfig;
+  agentContext: AgentContextConfig;
 }
 
 /** Default tool security tiers */
@@ -82,6 +112,21 @@ const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort" | "enabl
       secretDetection: false,
       exfiltrationDetection: false,
     },
+    messageScanning: {
+      enabled: false,
+      scanInbound: false,
+      scanOutbound: false,
+      redactPii: false,
+    },
+    sessionAnalysis: {
+      enabled: false,
+      analyzeInterval: 0,
+      blockOnHighRisk: false,
+    },
+    agentContext: {
+      enabled: false,
+      injectSoulPolicy: false,
+    },
   },
   cautious: {
     preset: "cautious",
@@ -100,6 +145,21 @@ const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort" | "enabl
       enabled: true,
       secretDetection: true,
       exfiltrationDetection: true,
+    },
+    messageScanning: {
+      enabled: true,
+      scanInbound: true,
+      scanOutbound: true,
+      redactPii: false,
+    },
+    sessionAnalysis: {
+      enabled: true,
+      analyzeInterval: 15,
+      blockOnHighRisk: false,
+    },
+    agentContext: {
+      enabled: true,
+      injectSoulPolicy: true,
     },
   },
   paranoid: {
@@ -125,6 +185,21 @@ const PRESETS: Record<PresetName, Omit<TweekPluginConfig, "scannerPort" | "enabl
       enabled: true,
       secretDetection: true,
       exfiltrationDetection: true,
+    },
+    messageScanning: {
+      enabled: true,
+      scanInbound: true,
+      scanOutbound: true,
+      redactPii: true,
+    },
+    sessionAnalysis: {
+      enabled: true,
+      analyzeInterval: 5,
+      blockOnHighRisk: true,
+    },
+    agentContext: {
+      enabled: true,
+      injectSoulPolicy: true,
     },
   },
 };
@@ -168,6 +243,18 @@ export function resolveConfig(
     outputScanning: {
       ...preset.outputScanning,
       ...(userConfig.outputScanning ?? {}),
+    },
+    messageScanning: {
+      ...preset.messageScanning,
+      ...(userConfig.messageScanning ?? {}),
+    },
+    sessionAnalysis: {
+      ...preset.sessionAnalysis,
+      ...(userConfig.sessionAnalysis ?? {}),
+    },
+    agentContext: {
+      ...preset.agentContext,
+      ...(userConfig.agentContext ?? {}),
     },
   };
 }

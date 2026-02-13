@@ -5,7 +5,12 @@
  * screening decisions, and plugin status updates.
  */
 
-import type { ScanReport, ScreeningDecision, ScanFinding } from "./scanner-bridge";
+import type {
+  ScanReport,
+  ScreeningDecision,
+  ScanFinding,
+  SessionAnalysisResult,
+} from "./scanner-bridge";
 
 /**
  * Format a scan report into a user-facing notification string.
@@ -124,6 +129,65 @@ export function formatSkillGuardIntercept(
     case "review":
       return `[Tweek] '${skillName}' flagged for manual review. Awaiting approval.`;
   }
+}
+
+/**
+ * Format a message block notification (inbound or outbound).
+ */
+export function formatMessageBlock(
+  direction: "inbound" | "outbound",
+  reason: string
+): string {
+  const label = direction === "inbound" ? "Inbound message" : "Outbound message";
+  return (
+    `[Tweek] ${label} FLAGGED — security risk detected\n` +
+    `[Tweek]   Reason: ${reason}`
+  );
+}
+
+/**
+ * Format a session analysis alert notification.
+ */
+export function formatSessionAnalysis(
+  analysis: SessionAnalysisResult
+): string {
+  const lines: string[] = [
+    `[Tweek] Session Analysis Alert`,
+    `[Tweek]   Risk Score: ${(analysis.risk_score * 100).toFixed(0)}%`,
+  ];
+
+  if (analysis.anomalies.length > 0) {
+    lines.push(
+      `[Tweek]   Anomalies: ${analysis.anomalies.join(", ")}`
+    );
+  }
+
+  if (analysis.should_hard_block) {
+    lines.push(`[Tweek]   ACTION: Session flagged for hard block`);
+  } else if (analysis.is_high_risk) {
+    lines.push(`[Tweek]   WARNING: High-risk session detected`);
+  }
+
+  for (const rec of analysis.recommendations.slice(0, 3)) {
+    lines.push(`[Tweek]   - ${rec}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format a PII detection warning.
+ */
+export function formatPiiWarning(
+  findings: Array<{ name: string; count: number }>
+): string {
+  const items = findings
+    .map((f) => `${f.name} (${f.count}x)`)
+    .join(", ");
+  return (
+    `[Tweek] PII detected in outbound message\n` +
+    `[Tweek]   Found: ${items}`
+  );
 }
 
 function countCritical(report: ScanReport): number {
