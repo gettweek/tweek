@@ -48,6 +48,14 @@ CONFIG_FILES = [
         "editable": True,
     },
     {
+        "id": "soul",
+        "name": "Security Policy",
+        "template": "soul.md.template",
+        "target_path": "~/.tweek/soul.md",
+        "description": "Natural-language security philosophy for LLM reviewer (human-only)",
+        "editable": True,
+    },
+    {
         "id": "defaults",
         "name": "Default Reference",
         "template": None,

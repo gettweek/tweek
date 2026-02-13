@@ -34,6 +34,7 @@ PROTECTED_CONFIG_FILES = [
     Path.home() / ".tweek" / "skills",  # Entire skills management directory
     Path.home() / ".tweek" / "projects",  # Project registry
     Path.home() / ".tweek" / "memory.db",  # Agentic memory database
+    Path.home() / ".tweek" / "soul.md",  # Global security policy
 ]
 
 

@@ -385,6 +385,77 @@ def sandbox():
 # ---------------------------------------------------------------------------
 
 @configure.command()
+def soul():
+    """Edit your security policy (soul.md) for LLM-aware screening.
+
+    soul.md lets you express your security philosophy in natural language.
+    The LLM reviewer factors this policy into risk decisions.
+
+    \b
+    Hierarchy:
+      ~/.tweek/soul.md     Global baseline (applies everywhere)
+      .tweek/soul.md       Project-level (overrides/extends global)
+    """
+    import os
+    import shutil
+    from pathlib import Path
+
+    from tweek.config.soul import GLOBAL_SOUL_PATH, MAX_SOUL_SIZE
+
+    tweek_dir = GLOBAL_SOUL_PATH.parent
+    tweek_dir.mkdir(parents=True, exist_ok=True)
+
+    created = False
+    if not GLOBAL_SOUL_PATH.exists():
+        # Deploy template
+        from tweek.config.templates import TEMPLATES_DIR
+        template = TEMPLATES_DIR / "soul.md.template"
+        if template.exists():
+            shutil.copy2(template, GLOBAL_SOUL_PATH)
+        else:
+            GLOBAL_SOUL_PATH.write_text(
+                "# Security Policy\n\n## Philosophy\n\n## Strict Rules\n"
+            )
+        created = True
+        print_success(f"Created {GLOBAL_SOUL_PATH}")
+
+    # Open in $EDITOR
+    editor = os.environ.get("EDITOR", os.environ.get("VISUAL", ""))
+    if not editor:
+        # Try common editors
+        for candidate in ("code", "nano", "vim", "vi"):
+            if shutil.which(candidate):
+                editor = candidate
+                break
+
+    if editor:
+        console.print(f"[cyan]Opening {GLOBAL_SOUL_PATH} in {editor}...[/cyan]")
+        import subprocess
+        subprocess.run([editor, str(GLOBAL_SOUL_PATH)])
+
+        # Validate after editing
+        if GLOBAL_SOUL_PATH.exists():
+            size = GLOBAL_SOUL_PATH.stat().st_size
+            if size > MAX_SOUL_SIZE:
+                print_warning(
+                    f"soul.md is {size:,} bytes (limit: {MAX_SOUL_SIZE:,}). "
+                    "The LLM reviewer will skip it until trimmed."
+                )
+            else:
+                print_success(f"soul.md saved ({size:,} bytes)")
+    else:
+        if created:
+            console.print(f"[white]Edit manually: {GLOBAL_SOUL_PATH}[/white]")
+        else:
+            console.print(f"[white]soul.md exists at: {GLOBAL_SOUL_PATH}[/white]")
+            console.print("[white]Set $EDITOR to open it automatically.[/white]")
+
+
+# ---------------------------------------------------------------------------
+# tweek configure wizard
+# ---------------------------------------------------------------------------
+
+@configure.command()
 @click.pass_context
 def wizard(ctx):
     """Run the full interactive setup wizard.

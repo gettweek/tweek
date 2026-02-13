@@ -1,0 +1,28 @@
+# Security Policy
+#
+# This file defines your security philosophy for Tweek's LLM reviewer.
+# Write in natural language — the LLM understands context and nuance.
+# Protected from AI modification (only you can edit this file).
+#
+# Location hierarchy:
+#   ~/.tweek/soul.md       Global baseline (applies everywhere)
+#   .tweek/soul.md         Project-level (overrides/extends global)
+#
+# Sections below are optional — use whichever are relevant.
+# The entire file is passed to the LLM, so free-form text works too.
+
+## Philosophy
+# Describe your security posture here.
+# Example: "We handle sensitive customer data. Prefer caution over convenience."
+
+## Priority Concerns
+# List specific security concerns for your environment.
+# Example: "- Database credential files must never be read by tools"
+
+## Trusted Contexts
+# Describe operations that are normal for your workflow.
+# Example: "- Running pytest and npm test is standard CI behavior"
+
+## Strict Rules
+# Define hard rules that should always be enforced.
+# Example: "- Never allow reading .env.production"
