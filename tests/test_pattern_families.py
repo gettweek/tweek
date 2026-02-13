@@ -97,9 +97,9 @@ class TestPatternCoverage:
         missing = [p["id"] for p in patterns if "family" not in p]
         assert not missing, f"Patterns missing 'family' field: {missing[:10]}..."
 
-    def test_259_patterns_exist(self, patterns_data):
+    def test_291_patterns_exist(self, patterns_data):
         patterns = patterns_data.get("patterns", [])
-        assert len(patterns) == 275, f"Expected 275 patterns, got {len(patterns)}"
+        assert len(patterns) == 291, f"Expected 291 patterns, got {len(patterns)}"
 
     def test_pattern_families_are_valid(self, patterns_data, families_data):
         """Every pattern's family field should reference an existing family."""

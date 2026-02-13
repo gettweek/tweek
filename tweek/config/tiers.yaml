@@ -9,7 +9,7 @@
 #
 # Security Layers:
 #   1. Rate Limiting    - Detect resource theft and burst attacks
-#   2. Pattern Match    - Regex patterns for known attack vectors (262 patterns)
+#   2. Pattern Match    - Regex patterns for known attack vectors (291 patterns)
 #   2.5 Heuristic Score - Signal-based scoring for confidence-gated LLM escalation
 #   3. LLM Review       - Semantic analysis using Claude Haiku or local LLM
 #   4. Session Scan     - Cross-turn anomaly detection
@@ -53,7 +53,11 @@ rate_limiting:
 session_analysis:
   enabled: true
   lookback_minutes: 30
-  alert_on_risk_score: 0.5
+  # Thresholds for risk classification.  Override per-project in .tweek.yaml.
+  suspicious_threshold: 0.5      # risk_score >= this OR 2+ anomalies → ask
+  high_risk_threshold: 0.75      # risk_score >= this OR 3+ anomalies → deny
+  suspicious_anomaly_count: 2    # anomaly count that triggers suspicious
+  high_risk_anomaly_count: 3     # anomaly count that triggers high-risk
 
 # Heuristic Scorer Configuration (Layer 2.5)
 # Bridges the gap between regex patterns and LLM review.

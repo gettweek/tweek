@@ -369,6 +369,8 @@ COMMAND_TIERS = {
         "watch",
         "patterns",
         "pii",
+        "evaluate",
+        "scan",
     ],
 }
 

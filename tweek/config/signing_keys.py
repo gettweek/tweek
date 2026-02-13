@@ -18,4 +18,9 @@ TRUSTED_PUBLIC_KEYS = [
     """-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAw20tusp+WNm6ioSL9uDp38NRVoUJxbOmukBQWY+sVb4=
 -----END PUBLIC KEY-----""",
+    # Key 2 — post-CTAP enrichment re-signing (2026-02-10)
+    # Key ID: e810117671eeb618
+    """-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAM2cFlaXbl1h8j+xlvJ/hcIDVKXjODFobgWbT42viFx0=
+-----END PUBLIC KEY-----""",
 ]

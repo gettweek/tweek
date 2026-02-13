@@ -79,9 +79,11 @@ class TestHelpAll:
             assert section in result.output
 
     def test_every_command_appears(self):
-        """Every registered command should appear in --help-all."""
+        """Every non-hidden registered command should appear in --help-all."""
         result = runner.invoke(main, ["--help-all"])
-        for name in main.commands:
+        for name, cmd in main.commands.items():
+            if getattr(cmd, "hidden", False):
+                continue
             assert name in result.output, f"Command '{name}' missing from --help-all"
 
     def test_descriptions_shown(self):
@@ -128,11 +130,13 @@ class TestTierIntegrity:
             )
 
     def test_full_tiers_cover_all_commands(self):
-        """_FULL_TIERS in TieredGroup should cover every registered command."""
+        """_FULL_TIERS in TieredGroup should cover every non-hidden command."""
         all_in_full = set()
         for cmds in TieredGroup._FULL_TIERS.values():
             all_in_full.update(cmds)
-        for name in main.commands:
+        for name, cmd in main.commands.items():
+            if getattr(cmd, "hidden", False):
+                continue
             assert name in all_in_full, (
                 f"Command '{name}' is missing from _FULL_TIERS — "
                 "add it to a category in TieredGroup._FULL_TIERS"

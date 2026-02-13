@@ -144,6 +144,8 @@ markers = [
     "core: Approval queue, audit, diagnostics, feedback, rate limiting, sessions",
     "local_model: Local ONNX model inference, registry, and CLI commands",
     "integration: End-to-end integration tests with isolated venv install (slow)",
+    "enrichment: CTAP enrichment validation for patterns.yaml",
+    "taxonomy: CTAP-compatible taxonomy mapping tests",
 ]
 
 [tool.black]

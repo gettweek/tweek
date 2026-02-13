@@ -388,28 +388,34 @@ class TestConfigCommands:
 class TestUpdateCommand:
     """Tests for the update command."""
 
-    def test_update_check_no_patterns(self, runner, tmp_path):
-        """Test update --check when patterns not installed."""
-        with patch.object(Path, 'home', return_value=tmp_path):
-            result = runner.invoke(main, ['update', '--check'])
-
-        assert "not installed" in result.output.lower() or "Patterns" in result.output
-
-    def test_update_clones_repo(self, runner, tmp_path):
-        """Test update clones repo when patterns don't exist."""
+    def test_update_runs(self, runner, tmp_path):
+        """Test update command invokes without error."""
         with patch.object(Path, 'home', return_value=tmp_path):
             with patch('subprocess.run') as mock_run:
                 mock_run.return_value = MagicMock(
                     returncode=0,
-                    stdout="Cloning...",
+                    stdout="Already up to date",
                     stderr=""
                 )
                 result = runner.invoke(main, ['update'])
 
-        # Should attempt to clone
-        if mock_run.called:
-            call_args = str(mock_run.call_args)
-            assert "clone" in call_args or "pull" in call_args
+        assert result.exit_code == 0 or "update" in result.output.lower()
+
+    def test_update_attempts_upgrade(self, runner, tmp_path):
+        """Test update attempts to find and use a package manager."""
+        with patch.object(Path, 'home', return_value=tmp_path):
+            with patch('subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(
+                    returncode=0,
+                    stdout="tweek 0.1.0",
+                    stderr=""
+                )
+                result = runner.invoke(main, ['update'])
+
+        # Should call subprocess.run at least once (checking uv/pipx/pip)
+        assert mock_run.called
+        all_calls = str(mock_run.call_args_list)
+        assert any(kw in all_calls for kw in ("uv", "pipx", "pip"))
 
 
 class TestLogsCommands:
